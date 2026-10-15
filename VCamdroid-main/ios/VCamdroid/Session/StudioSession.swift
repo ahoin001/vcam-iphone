@@ -189,6 +189,12 @@ final class StudioSession {
         }
     }
 
+    func selectLens(_ lens: Lens) {
+        settings.lens = lens
+        snapshot.lens = lens
+        applyControls()
+    }
+
     func setMode(_ mode: VideoMode) {
         settings.width = mode.width
         settings.height = mode.height

@@ -31,12 +31,6 @@ extension StudioSession {
         applyControls()
     }
 
-    func selectLens(_ lens: Lens) {
-        settings.lens = lens
-        snapshot.lens = lens
-        applyControls()
-    }
-
     var selectedMode: VideoMode {
         get { settings.mode }
         set { setMode(newValue) }
