@@ -43,6 +43,6 @@ extension StudioSession {
 
     var bitrate: Double {
         get { Double(settings.bitrateKbps) }
-        set { settings.bitrateKbps = Int(newValue.rounded()) }
+        set { setBitrate(Int(newValue.rounded())) }
     }
 }

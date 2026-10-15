@@ -48,6 +48,83 @@
         }
       }
     },
+    "bitrateLive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 Mbps"
+          }
+        }
+      }
+    },
+    "bitrateRecord" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 Mbps"
+          }
+        }
+      }
+    },
+    "bitrateRecordHigh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8 Mbps"
+          }
+        }
+      }
+    },
+    "copyDeskControls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy desk controls link"
+          }
+        }
+      }
+    },
+    "deskControlsCopyHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste this address into an OBS browser dock or VCamPanel."
+          }
+        }
+      }
+    },
+    "deskControlsFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open this page in an OBS browser dock, or in VCamPanel on Windows. Over USB use http://127.0.0.1 and your port, with the companion still running."
+          }
+        }
+      }
+    },
+    "deskControlsSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desk controls"
+          }
+        }
+      }
+    },
     "cameraNeededBody" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -307,7 +384,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Broadcast this iPhone to OBS."
+            "value" : "Broadcast this iPhone to OBS, then adjust the shot from the desk."
           }
         }
       }
@@ -340,7 +417,40 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The curtain turns the screen black while the app stays open. The side button ends the broadcast."
+            "value" : "Use 1080p at 30 fps. For recording, set bitrate to 6000–8000 kbps. Keep the phone plugged in, leave Low Power Mode off, and use Automatic curtain so the screen goes black while you shoot. USB stays cooler than Wi-Fi. If the phone warns that it is hot, drop bitrate toward 4000, keep the curtain on, and take the case off. The side button ends the broadcast."
+          }
+        }
+      }
+    },
+    "howToConnectDesk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the Controls link from the studio screen. In OBS, open Docks → Custom Browser Docks and paste it. On Windows you can also open VCamPanel and paste the same link. Zoom, exposure, white balance, focus, torch, and flip change without reconnecting OBS."
+          }
+        }
+      }
+    },
+    "howToConnectDeskTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desk controls"
+          }
+        }
+      }
+    },
+    "howToConnectLongTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long sessions"
           }
         }
       }
@@ -362,7 +472,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USB: install Apple Devices or iTunes, tap Trust This Computer, then run usbmux_forward for port 4747. In OBS, connect to 127.0.0.1 on that port."
+            "value" : "Install Apple Devices or iTunes, tap Trust This Computer, then run usbmux_forward or open VCamPanel for port 4747. In OBS, connect to 127.0.0.1 on that port. Prefer USB for long recordings; it is steadier and cooler than Wi-Fi."
+          }
+        }
+      }
+    },
+    "howToConnectUSBTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB"
           }
         }
       }
@@ -373,7 +494,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wi-Fi: put the phone and the PC on the same network. In OBS, add a VCamdroid or DroidCam OBS source using the IP and port shown on the phone."
+            "value" : "Put the phone and the PC on the same network, preferably 5 GHz. In OBS, add a VCamdroid or DroidCam OBS source using the IP and port shown on the phone. Turn off VPN and router client isolation if the PC cannot reach the phone."
+          }
+        }
+      }
+    },
+    "howToConnectWiFiTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi"
           }
         }
       }
@@ -488,6 +620,28 @@
         }
       }
     },
+    "outputSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Output"
+          }
+        }
+      }
+    },
+    "outputSettingsFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1080p at 30 fps is the best balance for talking-head work. Use about 4000 kbps for live platforms, and 6000–8000 kbps when you record in OBS. Higher bitrate and 60 fps make the phone warmer."
+          }
+        }
+      }
+    },
     "panelControls" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -495,6 +649,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Controls"
+          }
+        }
+      }
+    },
+    "panelCopied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
+          }
+        }
+      }
+    },
+    "sessionSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        }
+      }
+    },
+    "sessionSettingsFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic curtain blacks the screen while the camera keeps streaming. Leave the phone plugged in for long sessions, and keep Low Power Mode off."
+          }
+        }
+      }
+    },
+    "shareDeskControls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share desk controls"
           }
         }
       }
@@ -879,7 +1077,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The phone is hot. The picture may start dropping frames."
+            "value" : "Phone is hot. Use the curtain, drop bitrate toward 4000, keep it plugged in."
           }
         }
       }

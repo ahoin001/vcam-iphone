@@ -77,7 +77,8 @@ enum ControlPanelPage {
     <main>
       <header>
         <h1>Camera</h1>
-        <p id="status-line">Changes apply on the phone. Watch the picture in OBS.</p>
+        <p id="status-line">Waiting for OBS · watch the picture there</p>
+        <p id="hint-line">1080p30 · 6–8 Mbps for recording · curtain on the phone keeps it cooler</p>
       </header>
       <section class="shot">
         <div class="heading"><span>Lens</span></div>
@@ -159,6 +160,11 @@ enum ControlPanelPage {
         <div class="choices" id="fps">
           <button type="button" data-fps="30">30 fps</button>
           <button type="button" id="fps-60" data-fps="60" hidden>60 fps</button>
+        </div>
+        <div class="choices" id="bitrate-presets">
+          <button type="button" data-rate="4000">4 Mbps</button>
+          <button type="button" data-rate="6000">6 Mbps</button>
+          <button type="button" data-rate="8000">8 Mbps</button>
         </div>
         <label class="slider">
           <span>Bitrate</span>
@@ -313,6 +319,12 @@ enum ControlPanelPage {
         if (!button) return;
         putSession({ width: session.width, height: session.height, fps: Number(button.dataset.fps) });
       });
+      document.getElementById("bitrate-presets").addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        queue("bitrateKbps", button.dataset.rate);
+        flush();
+      });
 
       function setRange(input, label, value, format, key) {
         if (active.has(key) || pending.has(key)) return;
@@ -383,6 +395,9 @@ enum ControlPanelPage {
         setRange(portraitStrength, "portrait-value", data.portraitStrength, (value) => Math.round(Number(value) * 100) + "%", "portraitStrength");
         if (data.bitrateKbps != null) {
           setRange(bitrate, "bitrate-value", data.bitrateKbps, (value) => Math.round(Number(value)) + " kbps", "bitrateKbps");
+          for (const button of document.getElementById("bitrate-presets").querySelectorAll("button")) {
+            button.classList.toggle("on", Number(button.dataset.rate) === Math.round(Number(data.bitrateKbps)));
+          }
         }
         showManual();
       }
@@ -416,10 +431,17 @@ enum ControlPanelPage {
             session.height = data.height || session.height;
             session.fps = data.fps || session.fps;
             markMode();
-            const live = data.streaming || data.status === "streaming" ? "Streaming" : "Waiting for OBS";
+            const live = data.streaming || data.status === "streaming";
             const battery = data.battery != null ? data.battery + "%" : "";
             const size = session.width + "×" + session.height + " @" + session.fps;
-            document.getElementById("status-line").textContent = [live, battery, size].filter(Boolean).join(" · ");
+            document.getElementById("status-line").textContent = [
+              live ? "Streaming" : "Waiting for OBS",
+              battery,
+              size
+            ].filter(Boolean).join(" · ");
+            document.getElementById("hint-line").textContent = live
+              ? "Changes apply live · watch the picture in OBS"
+              : "Connect OBS first, then use these controls from the desk";
           }
           if (catalog.ok) {
             const text = await catalog.text();

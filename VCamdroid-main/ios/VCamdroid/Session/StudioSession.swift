@@ -20,6 +20,7 @@ final class StudioSession {
     private(set) var isUSBClient = false
     private(set) var statusMessage: LocalizedStringResource = .waitingForOBS
     private(set) var isRunning = false
+    private(set) var isThermalHot = false
     var curtainPresented = false
     private(set) var portraitCare: PortraitCare = .hidden
     private(set) var portraitPreviewActive = false
@@ -139,6 +140,7 @@ final class StudioSession {
         await capture.stop()
         await server.stop()
         isRunning = false
+        isThermalHot = false
         snapshot.isStreaming = false
         snapshot.status = "waiting"
         clientAddress = nil
@@ -223,6 +225,18 @@ final class StudioSession {
         persist()
         noteActivity()
         pushPortrait()
+    }
+
+    func setBitrate(_ kbps: Int) {
+        var copy = settings
+        copy.bitrateKbps = kbps
+        let clamped = copy.sanitized().bitrateKbps
+        guard clamped != settings.bitrateKbps else { return }
+        settings.bitrateKbps = clamped
+        persist()
+        noteActivity()
+        guard encoderActive else { return }
+        Task { await restartEncoder() }
     }
 
     func selectLens(_ lens: Lens) {
@@ -514,12 +528,19 @@ final class StudioSession {
     }
 
     private func noteCareSignal(thermalChanged: Bool) {
-        let portraitWasOff = !settings.portraitEnabled
         let thermal = ProcessInfo.processInfo.thermalState
+        let hot = thermal == .serious || thermal == .critical
         pushPortrait()
-        if thermalChanged, portraitWasOff, thermal == .serious || thermal == .critical {
+        guard thermalChanged else { return }
+        if hot {
+            if !isThermalHot {
+                appendLog(String(localized: .thermalWarning))
+            }
+            isThermalHot = true
             statusMessage = .thermalWarning
-            appendLog(String(localized: .thermalWarning))
+        } else if isThermalHot {
+            isThermalHot = false
+            statusMessage = snapshot.isStreaming ? .streaming : .waitingForOBS
         }
     }
 
