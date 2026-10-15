@@ -31,6 +31,10 @@ struct SettingsView: View {
                         .onChange(of: session.settings.portraitStrength) {
                             session.applyPortrait()
                         }
+                    Toggle(.portraitPhonePreview, isOn: StudioBindings.setting(\.portraitPhonePreview, on: session))
+                        .onChange(of: session.settings.portraitPhonePreview) {
+                            session.applyPortrait()
+                        }
                 }
             } header: {
                 Text(.portrait)

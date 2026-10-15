@@ -116,12 +116,14 @@ import Testing
     var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     object.removeValue(forKey: "portraitEnabled")
     object.removeValue(forKey: "portraitStrength")
+    object.removeValue(forKey: "portraitPhonePreview")
     let stripped = try JSONSerialization.data(withJSONObject: object)
     let decoded = try JSONDecoder().decode(StudioSettings.self, from: stripped)
     #expect(decoded.lens == .front)
     #expect(decoded.zoom == 2)
     #expect(decoded.portraitEnabled == false)
     #expect(decoded.portraitStrength == 0.65)
+    #expect(decoded.portraitPhonePreview == false)
 }
 
 @Test func portraitPausesWhenThePhoneIsTooHot() {

@@ -2,16 +2,8 @@ import AVFoundation
 import UIKit
 
 final class CameraPreviewView: UIView {
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-
+    let previewLayer = AVCaptureVideoPreviewLayer()
     private let processedLayer = AVSampleBufferDisplayLayer()
-
-    var previewLayer: AVCaptureVideoPreviewLayer {
-        guard let preview = layer as? AVCaptureVideoPreviewLayer else {
-            preconditionFailure("CameraPreviewView requires an AVCaptureVideoPreviewLayer")
-        }
-        return preview
-    }
 
     var processedRenderer: AVSampleBufferVideoRenderer {
         processedLayer.sampleBufferRenderer
@@ -19,7 +11,7 @@ final class CameraPreviewView: UIView {
 
     var showsProcessedFrames = false {
         didSet {
-            previewLayer.opacity = showsProcessedFrames ? 0 : 1
+            previewLayer.isHidden = showsProcessedFrames
             processedLayer.isHidden = !showsProcessedFrames
         }
     }
@@ -29,9 +21,12 @@ final class CameraPreviewView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
+        clipsToBounds = true
         isAccessibilityElement = false
+        previewLayer.videoGravity = .resizeAspect
         processedLayer.videoGravity = .resizeAspect
         processedLayer.isHidden = true
+        layer.addSublayer(previewLayer)
         layer.addSublayer(processedLayer)
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         addGestureRecognizer(tap)
@@ -41,6 +36,7 @@ final class CameraPreviewView: UIView {
         super.layoutSubviews()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        previewLayer.frame = bounds
         processedLayer.frame = bounds
         CATransaction.commit()
     }

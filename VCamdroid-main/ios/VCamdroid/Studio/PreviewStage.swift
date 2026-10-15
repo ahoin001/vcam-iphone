@@ -15,6 +15,13 @@ struct PreviewStage: View {
             session.focus(at: point)
         }
         .accessibilityLabel(Text(.previewMatches))
+        .accessibilityHidden(session.portraitPreviewDeferred)
         .background(.black)
+        .overlay {
+            if session.portraitPreviewDeferred {
+                PortraitPreviewNotice()
+                    .transition(.opacity)
+            }
+        }
     }
 }

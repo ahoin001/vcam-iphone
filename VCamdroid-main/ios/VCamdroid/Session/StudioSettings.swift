@@ -25,6 +25,7 @@ struct StudioSettings: Equatable, Sendable {
     var torch: Bool = false
     var portraitEnabled: Bool = false
     var portraitStrength: Double = 0.65
+    var portraitPhonePreview: Bool = false
 
     init() {}
 
@@ -59,7 +60,7 @@ extension StudioSettings: Codable {
         case width, height, fps, bitrateKbps, keyframeInterval, port, curtainMode, confirmStop, showTally
         case discoveryEnabled, allowsHighFrameRate, explainedLocalNetwork, lens, zoom, exposureBias
         case manualExposure, iso, shutterSeconds, manualWhiteBalance, kelvin, manualFocus, lensPosition
-        case flip180, torch, portraitEnabled, portraitStrength
+        case flip180, torch, portraitEnabled, portraitStrength, portraitPhonePreview
     }
 
     init(from decoder: Swift.Decoder) throws {
@@ -91,6 +92,7 @@ extension StudioSettings: Codable {
         torch = try container.decodeIfPresent(Bool.self, forKey: .torch) ?? torch
         portraitEnabled = try container.decodeIfPresent(Bool.self, forKey: .portraitEnabled) ?? portraitEnabled
         portraitStrength = try container.decodeIfPresent(Double.self, forKey: .portraitStrength) ?? portraitStrength
+        portraitPhonePreview = try container.decodeIfPresent(Bool.self, forKey: .portraitPhonePreview) ?? portraitPhonePreview
     }
 
     func encode(to encoder: Swift.Encoder) throws {
@@ -121,5 +123,6 @@ extension StudioSettings: Codable {
         try container.encode(torch, forKey: .torch)
         try container.encode(portraitEnabled, forKey: .portraitEnabled)
         try container.encode(portraitStrength, forKey: .portraitStrength)
+        try container.encode(portraitPhonePreview, forKey: .portraitPhonePreview)
     }
 }

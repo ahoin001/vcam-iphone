@@ -204,7 +204,9 @@ The meeting app still uses **OBS Virtual Camera**. `VCamPanel.exe` only changes 
 
 ## While you are live
 
-On the phone, the picture fills the screen and the OBS address stays at the top. Tap the preview to focus and put the open control away. The bottom bar opens one tool at a time: switch camera, zoom (1×, 2×, 3×, 5×, 10×, or 1.0×–10.0×), exposure (auto EV, or manual ISO and shutter), white balance, and focus. Torch and Flip 180° toggle immediately. Curtain, Settings, and Log are on the lower left. Stop is on the lower right.
+On the phone, the picture fills the screen and the OBS address stays at the top. Tap the preview to focus and put the open control away. The bottom bar opens one tool at a time: switch camera, zoom (1×, 2×, 3×, 5×, 10×, or 1.0×–10.0×), exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Torch and Flip 180° toggle immediately. Curtain, Settings, and Log are on the lower left. Stop is on the lower right.
+
+Portrait blurs the background in the stream. The iPhone preview stays off for that, and the phone tells you to watch the picture in OBS. **Show on iPhone**, or the **iPhone preview** switch in the portrait tool, draws the blurred picture on the phone. Leave it off if the phone warms up.
 
 From the computer, section 6 opens that same set of controls in an OBS dock or in `VCamPanel.exe`. Resolution, frame rate, and bitrate stay in **Settings** on the phone.
 
@@ -215,7 +217,7 @@ In **Settings** on the phone:
 - **Curtain** can be Automatic, Always on, or Off. Tap **Curtain** for a black screen that keeps the stream going and saves the OLED panel. Tap the black screen to get the controls back.
 - **Show tally** and **Confirm before stopping**.
 
-The preview on the phone matches the picture OBS receives.
+With the iPhone preview on, the phone matches the picture OBS receives. With portrait’s preview left off, OBS is the picture to watch.
 
 For a long session, keep the phone plugged in, leave Low Power Mode off, and use the curtain. If the phone gets hot, the studio warns you. Pressing the side button pauses the stream. Unlock the phone and open **VCamdroid** again to continue.
 

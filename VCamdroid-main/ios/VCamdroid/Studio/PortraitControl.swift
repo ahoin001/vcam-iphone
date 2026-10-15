@@ -22,7 +22,12 @@ struct PortraitControl: View {
                     .onChange(of: session.settings.portraitStrength) {
                         session.applyPortrait()
                     }
-                Text(.portraitControlHint)
+                Toggle(.portraitPhonePreview, isOn: StudioBindings.setting(\.portraitPhonePreview, on: session))
+                    .tint(.yellow)
+                    .onChange(of: session.settings.portraitPhonePreview) {
+                        session.applyPortrait()
+                    }
+                Text(.portraitPhonePreviewHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

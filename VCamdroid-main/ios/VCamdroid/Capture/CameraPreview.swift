@@ -24,6 +24,9 @@ struct CameraPreview: UIViewRepresentable {
             view.previewLayer.session = session
         }
         view.onFocus = onFocus
+        sink.attach(view.processedRenderer)
+        sink.setActive(showsProcessed)
+        view.showsProcessedFrames = showsProcessed
         guard let connection = view.previewLayer.connection else { return }
         if connection.isVideoRotationAngleSupported(rotation) {
             connection.videoRotationAngle = rotation
@@ -32,8 +35,5 @@ struct CameraPreview: UIViewRepresentable {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = false
         }
-        sink.attach(view.processedRenderer)
-        sink.setActive(showsProcessed)
-        view.showsProcessedFrames = showsProcessed
     }
 }

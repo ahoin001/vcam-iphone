@@ -23,6 +23,10 @@ final class StudioSession {
     var curtainPresented = false
     private(set) var portraitCare: PortraitCare = .hidden
     private(set) var portraitPreviewActive = false
+
+    var portraitPreviewDeferred: Bool {
+        settings.portraitEnabled && !settings.portraitPhonePreview && portraitCare != .hidden && portraitCare != .paused
+    }
     let portraitPreview = PortraitPreviewSink()
     private var curtainTask: Task<Void, Never>?
     private var careTasks: [Task<Void, Never>] = []
@@ -534,7 +538,7 @@ final class StudioSession {
         }
         portraitCare = care
         let grade = PortraitPolicy.grade(enabled: settings.portraitEnabled, thermal: thermal)
-        portraitPreviewActive = grade == .balanced || grade == .fast
+        portraitPreviewActive = settings.portraitPhonePreview && (grade == .balanced || grade == .fast)
         return PortraitCommand(grade: grade, strength: settings.portraitStrength)
     }
 
