@@ -2,104 +2,166 @@
 
 Use an iPhone as the camera in OBS Studio, then send that same picture to Zoom, Teams, Meet, or Discord through OBS’s virtual camera.
 
-The phone app is named **VCamdroid**. It previews the shot, encodes H.264, and listens on port **4747**. OBS connects to that port. The iPhone does not show up by itself in another app’s camera list.
+The phone app is named **VCamdroid**. It previews the shot, encodes H.264, and listens on port **4747**. OBS connects to that port. Other apps see the picture only after OBS is already receiving it and **Start Virtual Camera** is on.
+
+Do the sections in order. Each one ends with a check so you know it worked before you continue.
 
 ## What you need
 
 | Piece | Requirement |
 | --- | --- |
-| iPhone | iOS 26 or later. A physical phone. The simulator cannot be the camera. |
+| iPhone | iOS 26 or later. A physical phone. The iOS Simulator cannot be the camera. |
 | Mac | Used once, to install the app onto the iPhone with Xcode. |
 | Windows PC | Windows 10 or 11, 64-bit. This is the machine that runs OBS. |
-| Network or cable | The same Wi-Fi network for a wireless connection, or a data-capable USB-C cable for USB. A charge-only cable will not carry video. |
-| Apple ID | Signed in to Xcode so the app can be installed on your phone. |
+| Network or cable | The same Wi-Fi network for a wireless connection, or a data-capable USB-C cable for USB. A charge-only cable carries power only and will not carry video. |
+| Apple ID | Signed in to Xcode so the app can be installed on your phone. A free Apple ID works. |
+
+You do this on two computers:
+
+1. The **Mac** installs VCamdroid onto the iPhone.
+2. The **Windows PC** runs OBS and receives the picture.
 
 ## What to download
 
-1. **Xcode**, from the Mac App Store. You need the version that includes the iOS 26 SDK.
-2. **This repository**, on the Mac: [github.com/ahoin001/vcam-iphone](https://github.com/ahoin001/vcam-iphone).
-3. **OBS Studio** for Windows, from [obsproject.com/download](https://obsproject.com/download).
-4. **The OBS source** that talks to the phone. Install one of these, then restart OBS:
-   - [VCamdroid OBS plugin](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), or
-   - [DroidCam OBS](https://www.dev47apps.com/obs/).
-5. **Apple Devices** (or iTunes), only if you will use the USB cable. Install it from the Microsoft Store, then open it once so Apple Mobile Device Service is running.
-6. **Visual Studio 2022** with the **Desktop development with C++** workload, only if you will use the USB cable. It builds `usbmux_forward`, the small program that carries the stream over the cable. Wi-Fi does not need it.
+Download these before you start. Skip an item only when its “Needed for” line does not match the connection you will use.
+
+| Download | Where | Needed for |
+| --- | --- | --- |
+| **Xcode** | Mac App Store. Open it once after install so it can finish installing components. You need the version that includes the iOS 26 SDK. | Putting the app on the iPhone. |
+| **This repository** | On the Mac: [github.com/ahoin001/vcam-iphone](https://github.com/ahoin001/vcam-iphone). Clone it or download the ZIP. | The iPhone app, and the USB helper if you use a cable. |
+| **OBS Studio** | On the Windows PC: [obsproject.com/download](https://obsproject.com/download). | Seeing the iPhone picture, and publishing it as a webcam. |
+| **An OBS source for the phone** | Install **one** of these on the Windows PC, then quit and reopen OBS. [VCamdroid OBS plugin](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), or [DroidCam OBS](https://www.dev47apps.com/obs/). The DroidCam OBS page currently asks for OBS 32 or newer. | The **VCamdroid** or **DroidCam OBS** item in OBS’s source list. OBS does not include that source by itself. |
+| **Apple Devices** (or iTunes) | Microsoft Store, on the Windows PC. Open it once after install. | USB only. It starts Apple Mobile Device Service, which the cable path needs. Wi-Fi does not need it. |
+| **Visual Studio 2022** | [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/). During setup, check the workload **Desktop development with C++**. | USB only. It builds `usbmux_forward.exe`, the small program that carries the stream over the cable. Wi-Fi does not need it. |
+
+Clone on the Mac, if you use git:
+
+```bash
+git clone https://github.com/ahoin001/vcam-iphone.git
+```
+
+The project folder after that is `vcam-iphone`. The iPhone project is `vcam-iphone/VCamdroid-main/ios/VCamdroid.xcodeproj`.
 
 ## 1. Put the app on the iPhone
 
-Do this on the Mac.
+Do this on the Mac, with the iPhone in your hand.
 
-1. Install Xcode and open it once so it can finish installing its components.
-2. Clone the repository, or download the ZIP and unzip it.
-3. Open `VCamdroid-main/ios/VCamdroid.xcodeproj`.
-4. Connect the iPhone with a data cable. Unlock the phone and tap **Trust This Computer**.
-5. In Xcode’s toolbar, set the run destination to your iPhone. Leave the simulator unselected.
-6. Select the **VCamdroid** target, open **Signing & Capabilities**, and choose your Apple ID as the Team. If signing fails because the bundle id is already registered, change the bundle id to something you own, such as `com.yourname.vcamdroid`.
-7. Press **Run**.
-8. If the phone says the developer is not trusted, open **Settings → General → VPN & Device Management**, select your Apple ID, and tap **Trust**.
-9. Open **VCamdroid** on the phone.
-10. Tap **Continue** on the camera screen and allow camera access.
-11. On the local-network screen, tap **Continue** if you will use Wi-Fi. USB still works if you tap **Not now**.
+1. Install Xcode from the Mac App Store.
+2. Open Xcode once and let it finish installing extra components. Sign in with your Apple ID when it asks: **Xcode → Settings → Accounts → +**.
+3. Clone the repository, or download the ZIP from GitHub and unzip it.
+4. In Finder, open `VCamdroid-main/ios/VCamdroid.xcodeproj`. Xcode opens.
+5. Plug the iPhone into the Mac with a data cable. Unlock the phone. If it asks **Trust This Computer**, tap **Trust** and enter the phone passcode.
+6. At the top of the Xcode window, open the run-destination menu (it may say a simulator name). Choose your iPhone. Leave every simulator unselected.
+7. In the left sidebar, click the blue **VCamdroid** project, then the **VCamdroid** target under **TARGETS**.
+8. Open the **Signing & Capabilities** tab.
+9. Check **Automatically manage signing**.
+10. In **Team**, choose your Apple ID. It is listed as a Personal Team if you do not have a paid developer account.
+11. If Xcode says the bundle id is already registered, change **Bundle Identifier** from `com.darusc.vcamdroid.ios` to something only you use, such as `com.yourname.vcamdroid`.
+12. Press the **Run** button (the play triangle), or press **Command-R**.
+13. Wait until the app installs and opens on the phone. The first build can take several minutes.
+14. If the phone says the developer is not trusted, stay on the phone and open **Settings → General → VPN & Device Management**. Select your Apple ID and tap **Trust**, then open **VCamdroid** again.
+15. On the **Camera access** screen, tap **Continue**, then tap **Allow** on the iOS prompt.
+16. On the **Local network** screen, tap **Continue** if you will use Wi-Fi. Tap **Not now** if you will use only the USB cable.
 
-A free Apple ID install expires after about 7 days. Run the project from Xcode again when the phone refuses to open the app. A paid Apple Developer account removes that limit.
+**Check:** VCamdroid is on the iPhone home screen and opens to a screen titled **VCamdroid** with a button labeled **OBS Studio**.
 
-## 2. Install OBS on the PC
+A free Apple ID install expires after about 7 days. When the phone refuses to open the app, plug it into the Mac and press **Run** in Xcode again. A paid Apple Developer account removes that 7-day limit.
 
-1. Download OBS Studio from [obsproject.com/download](https://obsproject.com/download) and run the installer.
-2. Install the VCamdroid OBS plugin or DroidCam OBS, then quit and reopen OBS.
-3. If Windows Firewall asks, allow OBS on **Private** networks.
+You can unplug the phone from the Mac after this. The Mac is finished unless you need to reinstall the app.
+
+## 2. Install OBS and the phone source on the PC
+
+Do this on the Windows PC.
+
+1. Download OBS Studio from [obsproject.com/download](https://obsproject.com/download).
+2. Run the installer and accept the default options.
+3. Install one phone source, then fully quit OBS if it was open:
+   - **VCamdroid OBS plugin:** open the [latest release](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), download the Windows installer or archive from that page, and run its installer.
+   - **DroidCam OBS:** open [dev47apps.com/obs](https://www.dev47apps.com/obs/), download the Windows **DroidCam OBS Plugin**, and run that installer. Use this when the VCamdroid plugin release is missing a Windows build.
+4. Open OBS.
+5. If Windows Firewall asks, allow OBS on **Private** networks.
+6. In the **Sources** panel, click **+**. Confirm that **VCamdroid** or **DroidCam OBS** is in the list. Click **Cancel** so you do not add a source yet.
+
+**Check:** OBS is open, and the **+** menu in **Sources** contains **VCamdroid** or **DroidCam OBS**.
 
 ## 3. Use the iPhone as the camera in OBS over Wi-Fi
 
-1. Join the iPhone and the PC to the same Wi-Fi network. A 5 GHz network is the steadier choice. Turn off client isolation or AP isolation on the router, or the PC cannot reach the phone.
-2. On the iPhone, open **VCamdroid** and tap **OBS Studio**.
-3. Allow the local-network prompt if iOS shows it.
-4. Leave the studio screen open. It says **Waiting for OBS** and shows an address such as `192.168.1.20:4747`. The number before the colon is the IP. The number after it is the port. The default port is **4747**.
-5. In OBS, find the **Sources** panel and click **+**.
-6. Choose **VCamdroid** or **DroidCam OBS**.
-7. In the source properties, enter the IP from the phone and set the port to **4747**.
-8. Confirm. The phone changes to **Streaming**, and the preview appears in OBS.
+Use this when the phone and the PC are on the same Wi-Fi and you do not want the cable in the shot. Skip to section 4 if you want USB instead.
 
-The badge on the phone reads **Wi-Fi** while OBS is connected this way. **PROGRAM**, **PREVIEW**, and **STANDBY** follow the OBS tally when **Show tally** is on in the phone’s Settings.
+1. Join the iPhone and the Windows PC to the same Wi-Fi network. A 5 GHz network is the steadier choice.
+2. On the router, turn off client isolation and AP isolation. With either one on, the PC cannot reach the phone.
+3. Turn off any VPN on the phone and on the PC for the first connection.
+4. On the iPhone, open **VCamdroid**.
+5. Tap **OBS Studio**.
+6. If iOS asks to find and connect to devices on the local network, tap **Allow**.
+7. Leave this studio screen in front. The status reads **Waiting for OBS**. It also shows an address such as `192.168.1.20:4747`.
+   - The number before the colon is the IP address. In the example, that is `192.168.1.20`.
+   - The number after the colon is the port. The default is **4747**.
+8. On the PC, in OBS, click **+** in the **Sources** panel.
+9. Choose **VCamdroid** if it is listed. Otherwise choose **DroidCam OBS**.
+10. Name the source if OBS asks, then click **OK**.
+11. In the source properties, enter the IP from the phone and set the port to **4747**. If the dialog has a Wi-Fi / USB choice, choose Wi-Fi.
+12. Click **OK**.
+
+**Check:** the phone status changes from **Waiting for OBS** to **Streaming**, the badge reads **Wi-Fi**, and the iPhone picture is in the OBS preview.
+
+Keep the phone on that studio screen. The side button and the app switcher stop the camera. **PROGRAM**, **PREVIEW**, and **STANDBY** follow the OBS tally when **Show tally** is on in the phone’s Settings.
 
 ## 4. Use the iPhone as the camera in OBS over USB
 
-Use this when you want the cable instead of Wi-Fi. Build the forwarder once, then leave it running whenever you stream.
+Use this when you want the cable instead of Wi-Fi. You build one small program once, then leave it running whenever you stream.
 
-1. On the PC, install **Apple Devices** or iTunes and open it once.
-2. Install Visual Studio 2022 with **Desktop development with C++**.
-3. Open `VCamdroid-main/windows/VCamdroid.sln`.
-4. Set the configuration to **Release** and the platform to **x64**.
-5. Build the **usbmux_forward** project. The program is `VCamdroid-main/windows/x64/Release/usbmux_forward.exe`.
-6. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer**.
-7. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The side button and the app switcher stop the camera.
-8. On the PC, open Command Prompt in the folder that contains `usbmux_forward.exe` and run:
+1. On the PC, install **Apple Devices** or iTunes from the Microsoft Store and open it once.
+2. Install Visual Studio 2022. In the installer, select the workload **Desktop development with C++**, then install.
+3. Copy the repository onto the PC, or open the same clone if the project folder is already there. You need `VCamdroid-main/windows/VCamdroid.sln`.
+4. Double-click `VCamdroid.sln` so it opens in Visual Studio.
+5. In the toolbar, set the configuration dropdown to **Release** and the platform dropdown to **x64**.
+6. In Solution Explorer, right-click the **usbmux_forward** project and choose **Build**.
+7. When the build succeeds, the program is:
 
-   ```bat
-   usbmux_forward.exe 4747
-   ```
+   `VCamdroid-main\windows\x64\Release\usbmux_forward.exe`
 
-   Leave that window open. Closing it disconnects the cable path.
-9. In OBS, add a **VCamdroid** or **DroidCam OBS** source.
-10. Enter the IP **127.0.0.1** and the port **4747**.
-11. Confirm. The phone says **Streaming**, and the connection badge reads **USB**.
+8. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer** if it asks.
+9. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The status can say **Waiting for OBS**.
+10. On the PC, open Command Prompt. Go to the folder that contains `usbmux_forward.exe`. If the repo is on your Desktop, that looks like this (change the user name and path to match your PC):
 
-`usbmux_forward.exe` with no arguments uses port 4747. If you change the port in the phone’s Settings, pass that same port to the program and to OBS.
+    ```bat
+    cd %USERPROFILE%\Desktop\vcam-iphone\VCamdroid-main\windows\x64\Release
+    usbmux_forward.exe 4747
+    ```
+
+11. Leave that Command Prompt window open. Closing it disconnects the cable path.
+12. In OBS, click **+** in **Sources** and add a **VCamdroid** or **DroidCam OBS** source.
+13. Enter the IP **127.0.0.1** and the port **4747**. If the dialog has a USB choice, you can select that instead of typing the address.
+14. Click **OK**.
+
+**Check:** the phone says **Streaming**, the badge reads **USB**, and the picture is in the OBS preview.
+
+`usbmux_forward.exe` with no arguments uses port 4747. If you change **Port** in the phone’s Settings, pass that same number to the program and type it in OBS. Example for port 4748:
+
+```bat
+usbmux_forward.exe 4748
+```
 
 ## 5. Use the iPhone as a webcam in Zoom, Teams, Meet, or Discord
 
-Those apps do not connect to the phone directly. OBS has to be receiving the picture first, and then OBS publishes a camera they can select.
+Those apps do not connect to the phone. They connect to a camera that OBS publishes. Finish section 3 or section 4 first, so the iPhone picture is already visible in the OBS preview.
 
-1. Finish section 3 or section 4 so the iPhone picture is visible in the OBS preview.
-2. In OBS, in the **Controls** dock, click **Start Virtual Camera**.
-3. Open the other app and choose **OBS Virtual Camera** as the camera:
-   - **Zoom:** Settings → Video → Camera.
-   - **Teams:** Settings → Devices → Camera.
-   - **Google Meet:** the camera menu in the call, or Settings → Video.
-   - **Discord:** Settings → Voice & Video → Camera.
-4. Leave OBS open, leave **VCamdroid** open on the studio screen, and leave `usbmux_forward.exe` running if you are on USB.
+1. Leave **VCamdroid** open on the phone’s studio screen.
+2. Leave OBS open with the phone source showing a picture.
+3. If you used USB, leave the `usbmux_forward.exe` window open.
+4. In OBS, find the **Controls** dock. It is usually at the lower right.
+5. Click **Start Virtual Camera**. The button label changes to **Stop Virtual Camera** while it is on.
+6. Open the meeting app and set the camera to **OBS Virtual Camera**:
+   - **Zoom:** Settings → Video → Camera → **OBS Virtual Camera**.
+   - **Microsoft Teams:** Settings → Devices → Camera → **OBS Virtual Camera**.
+   - **Google Meet:** in the meeting, open the camera menu (the arrow next to the camera button) and choose **OBS Virtual Camera**. You can also set it under Settings → Video before you join.
+   - **Discord:** User Settings → Voice & Video → Camera → **OBS Virtual Camera**.
+7. Start or join the call. The other people see the OBS preview, which is the iPhone.
 
-Stopping the virtual camera, closing OBS, or leaving the phone app stops the picture in the meeting.
+**Check:** the meeting preview shows the same picture as OBS, and the phone still says **Streaming**.
+
+Stopping the virtual camera, closing OBS, or leaving the phone app stops the picture in the meeting. The phone has no microphone in this build, so the meeting uses the computer’s microphone or another mic you select in that app.
 
 ## While you are live
 
@@ -119,15 +181,16 @@ In **Settings** on the phone:
 - **Curtain** can be Automatic, Always on, or Off. Tap **Curtain** for a black screen that keeps the stream going and saves the OLED panel. Tap the black screen to get the controls back.
 - **Show tally** and **Confirm before stopping**.
 
-The preview on the phone matches the picture OBS receives. There is no microphone in this build, so a meeting still needs the computer’s mic or another mic.
+The preview on the phone matches the picture OBS receives.
 
 For a long session, keep the phone plugged in, leave Low Power Mode off, and use the curtain. If the phone gets hot, the studio warns you. Pressing the side button pauses the stream. Unlock the phone and open **VCamdroid** again to continue.
 
 ## If the picture never appears
 
 - The phone must stay on the studio screen. **Waiting for OBS** means the app is ready and OBS has not connected yet.
-- Wi-Fi: the PC and the phone are on the same network, and the IP in OBS is exactly the address on the phone. A VPN on either device can hide them from each other.
+- Wi-Fi: the PC and the phone are on the same network, and the IP in OBS is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.
 - USB: `usbmux_forward.exe` is still running. Its window names the usual failures: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or the phone app is not in front.
 - The OBS source address for USB is **127.0.0.1** port **4747**, with the forwarder running.
 - **That port is already in use** on the phone means something else has port 4747. Change **Port** in the phone’s Settings, then use the new port in OBS and, for USB, in `usbmux_forward.exe`.
-- **Camera access is off** means the iPhone blocked the camera. Turn it on in iOS Settings → Privacy & Security → Camera → VCamdroid.
+- **Camera access is off** means the iPhone blocked the camera. Turn it on in **Settings → Privacy & Security → Camera → VCamdroid**.
+- The meeting app shows a black camera or your old webcam when **OBS Virtual Camera** is not the selected camera, or when **Start Virtual Camera** is off in OBS.
