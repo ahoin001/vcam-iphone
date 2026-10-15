@@ -64,3 +64,56 @@ func parsesControlRoutes(_ line: String) {
     let request = DroidCamHTTP.parse(firstLine: "PUT /v1/tally/program/ HTTP/1.1", fallback: VideoMode(width: 1920, height: 1080, fps: 30))
     #expect(request == .tally(.program))
 }
+
+@Test func controlsReadRoute() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "GET /v1/controls HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .controls)
+}
+
+@Test func controlUpdateIsPartial() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?zoom=2.4&torch=1 HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate(zoom: 2.4, torch: true)))
+}
+
+@Test func controlUpdateReadsStudioFields() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?lens=front&manualExposure=0&exposureBias=-1.5&whiteBalance=daylight&manualFocus=1&focus=0.25&flip=false HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate(
+        lens: .front,
+        manualExposure: false,
+        exposureBias: -1.5,
+        whiteBalance: .daylight,
+        manualFocus: true,
+        focus: 0.25,
+        flip: false
+    )))
+}
+
+@Test func unknownControlValuesAreIgnored() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?whiteBalance=sepia&zoom=nan HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate()))
+}
+
+@Test func panelIsNotAVideoStream() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "GET /panel HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .panel)
+    let body = DroidCamHTTP.htmlReply(ControlPanelPage.html)
+    let text = String(decoding: body, as: UTF8.self)
+    #expect(text.contains("Content-Type: text/html"))
+    #expect(text.contains("/v1/controls"))
+    #expect(!text.contains("GET /video"))
+}

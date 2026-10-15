@@ -210,6 +210,17 @@
         }
       }
     },
+    "panelControls": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls"
+          }
+        }
+      }
+    },
     "curtain": {
       "extractionState": "manual",
       "localizations": {
@@ -723,6 +734,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "STANDBY"
+          }
+        }
+      }
+    },
+    "backAction": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "switchCamera": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch camera"
+          }
+        }
+      }
+    },
+    "focusNear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Near"
+          }
+        }
+      }
+    },
+    "focusFar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Far"
           }
         }
       }

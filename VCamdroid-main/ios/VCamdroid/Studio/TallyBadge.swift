@@ -5,11 +5,13 @@ struct TallyBadge: View {
 
     var body: some View {
         Text(label)
-            .font(.caption)
-            .bold()
-            .padding()
+            .font(.caption.weight(.heavy))
+            .tracking(0.6)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .foregroundStyle(color)
-            .background(color.opacity(0.15), in: .capsule)
+            .background(color.opacity(0.18), in: .capsule)
+            .accessibilityLabel(Text(label))
     }
 
     private var label: String {

@@ -54,6 +54,11 @@ final class StudioSession {
         "\(LocalAddress.ipv4()):\(settings.port)"
     }
 
+    var panelLine: String {
+        let host = isUSBClient ? "127.0.0.1" : LocalAddress.ipv4()
+        return "http://\(host):\(settings.port)/panel"
+    }
+
     func start() async {
         guard !isRunning else { return }
         persist()
@@ -66,6 +71,8 @@ final class StudioSession {
             onVideo: { request in await self.beginVideo(request) },
             onVideoStopped: { await self.endVideo() },
             onUpdate: { update in await self.apply(update: update) },
+            controls: { await self.currentControls() },
+            onControls: { update in await self.apply(controls: update) },
             onTally: { tally in await self.setTally(tally) },
             onClient: { address, usb in await self.setClient(address, usb: usb) },
             onListenFailed: { await self.noteListenFailed() }
@@ -246,6 +253,55 @@ final class StudioSession {
             }
         }
         return true
+    }
+
+    func apply(controls update: ControlUpdate) -> Bool {
+        if let lens = update.lens {
+            settings.lens = lens
+        }
+        if let zoom = update.zoom {
+            settings.zoom = zoom
+        }
+        if let manualExposure = update.manualExposure {
+            settings.manualExposure = manualExposure
+        }
+        if let exposureBias = update.exposureBias {
+            settings.exposureBias = exposureBias
+        }
+        if let iso = update.iso {
+            settings.iso = iso
+        }
+        if let shutter = update.shutter {
+            settings.shutterSeconds = shutter
+        }
+        if let whiteBalance = update.whiteBalance {
+            if let kelvin = whiteBalance.kelvin {
+                settings.manualWhiteBalance = true
+                settings.kelvin = kelvin
+            } else {
+                settings.manualWhiteBalance = false
+            }
+        }
+        if let manualFocus = update.manualFocus {
+            settings.manualFocus = manualFocus
+        }
+        if let focus = update.focus {
+            settings.lensPosition = focus
+        }
+        if let torch = update.torch {
+            settings.torch = torch
+        }
+        if let flip = update.flip {
+            settings.flip180 = flip
+        }
+        settings = settings.sanitized()
+        snapshot.lens = settings.lens
+        applyControls()
+        return true
+    }
+
+    private func currentControls() -> ControlState {
+        ControlState(settings: settings)
     }
 
     private func currentSnapshot() -> SessionSnapshot {

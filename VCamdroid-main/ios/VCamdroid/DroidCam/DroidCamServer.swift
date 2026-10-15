@@ -9,6 +9,8 @@ actor DroidCamServer {
     private var onVideo: (@Sendable (VideoRequest) async -> Void)?
     private var onVideoStopped: (@Sendable () async -> Void)?
     private var onUpdate: (@Sendable (SessionUpdate) async -> Bool)?
+    private var controlsProvider: (@Sendable () async -> ControlState)?
+    private var onControls: (@Sendable (ControlUpdate) async -> Bool)?
     private var onTally: (@Sendable (TallyState) async -> Void)?
     private var onClient: (@Sendable (String?, Bool) async -> Void)?
     private var catalogProvider: (@Sendable () async -> ResolutionCatalog)?
@@ -20,6 +22,8 @@ actor DroidCamServer {
         onVideo: @escaping @Sendable (VideoRequest) async -> Void,
         onVideoStopped: @escaping @Sendable () async -> Void,
         onUpdate: @escaping @Sendable (SessionUpdate) async -> Bool,
+        controls: @escaping @Sendable () async -> ControlState,
+        onControls: @escaping @Sendable (ControlUpdate) async -> Bool,
         onTally: @escaping @Sendable (TallyState) async -> Void,
         onClient: @escaping @Sendable (String?, Bool) async -> Void,
         onListenFailed: @escaping @Sendable () async -> Void
@@ -29,6 +33,8 @@ actor DroidCamServer {
         self.onVideo = onVideo
         self.onVideoStopped = onVideoStopped
         self.onUpdate = onUpdate
+        controlsProvider = controls
+        self.onControls = onControls
         self.onTally = onTally
         self.onClient = onClient
         self.onListenFailed = onListenFailed
@@ -94,6 +100,11 @@ actor DroidCamServer {
             let snapshot = await snapshotProvider?() ?? .waiting
             await send(DroidCamHTTP.jsonReply(snapshot.json(success: success)), on: connection)
             connection.cancel()
+        case .applyControls(let update):
+            let success = await onControls?(update) ?? false
+            let state = await controlsProvider?() ?? ControlState(settings: StudioSettings())
+            await send(DroidCamHTTP.jsonReply(state.json(success: success)), on: connection)
+            connection.cancel()
         case .tally(let tally):
             await onTally?(tally)
             await send(DroidCamHTTP.reply(status: 200, body: Data(), contentType: nil), on: connection)
@@ -120,6 +131,11 @@ actor DroidCamServer {
             return DroidCamHTTP.jsonReply(catalog.capabilitiesJSON())
         case .session:
             return DroidCamHTTP.jsonReply(snapshot.json())
+        case .controls:
+            let state = await controlsProvider?() ?? ControlState(settings: StudioSettings())
+            return DroidCamHTTP.jsonReply(state.json())
+        case .panel:
+            return DroidCamHTTP.htmlReply(ControlPanelPage.html)
         case .battery:
             return DroidCamHTTP.reply(status: 200, body: Data("\(snapshot.batteryPercent)".utf8), contentType: nil)
         case .unknown:

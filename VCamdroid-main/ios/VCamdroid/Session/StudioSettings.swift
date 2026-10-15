@@ -39,9 +39,10 @@ struct StudioSettings: Codable, Equatable, Sendable {
         copy.port = min(max(copy.port, 1), 65535)
         copy.bitrateKbps = min(max(copy.bitrateKbps, 2500), 16000)
         copy.keyframeInterval = max(copy.keyframeInterval, 1)
-        copy.zoom = min(max(copy.zoom, 1), 16)
+        copy.zoom = min(max(copy.zoom, 1), 10)
+        copy.exposureBias = min(max(copy.exposureBias, -3), 3)
         copy.iso = min(max(copy.iso, 50), 6400)
-        copy.shutterSeconds = min(max(copy.shutterSeconds, 1.0 / 10000), 1)
+        copy.shutterSeconds = min(max(copy.shutterSeconds, 1.0 / 10000), 0.5)
         copy.kelvin = min(max(copy.kelvin, 2000), 10000)
         copy.lensPosition = min(max(copy.lensPosition, 0), 1)
         return copy

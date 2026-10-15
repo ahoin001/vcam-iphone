@@ -17,6 +17,44 @@ import Testing
     #expect(snapshot.json(success: true).contains("\"success\":true"))
 }
 
+@Test func controlJSONMatchesTheStudio() {
+    let json = ControlState(settings: StudioSettings()).json()
+    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false}")
+    #expect(ControlState(settings: StudioSettings()).json(success: true).hasPrefix("{\"success\":true,"))
+}
+
+@Test func controlJSONReportsWhiteBalancePreset() {
+    var settings = StudioSettings()
+    settings.manualWhiteBalance = true
+    settings.kelvin = 6000
+    settings.lens = .front
+    settings.zoom = 2.5
+    settings.torch = true
+    #expect(ControlState(settings: settings).whiteBalance == .cloudy)
+    let json = ControlState(settings: settings).json()
+    #expect(json.contains("\"lens\":\"front\""))
+    #expect(json.contains("\"zoom\":2.5"))
+    #expect(json.contains("\"whiteBalance\":\"cloudy\""))
+    #expect(json.contains("\"torch\":true"))
+}
+
+@Test func studioControlRangesClamp() {
+    var settings = StudioSettings()
+    settings.zoom = 20
+    settings.exposureBias = 9
+    settings.shutterSeconds = 2
+    settings.iso = 10
+    let clamped = settings.sanitized()
+    #expect(clamped.zoom == 10)
+    #expect(clamped.exposureBias == 3)
+    #expect(clamped.shutterSeconds == 0.5)
+    #expect(clamped.iso == 50)
+    settings.exposureBias = -9
+    settings.zoom = 0.2
+    #expect(settings.sanitized().exposureBias == -3)
+    #expect(settings.sanitized().zoom == 1)
+}
+
 @Test func defaultsMatchTheSpec() {
     let settings = StudioSettings()
     #expect(settings.width == 1920)
