@@ -781,6 +781,127 @@
           }
         }
       }
+    },
+    "portrait": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait"
+          }
+        }
+      }
+    },
+    "portraitOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "portraitStrength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        }
+      }
+    },
+    "portraitControlHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1080p30 and plugged in keeps the phone cooler."
+          }
+        }
+      }
+    },
+    "portraitSettingsFooter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait blurs the background on this iPhone, so the computer does not have to. 1080p30 is the easiest mode. Keep the phone plugged in, and take the case off if it warms up. Portrait switches to a lighter blur when the phone gets hot, and it pauses if the phone needs to cool down. The picture keeps streaming."
+          }
+        }
+      }
+    },
+    "portraitCareSteady": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait is on. 1080p30 and plugged in keeps the phone cooler."
+          }
+        }
+      }
+    },
+    "portraitCareHeavier": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This resolution works harder. 1080p30 is easier on the phone."
+          }
+        }
+      }
+    },
+    "portraitCareBattery": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait uses extra battery. Plug in when you can."
+          }
+        }
+      }
+    },
+    "portraitCareHeavierBattery": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This resolution uses extra power. 1080p30 and a charger are easier on the phone."
+          }
+        }
+      }
+    },
+    "portraitCareEased": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait is using a lighter blur so the phone can cool down."
+          }
+        }
+      }
+    },
+    "portraitCarePaused": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait is paused until the phone cools down."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

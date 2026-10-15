@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import VCamdroid
 
@@ -19,7 +20,7 @@ import Testing
 
 @Test func controlJSONMatchesTheStudio() {
     let json = ControlState(settings: StudioSettings()).json()
-    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false}")
+    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65}")
     #expect(ControlState(settings: StudioSettings()).json(success: true).hasPrefix("{\"success\":true,"))
 }
 
@@ -51,8 +52,12 @@ import Testing
     #expect(clamped.iso == 50)
     settings.exposureBias = -9
     settings.zoom = 0.2
+    settings.portraitStrength = 4
     #expect(settings.sanitized().exposureBias == -3)
     #expect(settings.sanitized().zoom == 1)
+    #expect(settings.sanitized().portraitStrength == 1)
+    settings.portraitStrength = -2
+    #expect(settings.sanitized().portraitStrength == 0)
 }
 
 @Test func defaultsMatchTheSpec() {
@@ -93,4 +98,46 @@ import Testing
 @Test func v1AcceptanceChecklistCoversTheDevicePass() {
     #expect(DeviceAcceptance.checks.count == 10)
     #expect(DeviceAcceptance.checks.contains("1080p60 stays out of the picker until a 30-minute device run passes"))
+}
+
+@Test func controlUpdateReadsPortrait() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?portrait=1&portraitStrength=0.4 HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate(portrait: true, portraitStrength: 0.4)))
+}
+
+@Test func storedSettingsKeepPortraitOptional() throws {
+    var settings = StudioSettings()
+    settings.lens = .front
+    settings.zoom = 2
+    let data = try JSONEncoder().encode(settings)
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    object.removeValue(forKey: "portraitEnabled")
+    object.removeValue(forKey: "portraitStrength")
+    let stripped = try JSONSerialization.data(withJSONObject: object)
+    let decoded = try JSONDecoder().decode(StudioSettings.self, from: stripped)
+    #expect(decoded.lens == .front)
+    #expect(decoded.zoom == 2)
+    #expect(decoded.portraitEnabled == false)
+    #expect(decoded.portraitStrength == 0.65)
+}
+
+@Test func portraitPausesWhenThePhoneIsTooHot() {
+    #expect(PortraitPolicy.grade(enabled: true, thermal: .critical) == .paused)
+    #expect(PortraitPolicy.grade(enabled: true, thermal: .serious) == .fast)
+    #expect(PortraitPolicy.grade(enabled: true, thermal: .nominal) == .balanced)
+    #expect(PortraitPolicy.grade(enabled: false, thermal: .critical) == .off)
+}
+
+@Test func portraitCareNamesHeatBatteryAndResolution() {
+    #expect(PortraitPolicy.care(enabled: false, thermal: .nominal, fps: 60, height: 2160, batteryPercent: 10, unplugged: true) == .hidden)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .critical, fps: 30, height: 1080, batteryPercent: 100, unplugged: false) == .paused)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .serious, fps: 60, height: 2160, batteryPercent: 10, unplugged: true) == .eased)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 60, height: 1080, batteryPercent: 10, unplugged: true) == .heavierAndBattery)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .fair, fps: 30, height: 1080, batteryPercent: 15, unplugged: true) == .lowBattery)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1440, batteryPercent: 80, unplugged: false) == .heavierMode)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1080, batteryPercent: 80, unplugged: true) == .steady)
+    #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1080, batteryPercent: 19, unplugged: false) == .steady)
 }

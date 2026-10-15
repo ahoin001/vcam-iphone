@@ -16,6 +16,27 @@ struct SettingsView: View {
                     Text(60, format: .number).tag(60)
                 }
             }
+            Section {
+                Toggle(String(localized: .portrait), isOn: StudioBindings.setting(\.portraitEnabled, on: session))
+                    .onChange(of: session.settings.portraitEnabled) {
+                        session.applyPortrait()
+                    }
+                if session.settings.portraitEnabled {
+                    LabeledContent {
+                        Text(session.settings.portraitStrength, format: .percent.precision(.fractionLength(0)))
+                    } label: {
+                        Text(.portraitStrength)
+                    }
+                    Slider(value: StudioBindings.setting(\.portraitStrength, on: session), in: 0...1)
+                        .onChange(of: session.settings.portraitStrength) {
+                            session.applyPortrait()
+                        }
+                }
+            } header: {
+                Text(.portrait)
+            } footer: {
+                Text(.portraitSettingsFooter)
+            }
             LabeledContent {
                 Text(session.settings.bitrateKbps, format: .number)
             } label: {

@@ -13,6 +13,8 @@ struct ControlRack: View {
             WhiteBalanceControl()
         case .focus:
             FocusControl()
+        case .portrait:
+            PortraitControl()
         }
     }
 }

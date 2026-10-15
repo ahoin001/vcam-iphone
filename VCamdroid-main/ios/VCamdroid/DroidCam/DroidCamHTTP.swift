@@ -156,6 +156,12 @@ enum DroidCamHTTP {
         if let value = query["flip"], let flag = flag(value) {
             update.flip = flag
         }
+        if let value = query["portrait"], let flag = flag(value) {
+            update.portrait = flag
+        }
+        if let value = query["portraitstrength"], let number = finite(value) {
+            update.portraitStrength = number
+        }
         return update
     }
 

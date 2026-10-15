@@ -20,6 +20,8 @@ struct ControlUpdate: Equatable, Sendable {
     var focus: Double?
     var torch: Bool?
     var flip: Bool?
+    var portrait: Bool?
+    var portraitStrength: Double?
 }
 
 struct ControlState: Equatable, Sendable {
@@ -34,6 +36,8 @@ struct ControlState: Equatable, Sendable {
     var focus: Double
     var torch: Bool
     var flip: Bool
+    var portrait: Bool
+    var portraitStrength: Double
 
     init(settings: StudioSettings) {
         lens = settings.lens
@@ -47,6 +51,8 @@ struct ControlState: Equatable, Sendable {
         focus = settings.lensPosition
         torch = settings.torch
         flip = settings.flip180
+        portrait = settings.portraitEnabled
+        portraitStrength = settings.portraitStrength
     }
 
     func json(success: Bool? = nil) -> String {
@@ -65,6 +71,8 @@ struct ControlState: Equatable, Sendable {
         fields.append("\"focus\":\(Self.number(focus))")
         fields.append("\"torch\":\(torch ? "true" : "false")")
         fields.append("\"flip\":\(flip ? "true" : "false")")
+        fields.append("\"portrait\":\(portrait ? "true" : "false")")
+        fields.append("\"portraitStrength\":\(Self.number(portraitStrength))")
         return "{\(fields.joined(separator: ","))}"
     }
 

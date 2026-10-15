@@ -95,6 +95,14 @@ enum ControlPanelPage {
         </div>
       </section>
       <section>
+        <div class="heading"><span>Portrait</span><label class="toggle"><input id="portrait" type="checkbox">On</label></div>
+        <p>Blurs the background on the phone. 1080p30 and plugged in keeps it cooler. It eases off if the phone gets hot.</p>
+        <label class="slider" id="portrait-row" hidden>
+          <span>Strength <strong id="portrait-value">65%</strong></span>
+          <input id="portrait-strength" type="range" min="0" max="1" step="0.01" value="0.65">
+        </label>
+      </section>
+      <section>
         <div class="heading"><span>Exposure</span><label class="toggle"><input id="manual-exposure" type="checkbox">Manual</label></div>
         <label class="slider" id="ev-row">
           <span>EV <strong id="ev-value">0.0</strong></span>
@@ -140,6 +148,7 @@ enum ControlPanelPage {
       const iso = document.getElementById("iso");
       const shutter = document.getElementById("shutter");
       const focus = document.getElementById("focus");
+      const portraitStrength = document.getElementById("portrait-strength");
 
       function text(id, value) {
         document.getElementById(id).textContent = value;
@@ -193,6 +202,7 @@ enum ControlPanelPage {
       bindRange(iso, "iso", "iso-value", (value) => String(Math.round(Number(value))));
       bindRange(shutter, "shutter", "shutter-value", (value) => Number(value).toFixed(4));
       bindRange(focus, "focus", "focus-value", (value) => Number(value).toFixed(2));
+      bindRange(portraitStrength, "portraitStrength", "portrait-value", (value) => Math.round(Number(value) * 100) + "%");
 
       function bindChoice(group, key) {
         group.addEventListener("click", (event) => {
@@ -218,6 +228,7 @@ enum ControlPanelPage {
       bindFlag("flip", "flip");
       bindFlag("manual-exposure", "manualExposure");
       bindFlag("manual-focus", "manualFocus");
+      bindFlag("portrait", "portrait");
 
       function setRange(input, label, value, format, key) {
         if (active.has(key) || pending.has(key)) return;
@@ -244,6 +255,7 @@ enum ControlPanelPage {
         document.getElementById("ev-row").hidden = exposure;
         document.getElementById("manual-exposure-fields").hidden = !exposure;
         document.getElementById("focus-row").hidden = !focusManual;
+        document.getElementById("portrait-row").hidden = !document.getElementById("portrait").checked;
       }
 
       function applyState(data) {
@@ -258,6 +270,8 @@ enum ControlPanelPage {
         setFlag("flip", data.flip, "flip");
         setFlag("manual-exposure", data.manualExposure, "manualExposure");
         setFlag("manual-focus", data.manualFocus, "manualFocus");
+        setFlag("portrait", data.portrait, "portrait");
+        setRange(portraitStrength, "portrait-value", data.portraitStrength, (value) => Math.round(Number(value) * 100) + "%", "portraitStrength");
         showManual();
       }
 

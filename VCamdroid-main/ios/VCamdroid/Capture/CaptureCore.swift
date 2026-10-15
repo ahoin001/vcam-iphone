@@ -8,6 +8,7 @@ final class CaptureCore: @unchecked Sendable {
     private let outputQueue = DispatchQueue(label: "com.darusc.vcamdroid.frames")
     private let videoOutput = AVCaptureVideoDataOutput()
     private let sink = CaptureVideoSink()
+    private let portrait = PortraitProcessor()
 
     init(previewSession: PreviewSession) {
         self.previewSession = previewSession
@@ -18,7 +19,14 @@ final class CaptureCore: @unchecked Sendable {
     }
 
     func setFrameHandler(_ handler: @escaping @Sendable (CVPixelBuffer, CMTime) -> Void) {
-        sink.onFrame = handler
+        let portrait = portrait
+        sink.onFrame = { pixelBuffer, time in
+            handler(portrait.process(pixelBuffer), time)
+        }
+    }
+
+    func setPortrait(_ command: PortraitCommand) {
+        portrait.set(command)
     }
 
     func perform(_ work: @escaping @Sendable () throws -> Void) async throws {

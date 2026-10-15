@@ -21,8 +21,12 @@ final class StudioSession {
     private(set) var statusMessage = ""
     private(set) var isRunning = false
     var curtainPresented = false
+    private(set) var portraitCare: PortraitCare = .hidden
+    private(set) var portraitPreviewActive = false
+    let portraitPreview = PortraitPreviewSink()
     private var curtainTask: Task<Void, Never>?
-    private var thermalTask: Task<Void, Never>?
+    private var careTasks: [Task<Void, Never>] = []
+    private var lastPortraitCommand = PortraitCommand.off
     private var encoderActive = false
     private var pausedForBackground = false
     private var listenFailed = false
@@ -80,9 +84,14 @@ final class StudioSession {
         await encoder.setHandler { [server] pts, payload in
             Task { await server.send(pts: pts, payload: payload) }
         }
-        await capture.setFrameHandler { [encoder] pixelBuffer, time in
+        let preview = portraitPreview
+        await capture.setFrameHandler { [encoder, preview] pixelBuffer, time in
             encoder.submit(pixelBuffer, time: time)
+            preview.enqueue(pixelBuffer, time: time)
         }
+        let command = updatePortraitCare()
+        lastPortraitCommand = command
+        await capture.setPortrait(command)
         do {
             try await server.start(
                 port: settings.port,
@@ -100,7 +109,7 @@ final class StudioSession {
             statusMessage = String(localized: .waitingForOBS)
             appendLog(String(localized: .waitingForOBS))
             armCurtain()
-            watchThermal()
+            watchCare()
         } catch DroidCamServerError.invalidPort, DroidCamServerError.portInUse {
             statusMessage = String(localized: .portInUse)
             appendLog(String(localized: .portInUse))
@@ -112,11 +121,16 @@ final class StudioSession {
 
     func stop() async {
         curtainTask?.cancel()
-        thermalTask?.cancel()
+        careTasks.forEach { $0.cancel() }
+        careTasks = []
         curtainPresented = false
+        portraitPreviewActive = false
+        portraitCare = .hidden
+        lastPortraitCommand = .off
         curtainController.restore()
         curtainController.enableIdleTimer()
         encoderActive = false
+        await capture.setPortrait(.off)
         await encoder.stop()
         await capture.stop()
         await server.stop()
@@ -190,10 +204,21 @@ final class StudioSession {
     func applyControls() {
         persist()
         noteActivity()
+        pushPortrait()
         guard isRunning else { return }
         Task {
             try? await capture.update(CaptureConfiguration(settings: settings))
         }
+    }
+
+    func applyPortrait() {
+        let clean = settings.sanitized()
+        if clean != settings {
+            settings = clean
+        }
+        persist()
+        noteActivity()
+        pushPortrait()
     }
 
     func selectLens(_ lens: Lens) {
@@ -294,6 +319,12 @@ final class StudioSession {
         if let flip = update.flip {
             settings.flip180 = flip
         }
+        if let portrait = update.portrait {
+            settings.portraitEnabled = portrait
+        }
+        if let portraitStrength = update.portraitStrength {
+            settings.portraitStrength = portraitStrength
+        }
         settings = settings.sanitized()
         snapshot.lens = settings.lens
         applyControls()
@@ -330,6 +361,7 @@ final class StudioSession {
         snapshot.isStreaming = true
         snapshot.status = "streaming"
         persist()
+        pushPortrait()
         do {
             try await capture.update(CaptureConfiguration(settings: settings))
             try await encoder.start(
@@ -429,6 +461,7 @@ final class StudioSession {
         snapshot.isStreaming = true
         snapshot.status = "streaming"
         statusMessage = String(localized: .streaming)
+        pushPortrait()
     }
 
     private func showCurtain() {
@@ -452,17 +485,57 @@ final class StudioSession {
         }
     }
 
-    private func watchThermal() {
-        thermalTask?.cancel()
-        thermalTask = Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: ProcessInfo.thermalStateDidChangeNotification) {
-                let state = ProcessInfo.processInfo.thermalState
-                if state == .serious || state == .critical {
-                    self?.statusMessage = String(localized: .thermalWarning)
-                    self?.appendLog(String(localized: .thermalWarning))
+    private func watchCare() {
+        careTasks.forEach { $0.cancel() }
+        let names = [
+            UIDevice.batteryLevelDidChangeNotification,
+            UIDevice.batteryStateDidChangeNotification,
+            ProcessInfo.thermalStateDidChangeNotification
+        ]
+        careTasks = names.map { name in
+            Task { [weak self] in
+                for await _ in NotificationCenter.default.notifications(named: name) {
+                    self?.noteCareSignal(thermalChanged: name == ProcessInfo.thermalStateDidChangeNotification)
                 }
             }
         }
+    }
+
+    private func noteCareSignal(thermalChanged: Bool) {
+        let portraitWasOff = !settings.portraitEnabled
+        let thermal = ProcessInfo.processInfo.thermalState
+        pushPortrait()
+        if thermalChanged, portraitWasOff, thermal == .serious || thermal == .critical {
+            statusMessage = String(localized: .thermalWarning)
+            appendLog(String(localized: .thermalWarning))
+        }
+    }
+
+    private func pushPortrait() {
+        let command = updatePortraitCare()
+        guard command != lastPortraitCommand else { return }
+        lastPortraitCommand = command
+        Task { await capture.setPortrait(command) }
+    }
+
+    @discardableResult
+    private func updatePortraitCare() -> PortraitCommand {
+        let thermal = ProcessInfo.processInfo.thermalState
+        let care = PortraitPolicy.care(
+            enabled: settings.portraitEnabled,
+            thermal: thermal,
+            fps: settings.fps,
+            height: settings.height,
+            batteryPercent: BatteryPercent.current(),
+            unplugged: UIDevice.current.batteryState == .unplugged
+        )
+        if care != portraitCare, care == .eased || care == .paused, let message = care.message {
+            appendLog(String(localized: message))
+        }
+        portraitCare = care
+        let grade = PortraitPolicy.grade(enabled: settings.portraitEnabled, thermal: thermal)
+        portraitPreviewActive = grade == .balanced || grade == .fast
+        return PortraitCommand(grade: grade, strength: settings.portraitStrength)
     }
 
     private func persist() {

@@ -4,6 +4,8 @@ import SwiftUI
 struct CameraPreview: UIViewRepresentable {
     var session: AVCaptureSession
     var rotation: CGFloat
+    var showsProcessed: Bool
+    var sink: PortraitPreviewSink
     var onFocus: (CGPoint) -> Void
 
     func makeUIView(context: Context) -> CameraPreviewView {
@@ -11,6 +13,9 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspect
         view.onFocus = onFocus
+        sink.attach(view.processedRenderer)
+        sink.setActive(showsProcessed)
+        view.showsProcessedFrames = showsProcessed
         return view
     }
 
@@ -27,5 +32,8 @@ struct CameraPreview: UIViewRepresentable {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = false
         }
+        sink.attach(view.processedRenderer)
+        sink.setActive(showsProcessed)
+        view.showsProcessedFrames = showsProcessed
     }
 }

@@ -13,6 +13,10 @@ actor CaptureEngine {
         core.setFrameHandler(handler)
     }
 
+    func setPortrait(_ command: PortraitCommand) {
+        core.setPortrait(command)
+    }
+
     func start(_ configuration: CaptureConfiguration) async throws {
         self.configuration = configuration
         let core = core

@@ -5,6 +5,7 @@ enum StudioTool: Hashable, CaseIterable, Identifiable {
     case exposure
     case whiteBalance
     case focus
+    case portrait
 
     var id: Self { self }
 
@@ -14,6 +15,7 @@ enum StudioTool: Hashable, CaseIterable, Identifiable {
         case .exposure: .exposure
         case .whiteBalance: .whiteBalance
         case .focus: .focus
+        case .portrait: .portrait
         }
     }
 
@@ -23,6 +25,7 @@ enum StudioTool: Hashable, CaseIterable, Identifiable {
         case .exposure: "sun.max"
         case .whiteBalance: "circle.lefthalf.filled"
         case .focus: "scope"
+        case .portrait: "person.and.background.dotted"
         }
     }
 }
@@ -52,12 +55,16 @@ struct StudioChrome: View {
     var isCompactHeight: Bool
     var onBack: () -> Void
     var onStop: () -> Void
+    @Environment(StudioSession.self) private var session
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 12) {
             GlassEffectContainer(spacing: 8) {
                 StudioStatusBar(onBack: onBack)
+            }
+            if session.portraitCare != .hidden {
+                PortraitCareBanner()
             }
             Spacer(minLength: 0)
             GlassEffectContainer(spacing: 8) {
@@ -79,8 +86,7 @@ struct StudioChrome: View {
                         .scrollIndicators(.hidden)
                         .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        StudioToolDock(tool: $tool)
-                            .frame(maxWidth: .infinity)
+                        toolDock
                         StudioSessionDock(onStop: onStop, spreads: true)
                     }
                 }
@@ -95,6 +101,18 @@ struct StudioChrome: View {
 
     private var motion: Animation {
         reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.32, dampingFraction: 1)
+    }
+
+    private var toolDock: some View {
+        GeometryReader { proxy in
+            ScrollView(.horizontal) {
+                StudioToolDock(tool: $tool)
+                    .frame(minWidth: proxy.size.width)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        }
+        .frame(height: 52)
     }
 }
 
@@ -124,7 +142,7 @@ struct StudioToolDock: View {
                 StudioDockButton(
                     systemImage: item.systemImage,
                     label: item.label,
-                    isSelected: tool == item,
+                    isSelected: tool == item || (item == .portrait && session.settings.portraitEnabled),
                     action: { toggle(item) }
                 )
             }
@@ -152,6 +170,7 @@ struct StudioToolDock: View {
         .sensoryFeedback(.selection, trigger: session.settings.lens)
         .sensoryFeedback(.impact(weight: .light, intensity: 0.8), trigger: session.settings.torch)
         .sensoryFeedback(.impact(weight: .light, intensity: 0.8), trigger: session.settings.flip180)
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.8), trigger: session.settings.portraitEnabled)
     }
 
     private func toggle(_ item: StudioTool) {
