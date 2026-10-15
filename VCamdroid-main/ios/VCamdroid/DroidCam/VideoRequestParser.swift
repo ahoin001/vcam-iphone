@@ -1,15 +1,11 @@
 import Foundation
 
 enum VideoRequestParser {
-    private static let sizePattern = /(?<width>\d{3,4})x(?<height>\d{3,4})/
-
     static func parse(line: String, fallback: VideoMode) -> VideoRequest {
         let lowered = line.lowercased()
         let format: StreamFormat = (lowered.contains("hevc") || lowered.contains("h265")) ? .hevc : .avc
-        if let match = try? sizePattern.firstMatch(in: line),
-           let width = Int(match.width),
-           let height = Int(match.height) {
-            return VideoRequest(format: format, width: width, height: height)
+        if let size = firstSize(in: line) {
+            return VideoRequest(format: format, width: size.width, height: size.height)
         }
         if lowered.contains("4k") || lowered.contains("2160p") {
             return VideoRequest(format: format, width: 3840, height: 2160)
@@ -27,5 +23,16 @@ enum VideoRequestParser {
             return VideoRequest(format: format, width: 640, height: 480)
         }
         return VideoRequest(format: format, width: fallback.width, height: fallback.height)
+    }
+
+    /// Each call owns its own `Regex`. A stored pattern is not concurrency-safe: `Regex` is not `Sendable`.
+    private static func firstSize(in line: String) -> (width: Int, height: Int)? {
+        let sizePattern = /(?<width>\d{3,4})x(?<height>\d{3,4})/
+        guard let match = try? sizePattern.firstMatch(in: line),
+              let width = Int(match.width),
+              let height = Int(match.height) else {
+            return nil
+        }
+        return (width, height)
     }
 }
