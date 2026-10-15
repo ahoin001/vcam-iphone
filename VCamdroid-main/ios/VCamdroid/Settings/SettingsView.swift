@@ -5,19 +5,19 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Picker(String(localized: .resolution), selection: StudioBindings.mode(on: session)) {
+            Picker(.resolution, selection: StudioBindings.mode(on: session)) {
                 ForEach(VideoMode.allowed(allowsHighFrameRate: session.settings.allowsHighFrameRate)) { mode in
                     Text(mode.label).tag(mode)
                 }
             }
-            Picker(String(localized: .framesPerSecond), selection: StudioBindings.framesPerSecond(on: session)) {
+            Picker(.framesPerSecond, selection: StudioBindings.framesPerSecond(on: session)) {
                 Text(30, format: .number).tag(30)
                 if session.settings.allowsHighFrameRate {
                     Text(60, format: .number).tag(60)
                 }
             }
             Section {
-                Toggle(String(localized: .portrait), isOn: StudioBindings.setting(\.portraitEnabled, on: session))
+                Toggle(.portrait, isOn: StudioBindings.setting(\.portraitEnabled, on: session))
                     .onChange(of: session.settings.portraitEnabled) {
                         session.applyPortrait()
                     }
@@ -47,7 +47,7 @@ struct SettingsView: View {
                     session.applyControls()
                 }
             TextField(
-                String(localized: .port),
+                .port,
                 value: StudioBindings.setting(\.port, on: session),
                 format: .number
             )
@@ -55,7 +55,7 @@ struct SettingsView: View {
             .onChange(of: session.settings.port) {
                 session.applyControls()
             }
-            Picker(String(localized: .curtainMode), selection: StudioBindings.setting(\.curtainMode, on: session)) {
+            Picker(.curtainMode, selection: StudioBindings.setting(\.curtainMode, on: session)) {
                 Text(.curtainAutomatic).tag(CurtainMode.automatic)
                 Text(.curtainAlways).tag(CurtainMode.on)
                 Text(.curtainOff).tag(CurtainMode.off)
@@ -63,8 +63,8 @@ struct SettingsView: View {
             .onChange(of: session.settings.curtainMode) {
                 session.setCurtainMode(session.settings.curtainMode)
             }
-            Toggle(String(localized: .showTally), isOn: StudioBindings.setting(\.showTally, on: session))
-            Toggle(String(localized: .confirmStopToggle), isOn: StudioBindings.setting(\.confirmStop, on: session))
+            Toggle(.showTally, isOn: StudioBindings.setting(\.showTally, on: session))
+            Toggle(.confirmStopToggle, isOn: StudioBindings.setting(\.confirmStop, on: session))
         }
         .navigationTitle(Text(.settingsTitle))
         .onChange(of: session.settings) {

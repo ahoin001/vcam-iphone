@@ -7,7 +7,7 @@ struct ExposureControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             StudioReadout(title: .exposure, value: exposureReadout)
-            Picker(String(localized: .exposure), selection: StudioBindings.setting(\.manualExposure, on: session)) {
+            Picker(.exposure, selection: StudioBindings.setting(\.manualExposure, on: session)) {
                 Text(.auto).tag(false)
                 Text(.manual).tag(true)
             }
@@ -16,18 +16,8 @@ struct ExposureControl: View {
                 session.applyControls()
             }
             if session.settings.manualExposure {
-                valueSlider(
-                    title: .iso,
-                    readout: isoReadout,
-                    unit: isoUnit,
-                    watched: session.settings.iso
-                )
-                valueSlider(
-                    title: .shutter,
-                    readout: shutterReadout,
-                    unit: shutterUnit,
-                    watched: session.settings.shutterSeconds
-                )
+                ExposureValueSlider(title: .iso, readout: isoReadout, unit: isoUnit, watched: session.settings.iso)
+                ExposureValueSlider(title: .shutter, readout: shutterReadout, unit: shutterUnit, watched: session.settings.shutterSeconds)
             } else {
                 Slider(value: StudioBindings.setting(\.exposureBias, on: session), in: -3...3)
                     .tint(.yellow)
@@ -41,14 +31,12 @@ struct ExposureControl: View {
 
     private var exposureReadout: String {
         if session.settings.manualExposure {
-            return "\(isoReadout) · \(shutterReadout)"
+            "\(isoReadout) · \(shutterReadout)"
+        } else {
+            session.settings.exposureBias.formatted(
+                .number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false))
+            )
         }
-        let bias = session.settings.exposureBias
-        let digits = bias.formatted(.number.precision(.fractionLength(1)))
-        if bias > 0.049 {
-            return "+\(digits)"
-        }
-        return digits
     }
 
     private var isoReadout: String {
@@ -57,7 +45,9 @@ struct ExposureControl: View {
 
     private var shutterReadout: String {
         let seconds = session.settings.shutterSeconds
-        guard seconds > 0 else { return "0" }
+        if seconds <= 0 {
+            return "0"
+        }
         if seconds >= 1 {
             return seconds.formatted(.number.precision(.fractionLength(1))) + "s"
         }
@@ -77,31 +67,6 @@ struct ExposureControl: View {
             get: { Self.unit(for: session.settings.shutterSeconds, lower: 0.0001, upper: 0.5) },
             set: { session.settings.shutterSeconds = Self.value(for: $0, lower: 0.0001, upper: 0.5) }
         )
-    }
-
-    private func valueSlider(
-        title: LocalizedStringResource,
-        readout: String,
-        unit: Binding<Double>,
-        watched: Double
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title)
-                Spacer(minLength: 8)
-                Text(readout)
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.yellow)
-                    .contentTransition(reduceMotion ? .identity : .numericText())
-            }
-            .font(.subheadline)
-            Slider(value: unit, in: 0...1)
-                .tint(.yellow)
-                .accessibilityValue(Text(readout))
-        }
-        .onChange(of: watched) {
-            session.applyControls()
-        }
     }
 
     private static func unit(for value: Double, lower: Double, upper: Double) -> Double {

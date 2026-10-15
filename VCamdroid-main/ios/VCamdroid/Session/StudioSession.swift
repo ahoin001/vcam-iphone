@@ -18,7 +18,7 @@ final class StudioSession {
     private(set) var logs: [LogEntry] = []
     private(set) var clientAddress: String?
     private(set) var isUSBClient = false
-    private(set) var statusMessage = ""
+    private(set) var statusMessage: LocalizedStringResource = .waitingForOBS
     private(set) var isRunning = false
     var curtainPresented = false
     private(set) var portraitCare: PortraitCare = .hidden
@@ -51,7 +51,7 @@ final class StudioSession {
             batteryPercent: 100,
             tally: .idle
         )
-        statusMessage = String(localized: .waitingForOBS)
+        statusMessage = .waitingForOBS
     }
 
     var addressLine: String {
@@ -106,15 +106,15 @@ final class StudioSession {
                 return
             }
             isRunning = true
-            statusMessage = String(localized: .waitingForOBS)
+            statusMessage = .waitingForOBS
             appendLog(String(localized: .waitingForOBS))
             armCurtain()
             watchCare()
         } catch DroidCamServerError.invalidPort, DroidCamServerError.portInUse {
-            statusMessage = String(localized: .portInUse)
+            statusMessage = .portInUse
             appendLog(String(localized: .portInUse))
         } catch {
-            statusMessage = String(localized: .startFailed)
+            statusMessage = .startFailed
             appendLog(String(localized: .startFailed))
         }
     }
@@ -139,7 +139,7 @@ final class StudioSession {
         snapshot.status = "waiting"
         clientAddress = nil
         isUSBClient = false
-        statusMessage = String(localized: .waitingForOBS)
+        statusMessage = .waitingForOBS
     }
 
     func confirmStopIfNeeded() -> Bool {
@@ -151,7 +151,7 @@ final class StudioSession {
         case .background:
             guard isRunning else { return }
             pausedForBackground = true
-            statusMessage = String(localized: .streamPausedLocked)
+            statusMessage = .streamPausedLocked
             appendLog(String(localized: .streamPausedLocked))
             Task { await pauseForBackground() }
         case .active:
@@ -372,7 +372,7 @@ final class StudioSession {
                 keyframeInterval: settings.keyframeInterval
             )
             encoderActive = true
-            statusMessage = String(localized: .streaming)
+            statusMessage = .streaming
             appendLog(String(localized: .clientConnected))
         } catch {
             encoderActive = false
@@ -385,7 +385,7 @@ final class StudioSession {
         await encoder.stop()
         snapshot.isStreaming = false
         snapshot.status = "waiting"
-        statusMessage = String(localized: .waitingForOBS)
+        statusMessage = .waitingForOBS
         appendLog(String(localized: .clientDisconnected))
     }
 
@@ -413,7 +413,7 @@ final class StudioSession {
 
     private func noteListenFailed() {
         listenFailed = true
-        statusMessage = String(localized: .portInUse)
+        statusMessage = .portInUse
         appendLog(String(localized: .portInUse))
         guard isRunning else { return }
         isRunning = false
@@ -453,14 +453,14 @@ final class StudioSession {
             return
         }
         guard clientAddress != nil else {
-            statusMessage = String(localized: .waitingForOBS)
+            statusMessage = .waitingForOBS
             return
         }
         await encoder.markConfigurationUnsent()
         await restartEncoder()
         snapshot.isStreaming = true
         snapshot.status = "streaming"
-        statusMessage = String(localized: .streaming)
+        statusMessage = .streaming
         pushPortrait()
     }
 
@@ -506,7 +506,7 @@ final class StudioSession {
         let thermal = ProcessInfo.processInfo.thermalState
         pushPortrait()
         if thermalChanged, portraitWasOff, thermal == .serious || thermal == .critical {
-            statusMessage = String(localized: .thermalWarning)
+            statusMessage = .thermalWarning
             appendLog(String(localized: .thermalWarning))
         }
     }

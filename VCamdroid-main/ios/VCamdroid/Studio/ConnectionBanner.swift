@@ -14,7 +14,11 @@ struct ConnectionBanner: View {
                 if session.snapshot.isStreaming {
                     Text("·")
                         .accessibilityHidden(true)
-                    Text(session.isUSBClient ? String(localized: .usbBadge) : String(localized: .wifiBadge))
+                    if session.isUSBClient {
+                        Text(.usbBadge)
+                    } else {
+                        Text(.wifiBadge)
+                    }
                 }
             }
             .font(.caption.monospacedDigit())

@@ -11,9 +11,9 @@ struct LocalNetworkPermissionView: View {
                 .bold()
             Text(.localNetworkBody)
                 .foregroundStyle(.secondary)
-            Button(String(localized: .continueAction), systemImage: "wifi", action: allow)
+            Button(.continueAction, systemImage: "wifi", action: allow)
                 .buttonStyle(PressableButtonStyle(prominent: true))
-            Button(String(localized: .notNow), systemImage: "cable.connector", action: skip)
+            Button(.notNow, systemImage: "cable.connector", action: skip)
                 .buttonStyle(PressableButtonStyle())
         }
         .padding()

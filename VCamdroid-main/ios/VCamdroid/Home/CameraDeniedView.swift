@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct CameraDeniedView: View {
     @Environment(\.openURL) private var openURL
@@ -8,7 +7,7 @@ struct CameraDeniedView: View {
         VStack {
             Text(.permissionDenied)
                 .foregroundStyle(.secondary)
-            Button(String(localized: .openSettings), systemImage: "gearshape", action: openSettings)
+            Button(.openSettings, systemImage: "gearshape", action: openSettings)
                 .buttonStyle(PressableButtonStyle(prominent: true))
         }
         .padding()

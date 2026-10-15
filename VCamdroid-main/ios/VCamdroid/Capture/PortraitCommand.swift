@@ -45,14 +45,14 @@ enum PortraitCare: Equatable, Sendable {
 
 enum PortraitPolicy {
     static func grade(enabled: Bool, thermal: ProcessInfo.ThermalState) -> PortraitGrade {
-        guard enabled else { return .off }
-        switch thermal {
-        case .critical:
-            return .paused
-        case .serious:
-            return .fast
-        default:
-            return .balanced
+        if !enabled {
+            .off
+        } else {
+            switch thermal {
+            case .critical: .paused
+            case .serious: .fast
+            default: .balanced
+            }
         }
     }
 

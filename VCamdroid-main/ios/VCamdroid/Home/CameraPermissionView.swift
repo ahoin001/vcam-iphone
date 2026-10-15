@@ -12,7 +12,7 @@ struct CameraPermissionView: View {
                 .bold()
             Text(.cameraNeededBody)
                 .foregroundStyle(.secondary)
-            Button(String(localized: .continueAction), systemImage: "camera", action: request)
+            Button(.continueAction, systemImage: "camera", action: request)
                 .buttonStyle(PressableButtonStyle(prominent: true))
         }
         .padding()

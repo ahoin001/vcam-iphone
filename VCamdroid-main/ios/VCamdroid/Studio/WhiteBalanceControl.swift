@@ -6,14 +6,16 @@ struct WhiteBalanceControl: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            StudioReadout(title: .whiteBalance, value: readout)
+            if let selectedPreset {
+                StudioReadout(title: .whiteBalance, value: title(selectedPreset))
+            } else {
+                StudioReadout(title: .whiteBalance, value: kelvinReadout)
+            }
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(WhiteBalancePreset.allCases) { preset in
                         let selected = selectedPreset == preset
-                        Button {
-                            session.selectWhiteBalance(preset)
-                        } label: {
+                        Button(action: { select(preset) }) {
                             Text(title(preset))
                                 .font(.subheadline.weight(selected ? .semibold : .regular))
                                 .lineLimit(1)
@@ -41,11 +43,12 @@ struct WhiteBalanceControl: View {
         return WhiteBalancePreset.allCases.first { $0.kelvin == session.settings.kelvin }
     }
 
-    private var readout: String {
-        if let selectedPreset {
-            return String(localized: title(selectedPreset))
-        }
-        return session.settings.kelvin.formatted(.number.precision(.fractionLength(0))) + "K"
+    private var kelvinReadout: String {
+        session.settings.kelvin.formatted(.number.precision(.fractionLength(0))) + "K"
+    }
+
+    private func select(_ preset: WhiteBalancePreset) {
+        session.selectWhiteBalance(preset)
     }
 
     private func title(_ preset: WhiteBalancePreset) -> LocalizedStringResource {

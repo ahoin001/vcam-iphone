@@ -14,9 +14,9 @@ struct HomeView: View {
                     .bold()
                 Text(.homeSubtitle)
                     .foregroundStyle(.secondary)
-                Button(String(localized: .obsMode), systemImage: "video", action: openStudio)
+                Button(.obsMode, systemImage: "video", action: openStudio)
                     .buttonStyle(PressableButtonStyle(prominent: true))
-                Button(String(localized: .howToConnect), systemImage: "questionmark.circle", action: openHelp)
+                Button(.howToConnect, systemImage: "questionmark.circle", action: openHelp)
                     .buttonStyle(PressableButtonStyle())
             }
             .padding()

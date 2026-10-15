@@ -18,7 +18,7 @@ struct StudioView: View {
             StudioChrome(
                 tool: $tool,
                 isCompactHeight: verticalSizeClass == .compact,
-                onBack: { dismiss() },
+                onBack: goBack,
                 onStop: requestStop
             )
             .padding(.horizontal, 16)
@@ -45,8 +45,8 @@ struct StudioView: View {
             }
         )
         .confirmationDialog(Text(.confirmStopTitle), isPresented: $confirmingStop, titleVisibility: .visible) {
-            Button(String(localized: .stop), role: .destructive, action: stop)
-            Button(String(localized: .notNow), role: .cancel, action: dismissStop)
+            Button(.stop, role: .destructive, action: stop)
+            Button(.notNow, role: .cancel, action: dismissStop)
         } message: {
             Text(.confirmStopBody)
         }
@@ -54,6 +54,10 @@ struct StudioView: View {
 
     private var curtainAnimation: Animation {
         reduceMotion ? .easeOut(duration: 0.2) : .timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
+    }
+
+    private func goBack() {
+        dismiss()
     }
 
     private func dismissTool() {

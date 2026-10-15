@@ -11,14 +11,13 @@ struct TallyBadge: View {
             .padding(.vertical, 6)
             .foregroundStyle(color)
             .background(color.opacity(0.18), in: .capsule)
-            .accessibilityLabel(Text(label))
     }
 
-    private var label: String {
+    private var label: LocalizedStringResource {
         switch tally {
-        case .program: String(localized: .tallyProgram)
-        case .preview: String(localized: .tallyPreview)
-        case .idle: String(localized: .tallyStandby)
+        case .program: .tallyProgram
+        case .preview: .tallyPreview
+        case .idle: .tallyStandby
         }
     }
 
