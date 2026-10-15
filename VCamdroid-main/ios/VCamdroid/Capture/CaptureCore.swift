@@ -71,11 +71,13 @@ final class CaptureCore: @unchecked Sendable {
     }
 
     private func apply(_ configuration: CaptureConfiguration, rebuild: Bool) throws {
+        let device = try camera(for: configuration)
         let session = previewSession.session
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
-        if rebuild || session.inputs.isEmpty {
+        let current = (session.inputs.first as? AVCaptureDeviceInput)?.device
+        if rebuild || session.inputs.isEmpty || current?.uniqueID != device.uniqueID {
             session.sessionPreset = .inputPriority
             for input in session.inputs {
                 session.removeInput(input)
@@ -86,7 +88,6 @@ final class CaptureCore: @unchecked Sendable {
                     session.addOutput(videoOutput)
                 }
             }
-            let device = try camera(for: configuration.lens)
             let input = try AVCaptureDeviceInput(device: device)
             guard session.canAddInput(input) else { throw CaptureEngineError.cannotAddInput }
             session.addInput(input)
@@ -99,10 +100,10 @@ final class CaptureCore: @unchecked Sendable {
                 throw error
             }
             device.unlockForConfiguration()
-        } else if let device = activeDevice() {
-            try device.lockForConfiguration()
-            applyControls(configuration, on: device)
-            device.unlockForConfiguration()
+        } else if let current {
+            try current.lockForConfiguration()
+            applyControls(configuration, on: current)
+            current.unlockForConfiguration()
         }
 
         if let connection = videoOutput.connection(with: .video) {
@@ -120,18 +121,28 @@ final class CaptureCore: @unchecked Sendable {
         }
     }
 
-    private func camera(for lens: Lens) throws -> AVCaptureDevice {
-        let device: AVCaptureDevice?
+    private func camera(for configuration: CaptureConfiguration) throws -> AVCaptureDevice {
+        let candidates = devices(for: configuration.lens)
+        if configuration.manualExposure, let supported = candidates.first(where: { $0.isExposureModeSupported(.custom) }) {
+            return supported
+        }
+        guard let device = candidates.first else { throw CaptureEngineError.cameraUnavailable }
+        return device
+    }
+
+    private func devices(for lens: Lens) -> [AVCaptureDevice] {
+        let types: [AVCaptureDevice.DeviceType]
+        let position: AVCaptureDevice.Position
         switch lens {
         case .back:
-            device = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back)
-                ?? AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back)
-                ?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            types = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera]
+            position = .back
         case .front:
-            device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+            types = [.builtInWideAngleCamera]
+            position = .front
         }
-        guard let device else { throw CaptureEngineError.cameraUnavailable }
-        return device
+        var seen: Set<String> = []
+        return types.compactMap { AVCaptureDevice.default($0, for: .video, position: position) }.filter { seen.insert($0.uniqueID).inserted }
     }
 
     private func applyFormat(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) throws {
@@ -159,7 +170,7 @@ final class CaptureCore: @unchecked Sendable {
             device.torchMode = configuration.torch && device.isTorchAvailable ? .on : .off
         }
 
-        if configuration.manualExposure {
+        if configuration.manualExposure, device.isExposureModeSupported(.custom) {
             let iso = min(max(Float(configuration.iso), device.activeFormat.minISO), device.activeFormat.maxISO)
             var duration = CMTime(seconds: configuration.shutterSeconds, preferredTimescale: 1_000_000)
             if duration < device.activeFormat.minExposureDuration { duration = device.activeFormat.minExposureDuration }
@@ -171,14 +182,14 @@ final class CaptureCore: @unchecked Sendable {
             device.setExposureTargetBias(bias, completionHandler: nil)
         }
 
-        if configuration.manualWhiteBalance {
+        if configuration.manualWhiteBalance, device.isWhiteBalanceModeSupported(.locked) {
             let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(configuration.kelvin), tint: 0)
             device.setWhiteBalanceModeLocked(with: clampedGains(device.deviceWhiteBalanceGains(for: temperature), on: device), completionHandler: nil)
         } else if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
             device.whiteBalanceMode = .continuousAutoWhiteBalance
         }
 
-        if configuration.manualFocus {
+        if configuration.manualFocus, device.isFocusModeSupported(.locked) {
             device.setFocusModeLocked(lensPosition: min(max(Float(configuration.lensPosition), 0), 1), completionHandler: nil)
         } else if device.isFocusModeSupported(.continuousAutoFocus) {
             device.focusMode = .continuousAutoFocus
