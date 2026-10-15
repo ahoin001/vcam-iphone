@@ -25,9 +25,15 @@ namespace usbmux
 		constexpr uint32_t kPlistMessage = 8;
 
 		std::atomic<bool> gStop{ false };
+		std::atomic<bool> gRunning{ false };
+		std::atomic<bool> gLog{ false };
 		SOCKET gListen = INVALID_SOCKET;
 		std::mutex gThreadsMutex;
 		std::vector<std::thread> gThreads;
+		std::thread gAcceptThread;
+		bool gOwnsWSA = false;
+		int gDeviceID = 0;
+		int gPort = 4747;
 
 		#pragma pack(push, 1)
 		struct Header
@@ -41,6 +47,10 @@ namespace usbmux
 
 		void log(int port, const std::string& message)
 		{
+			if (!gLog.load())
+			{
+				return;
+			}
 			std::cout << "[USBMUX:" << port << "] " << message << std::endl;
 		}
 
@@ -147,6 +157,16 @@ namespace usbmux
 				}
 				std::optional<int64_t> found;
 				walk(objects[static_cast<size_t>(rootIndex)], key, found);
+				return found;
+			}
+
+			std::vector<Device> devices() const
+			{
+				std::vector<Device> found;
+				if (rootIndex < objects.size())
+				{
+					collect(objects[static_cast<size_t>(rootIndex)], found);
+				}
 				return found;
 			}
 
@@ -299,6 +319,82 @@ namespace usbmux
 				return &objects[static_cast<size_t>(index)];
 			}
 
+			const PlistObject* dictValue(const PlistObject& dict, const std::string& key) const
+			{
+				if (dict.kind != PlistObject::Kind::Dict)
+				{
+					return nullptr;
+				}
+				for (size_t index = 0; index + 1 < dict.refs.size(); index += 2)
+				{
+					const PlistObject* name = at(dict.refs[index]);
+					if (name != nullptr && name->kind == PlistObject::Kind::String && name->text == key)
+					{
+						return at(dict.refs[index + 1]);
+					}
+				}
+				return nullptr;
+			}
+
+			std::string dictString(const PlistObject& dict, const std::string& key) const
+			{
+				if (const PlistObject* value = dictValue(dict, key); value != nullptr && value->kind == PlistObject::Kind::String)
+				{
+					return value->text;
+				}
+				return {};
+			}
+
+			void collect(const PlistObject& object, std::vector<Device>& found) const
+			{
+				if (object.kind == PlistObject::Kind::Array)
+				{
+					for (const uint64_t ref : object.refs)
+					{
+						if (const PlistObject* child = at(ref))
+						{
+							collect(*child, found);
+						}
+					}
+					return;
+				}
+				if (object.kind != PlistObject::Kind::Dict)
+				{
+					return;
+				}
+				if (const PlistObject* idValue = dictValue(object, "DeviceID"); idValue != nullptr && idValue->kind == PlistObject::Kind::Int)
+				{
+					Device device;
+					device.id = static_cast<int>(idValue->integer);
+					device.serial = dictString(object, "SerialNumber");
+					device.name = dictString(object, "DeviceName");
+					if (const PlistObject* properties = dictValue(object, "Properties"); properties != nullptr && properties->kind == PlistObject::Kind::Dict)
+					{
+						if (device.serial.empty())
+						{
+							device.serial = dictString(*properties, "SerialNumber");
+						}
+						if (device.name.empty())
+						{
+							device.name = dictString(*properties, "DeviceName");
+						}
+					}
+					if (device.name.empty())
+					{
+						device.name = "iPhone";
+					}
+					found.push_back(device);
+					return;
+				}
+				for (size_t index = 0; index + 1 < object.refs.size(); index += 2)
+				{
+					if (const PlistObject* value = at(object.refs[index + 1]))
+					{
+						collect(*value, found);
+					}
+				}
+			}
+
 			std::vector<uint8_t> bytes;
 			std::vector<uint64_t> offsets;
 			std::vector<PlistObject> objects;
@@ -329,6 +425,64 @@ namespace usbmux
 				return std::nullopt;
 			}
 			return static_cast<int64_t>(value);
+		}
+
+		std::optional<std::string> xmlString(const std::string& xml, const std::string& key)
+		{
+			const std::string needle = "<key>" + key + "</key>";
+			const size_t keyAt = xml.find(needle);
+			if (keyAt == std::string::npos)
+			{
+				return std::nullopt;
+			}
+			const size_t valueAt = xml.find("<string>", keyAt);
+			const size_t end = xml.find("</string>", valueAt == std::string::npos ? keyAt : valueAt);
+			if (valueAt == std::string::npos || end == std::string::npos || valueAt > end)
+			{
+				return std::nullopt;
+			}
+			return xml.substr(valueAt + 8, end - (valueAt + 8));
+		}
+
+		std::vector<Device> xmlDevices(const std::string& xml)
+		{
+			std::vector<Device> found;
+			const std::string needle = "<key>DeviceID</key>";
+			size_t pos = 0;
+			while ((pos = xml.find(needle, pos)) != std::string::npos)
+			{
+				const size_t next = xml.find(needle, pos + needle.size());
+				const std::string region = xml.substr(pos, (next == std::string::npos ? xml.size() : next) - pos);
+				const std::optional<int64_t> id = xmlInteger(region, "DeviceID");
+				if (id)
+				{
+					Device device;
+					device.id = static_cast<int>(*id);
+					device.serial = xmlString(region, "SerialNumber").value_or("");
+					device.name = xmlString(region, "DeviceName").value_or("iPhone");
+					if (device.name.empty())
+					{
+						device.name = "iPhone";
+					}
+					found.push_back(device);
+				}
+				pos += needle.size();
+			}
+			return found;
+		}
+
+		std::vector<Device> parseDevices(const std::string& payload)
+		{
+			if (payload.size() >= 8 && payload.compare(0, 8, "bplist00") == 0)
+			{
+				BinaryPlist plist;
+				if (!plist.parse(reinterpret_cast<const uint8_t*>(payload.data()), payload.size()))
+				{
+					return {};
+				}
+				return plist.devices();
+			}
+			return xmlDevices(payload);
 		}
 
 		std::optional<int64_t> plistInteger(const std::string& payload, const std::string& key)
@@ -393,13 +547,13 @@ namespace usbmux
 			return socket;
 		}
 
-		SOCKET openPhone(int phonePort, std::string& failure)
+		bool listFromService(std::vector<Device>& devices, std::string& failure)
 		{
 			SOCKET socket = connectUsbmux();
 			if (socket == INVALID_SOCKET)
 			{
 				failure = "Apple Mobile Device Service is not running. Install Apple Devices or iTunes, then reconnect the cable.";
-				return INVALID_SOCKET;
+				return false;
 			}
 			const std::string list = plistMessage(
 				"<key>MessageType</key><string>ListDevices</string>"
@@ -410,21 +564,43 @@ namespace usbmux
 			{
 				closesocket(socket);
 				failure = "Apple Mobile Device Service did not answer. Check the cable and that the service is running.";
-				return INVALID_SOCKET;
+				return false;
 			}
-			const std::optional<int64_t> deviceID = plistInteger(reply, "DeviceID");
-			if (!deviceID)
+			closesocket(socket);
+			devices = parseDevices(reply);
+			if (devices.empty())
 			{
-				closesocket(socket);
 				failure = "No iPhone found. Use a data cable and tap Trust This Computer.";
+				return false;
+			}
+			return true;
+		}
+
+		SOCKET openPhone(int phonePort, int preferredDeviceID, std::string& failure)
+		{
+			int deviceID = preferredDeviceID;
+			if (deviceID == 0)
+			{
+				std::vector<Device> devices;
+				if (!listFromService(devices, failure))
+				{
+					return INVALID_SOCKET;
+				}
+				deviceID = devices.front().id;
+			}
+			SOCKET socket = connectUsbmux();
+			if (socket == INVALID_SOCKET)
+			{
+				failure = "Apple Mobile Device Service is not running. Install Apple Devices or iTunes, then reconnect the cable.";
 				return INVALID_SOCKET;
 			}
+			std::string reply;
 			const uint16_t networkPort = htons(static_cast<uint16_t>(phonePort));
 			const std::string connectBody = plistMessage(
 				"<key>MessageType</key><string>Connect</string>"
 				"<key>ClientVersionString</key><string>usbmux_forward</string>"
 				"<key>ProgName</key><string>usbmux_forward</string>"
-				"<key>DeviceID</key><integer>" + std::to_string(*deviceID) + "</integer>"
+				"<key>DeviceID</key><integer>" + std::to_string(deviceID) + "</integer>"
 				"<key>PortNumber</key><integer>" + std::to_string(networkPort) + "</integer>");
 			if (!exchange(socket, connectBody, 2, reply))
 			{
@@ -515,22 +691,22 @@ namespace usbmux
 		}
 	}
 
-	int run(int port)
+	void joinSplices()
 	{
-		gStop.store(false);
-		WSADATA data{};
-		if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
+		std::lock_guard<std::mutex> guard(gThreadsMutex);
+		for (std::thread& thread : gThreads)
 		{
-			log(port, "Winsock failed to start.");
-			return 1;
+			if (thread.joinable())
+			{
+				thread.join();
+			}
 		}
-		gListen = listenLocal(port);
-		if (gListen == INVALID_SOCKET)
-		{
-			log(port, "Could not listen on 127.0.0.1:" + std::to_string(port) + ".");
-			WSACleanup();
-			return 1;
-		}
+		gThreads.clear();
+	}
+
+	void acceptLoop()
+	{
+		const int port = gPort;
 		log(port, "Forwarding 127.0.0.1:" + std::to_string(port) + " to the phone.");
 		while (!gStop.load())
 		{
@@ -541,7 +717,7 @@ namespace usbmux
 			}
 			setNoDelay(client);
 			std::string failure;
-			const SOCKET phone = openPhone(port, failure);
+			const SOCKET phone = openPhone(port, gDeviceID, failure);
 			if (phone == INVALID_SOCKET)
 			{
 				log(port, failure);
@@ -551,17 +727,7 @@ namespace usbmux
 			std::lock_guard<std::mutex> guard(gThreadsMutex);
 			gThreads.emplace_back(splice, client, phone);
 		}
-		{
-			std::lock_guard<std::mutex> guard(gThreadsMutex);
-			for (std::thread& thread : gThreads)
-			{
-				if (thread.joinable())
-				{
-					thread.join();
-				}
-			}
-			gThreads.clear();
-		}
+		joinSplices();
 		if (gListen != INVALID_SOCKET)
 		{
 			const SOCKET previous = reinterpret_cast<SOCKET>(InterlockedExchangePointer(
@@ -573,7 +739,106 @@ namespace usbmux
 			}
 		}
 		log(port, "Port mapping removed.");
+		gRunning.store(false);
+	}
+
+	void stop()
+	{
+		requestStop();
+		if (gAcceptThread.joinable())
+		{
+			gAcceptThread.join();
+		}
+		joinSplices();
+		if (gOwnsWSA)
+		{
+			WSACleanup();
+			gOwnsWSA = false;
+		}
+		gRunning.store(false);
+		gStop.store(false);
+	}
+
+	bool start(int port, int deviceId, std::string& error)
+	{
+		stop();
+		gStop.store(false);
+		gDeviceID = deviceId;
+		gPort = port;
+		WSADATA data{};
+		if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
+		{
+			error = "Winsock failed to start.";
+			return false;
+		}
+		gOwnsWSA = true;
+		gListen = listenLocal(port);
+		if (gListen == INVALID_SOCKET)
+		{
+			error = "Could not listen on 127.0.0.1:" + std::to_string(port)
+				+ ". Close usbmux_forward.exe if it is running, then try again.";
+			WSACleanup();
+			gOwnsWSA = false;
+			return false;
+		}
+		gRunning.store(true);
+		gAcceptThread = std::thread(acceptLoop);
+		return true;
+	}
+
+	bool isRunning()
+	{
+		return gRunning.load();
+	}
+
+	int listeningPort()
+	{
+		return gPort;
+	}
+
+	ListResult listDevices()
+	{
+		ListResult result;
+		WSADATA data{};
+		const bool started = WSAStartup(MAKEWORD(2, 2), &data) == 0;
+		if (!started)
+		{
+			result.error = "Winsock failed to start.";
+			return result;
+		}
+		if (!listFromService(result.devices, result.error))
+		{
+			result.devices.clear();
+		}
+		else
+		{
+			result.error.clear();
+		}
 		WSACleanup();
+		return result;
+	}
+
+	int run(int port)
+	{
+		gLog.store(true);
+		std::string error;
+		if (!start(port, 0, error))
+		{
+			log(port, error);
+			gLog.store(false);
+			return 1;
+		}
+		if (gAcceptThread.joinable())
+		{
+			gAcceptThread.join();
+		}
+		if (gOwnsWSA)
+		{
+			WSACleanup();
+			gOwnsWSA = false;
+		}
+		gRunning.store(false);
+		gLog.store(false);
 		return 0;
 	}
 }

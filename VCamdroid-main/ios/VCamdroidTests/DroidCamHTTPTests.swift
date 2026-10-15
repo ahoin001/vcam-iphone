@@ -97,6 +97,14 @@ func parsesControlRoutes(_ line: String) {
     )))
 }
 
+@Test func controlUpdateReadsBitrate() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?bitrateKbps=6000 HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate(bitrateKbps: 6000)))
+}
+
 @Test func unknownControlValuesAreIgnored() {
     let request = DroidCamHTTP.parse(
         firstLine: "PUT /v1/controls?whiteBalance=sepia&zoom=nan HTTP/1.1",
@@ -115,5 +123,6 @@ func parsesControlRoutes(_ line: String) {
     let text = String(decoding: body, as: UTF8.self)
     #expect(text.contains("Content-Type: text/html"))
     #expect(text.contains("/v1/controls"))
+    #expect(text.contains("/v1/session"))
     #expect(!text.contains("GET /video"))
 }

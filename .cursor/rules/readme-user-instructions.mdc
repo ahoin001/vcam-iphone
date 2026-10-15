@@ -1,0 +1,25 @@
+---
+description: Keep the root README user instructions current when setup, connect, or desk-control flows change
+alwaysApply: true
+---
+
+# README stays the source of truth for setup
+
+The root [`README.md`](README.md) is the zero-to-use guide. When you change anything a user must do — install, connect (Wi-Fi or USB), OBS source settings, companion (`VCamPanel`), `/panel` desk, portrait preview, virtual camera, or troubleshooting — update that README in the same change.
+
+## What to update
+
+- **What to download** table if a new binary, dependency, or “needed for” path appears or disappears.
+- **Sections 3–6** for Wi-Fi, USB, webcam, and desk controls. USB’s normal path is **VCamPanel** (usbmux inside). `usbmux_forward.exe` is optional CLI only.
+- **While you are live** and **If the picture never appears** when status copy, companion behavior, or failure modes change.
+- Intro blurb when the product split changes (OBS = picture; companion / `/panel` = shot controls).
+
+## Do not
+
+- Leave the README describing a removed step (typed `/panel` URL as the main path, separate forwarder as required, etc.).
+- Put Mac USB or Continuity Camera claims in the guide.
+- Duplicate a second conflicting guide; nested Android/Windows READMEs are not the iPhone zero-to-use path.
+
+## Check before finishing
+
+Re-read the affected README sections as a first-time user and confirm the steps match the code you just shipped.

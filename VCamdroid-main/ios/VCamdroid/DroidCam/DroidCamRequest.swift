@@ -22,6 +22,7 @@ struct ControlUpdate: Equatable, Sendable {
     var flip: Bool?
     var portrait: Bool?
     var portraitStrength: Double?
+    var bitrateKbps: Int?
 }
 
 struct ControlState: Equatable, Sendable {
@@ -38,6 +39,7 @@ struct ControlState: Equatable, Sendable {
     var flip: Bool
     var portrait: Bool
     var portraitStrength: Double
+    var bitrateKbps: Int
 
     init(settings: StudioSettings) {
         lens = settings.lens
@@ -53,6 +55,7 @@ struct ControlState: Equatable, Sendable {
         flip = settings.flip180
         portrait = settings.portraitEnabled
         portraitStrength = settings.portraitStrength
+        bitrateKbps = settings.bitrateKbps
     }
 
     func json(success: Bool? = nil) -> String {
@@ -73,6 +76,7 @@ struct ControlState: Equatable, Sendable {
         fields.append("\"flip\":\(flip ? "true" : "false")")
         fields.append("\"portrait\":\(portrait ? "true" : "false")")
         fields.append("\"portraitStrength\":\(Self.number(portraitStrength))")
+        fields.append("\"bitrateKbps\":\(bitrateKbps)")
         return "{\(fields.joined(separator: ","))}"
     }
 

@@ -2,7 +2,7 @@
 
 Use an iPhone as the camera in OBS Studio, then send that same picture to Zoom, Teams, Meet, or Discord through OBS’s virtual camera.
 
-The phone app is named **VCamdroid**. It previews the shot, encodes H.264, and listens on port **4747**. OBS connects to that port. Other apps see the picture only after OBS is already receiving it and **Start Virtual Camera** is on. Zoom, exposure, white balance, focus, torch, flip, and the front or back camera can be changed from OBS or from a small window on the PC. The stream stays connected.
+The phone app is named **VCamdroid**. It previews the shot, encodes H.264, and listens on port **4747**. OBS connects to that port for the picture. Other apps see that picture only after OBS is already receiving it and **Start Virtual Camera** is on. Live camera tools (zoom, exposure, white balance, focus, torch, flip, portrait, resolution, frame rate, bitrate) live in the Windows companion, **VCamPanel**, or in an OBS Custom Browser Dock pointed at the phone’s `/panel` page. The stream stays connected.
 
 Do the sections in order. Each one ends with a check so you know it worked before you continue.
 
@@ -28,11 +28,11 @@ Download these before you start. Skip an item only when its “Needed for” lin
 | Download | Where | Needed for |
 | --- | --- | --- |
 | **Xcode** | Mac App Store. Open it once after install so it can finish installing components. You need the version that includes the iOS 26 SDK. | Putting the app on the iPhone. |
-| **This repository** | On the Mac: [github.com/ahoin001/vcam-iphone](https://github.com/ahoin001/vcam-iphone). Clone it or download the ZIP. | The iPhone app. On the PC, the USB helper if you use a cable, and the control window if you want the shot controls outside OBS. |
+| **This repository** | On the Mac: [github.com/ahoin001/vcam-iphone](https://github.com/ahoin001/vcam-iphone). Clone it or download the ZIP. | The iPhone app. On the PC, the **VCamdroid** companion that finds the phone over USB or Wi-Fi and hosts the camera desk. |
 | **OBS Studio** | On the Windows PC: [obsproject.com/download](https://obsproject.com/download). | Seeing the iPhone picture, and publishing it as a webcam. |
 | **An OBS source for the phone** | Install **one** of these on the Windows PC, then quit and reopen OBS. [VCamdroid OBS plugin](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), or [DroidCam OBS](https://www.dev47apps.com/obs/). The DroidCam OBS page currently asks for OBS 32 or newer. | The **VCamdroid** or **DroidCam OBS** item in OBS’s source list. OBS does not include that source by itself. |
 | **Apple Devices** (or iTunes) | Microsoft Store, on the Windows PC. Open it once after install. | USB only. It starts Apple Mobile Device Service, which the cable path needs. Wi-Fi does not need it. |
-| **Visual Studio 2022** | [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/). During setup, check the workload **Desktop development with C++**. | USB, and the Windows control window. It builds `usbmux_forward.exe` and `VCamPanel.exe`. Wi-Fi with only the OBS dock does not need it. |
+| **Visual Studio 2022** | [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/). During setup, check the workload **Desktop development with C++**. | The Windows companion. It builds `VCamPanel.exe`, which finds the iPhone over USB or Wi-Fi and shows the same live camera tools as the phone. Wi-Fi with only the OBS dock does not need it. |
 
 Clone on the Mac, if you use git:
 
@@ -105,47 +105,38 @@ Use this when the phone and the PC are on the same Wi-Fi and you do not want the
 
 **Check:** the phone status changes from **Waiting for OBS** to **Streaming**, the badge reads **Wi-Fi**, and the iPhone picture is in the OBS preview.
 
-The address on the phone is also the camera-control page. Put `http://` in front of it and `/panel` after it. For `192.168.1.20:4747`, that is `http://192.168.1.20:4747/panel`. Section 6 opens that page in OBS.
+OBS only needs this IP and port for the picture. For the camera desk on Wi-Fi, open **VCamPanel**, Refresh, pick the Wi-Fi phone (or type the IP), and Connect — or use section 6’s OBS dock. You do not need USB for that.
 
 Keep the phone on that studio screen. The side button and the app switcher stop the camera. **PROGRAM**, **PREVIEW**, and **STANDBY** follow the OBS tally when **Show tally** is on in the phone’s Settings.
 
 ## 4. Use the iPhone as the camera in OBS over USB
 
-Use this when you want the cable instead of Wi-Fi. You build one small program once, then leave it running whenever you stream.
+Use this when you want the cable instead of Wi-Fi. The Windows companion finds the iPhone and keeps the USB tunnel open. OBS only receives the picture.
 
 1. On the PC, install **Apple Devices** or iTunes from the Microsoft Store and open it once.
 2. Install Visual Studio 2022. In the installer, select the workload **Desktop development with C++**, then install.
 3. Copy the repository onto the PC, or open the same clone if the project folder is already there. You need `VCamdroid-main/windows/VCamdroid.sln`.
 4. Double-click `VCamdroid.sln` so it opens in Visual Studio.
 5. In the toolbar, set the configuration dropdown to **Release** and the platform dropdown to **x64**.
-6. In Solution Explorer, right-click the **usbmux_forward** project and choose **Build**.
+6. In Solution Explorer, right-click **VCamPanel** and choose **Build**. The first build downloads the WebView2 package. Windows also needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which current Windows 11 installs already include.
 7. When the build succeeds, the program is:
 
-   `VCamdroid-main\windows\x64\Release\usbmux_forward.exe`
+   `VCamdroid-main\windows\x64\Release\VCamPanel.exe`
 
 8. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer** if it asks.
 9. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The status can say **Waiting for OBS**.
-10. On the PC, open Command Prompt. Go to the folder that contains `usbmux_forward.exe`. If the repo is on your Desktop, that looks like this (change the user name and path to match your PC):
-
-    ```bat
-    cd %USERPROFILE%\Desktop\vcam-iphone\VCamdroid-main\windows\x64\Release
-    usbmux_forward.exe 4747
-    ```
-
-11. Leave that Command Prompt window open. Closing it disconnects the cable path.
-12. In OBS, click **+** in **Sources** and add a **VCamdroid** or **DroidCam OBS** source.
-13. Enter the IP **127.0.0.1** and the port **4747**. If the dialog has a USB choice, you can select that instead of typing the address.
-14. Click **OK**.
+10. On the PC, run `VCamPanel.exe`. The window stays on top.
+11. Click **Refresh**. The iPhone should appear as **USB**. Select it and click **Connect**. The status line names the usual failures if it cannot: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or VCamdroid is not in front.
+12. Copy the **OBS** address from the companion. For USB that is **127.0.0.1:4747**.
+13. In OBS, click **+** in **Sources** and add a **VCamdroid** or **DroidCam OBS** source.
+14. Enter the IP **127.0.0.1** and the port **4747**. If the dialog has a USB choice, you can select that instead of typing the address.
+15. Click **OK**. Leave the companion open while you stream.
 
 **Check:** the phone says **Streaming**, the badge reads **USB**, and the picture is in the OBS preview.
 
-The control page over USB is `http://127.0.0.1:4747/panel`, with `usbmux_forward.exe` still running. If you changed the port, use that port instead of **4747**. Section 6 opens that page.
+If you changed **Port** in the phone’s Settings, type that port in the companion’s address field before Connect, and use the same port in OBS.
 
-`usbmux_forward.exe` with no arguments uses port 4747. If you change **Port** in the phone’s Settings, pass that same number to the program and type it in OBS. Example for port 4748:
-
-```bat
-usbmux_forward.exe 4748
-```
+The old `usbmux_forward.exe` helper is still in the Visual Studio solution if you want a console forwarder and no companion. You do not need it when `VCamPanel.exe` is connected over USB.
 
 ## 5. Use the iPhone as a webcam in Zoom, Teams, Meet, or Discord
 
@@ -153,7 +144,7 @@ Those apps do not connect to the phone. They connect to a camera that OBS publis
 
 1. Leave **VCamdroid** open on the phone’s studio screen.
 2. Leave OBS open with the phone source showing a picture.
-3. If you used USB, leave the `usbmux_forward.exe` window open.
+3. If you used USB, leave **VCamPanel** connected.
 4. In OBS, find the **Controls** dock. It is usually at the lower right.
 5. Click **Start Virtual Camera**. The button label changes to **Stop Virtual Camera** while it is on.
 6. Open the meeting app and set the camera to **OBS Virtual Camera**:
@@ -169,38 +160,28 @@ Stopping the virtual camera, closing OBS, or leaving the phone app stops the pic
 
 ## 6. Adjust the camera from the desk
 
-Finish section 3 or section 4 first, so the picture is already in OBS. Then you can change the shot without getting up and without reconnecting OBS.
+The Windows companion is the camera desk. OBS stays the picture. Finish section 3 or section 4 first, so the iPhone is in OBS, then leave `VCamPanel.exe` connected.
 
-The page has the same controls as the phone: front or back camera, zoom from 1.0× to 10.0×, exposure (auto EV, or manual ISO and shutter), white balance, focus, torch, and flip. Moving a control on the computer moves it on the phone. Moving it on the phone updates the page.
+The desk matches the phone: front or back camera, zoom stops 1× / 2× / 3× / 5× / 10× and a 1.0×–10.0× slider, torch, flip, then one tool at a time for exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Stream settings on the desk are resolution, frame rate, and bitrate. Moving a control on the computer moves it on the phone. Moving it on the phone updates the desk.
 
-Build the page address from the address at the top of the phone:
+**On Windows:**
 
-- Wi-Fi: `http://` plus the address on the phone, plus `/panel`. Example: `http://192.168.1.20:4747/panel`.
-- USB: `http://127.0.0.1:4747/panel` while `usbmux_forward.exe` is running. Use the phone’s port if you changed it.
+1. Build and run `VCamPanel.exe` as in section 4, steps 2–7, if it is not already open.
+2. Click **Refresh**. Pick the USB iPhone or a Wi-Fi phone from the list. If Wi-Fi discovery misses it, type the IP from the phone and Connect.
+3. Leave the window on top while you shoot. **Copy** puts the OBS address on the clipboard.
 
-**In OBS, on Windows or Mac:**
+The meeting app still uses **OBS Virtual Camera**. `VCamPanel.exe` only finds the phone and changes the shot. It does not replace OBS.
+
+**In OBS, on Windows or Mac,** you can also dock the same page:
 
 1. Open **Docks → Custom Browser Docks**.
 2. Set the dock name to **VCamdroid**.
-3. Set the URL to the page address above.
+3. Set the URL to `http://` plus the OBS address from the companion or the phone, plus `/panel`. USB: `http://127.0.0.1:4747/panel`. Wi-Fi example: `http://192.168.1.20:4747/panel`.
 4. Click **Apply**. Leave the dock open while you shoot.
 
-This dock is separate from the **Controls** dock that holds **Start Virtual Camera**.
+This dock is separate from the **Controls** dock that holds **Start Virtual Camera**. On a Mac, use the OBS dock, or open that same page in a browser.
 
-**In a window, on Windows,** when Zoom, Teams, Meet, or Discord is in front and you do not want to switch back to OBS:
-
-1. Use the same Visual Studio setup as the USB forwarder. Open `VCamdroid-main/windows/VCamdroid.sln`.
-2. Set the configuration to **Release** and the platform to **x64**.
-3. In Solution Explorer, right-click **VCamPanel** and choose **Build**. The first build downloads the WebView2 package. Windows also needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which current Windows 11 installs already include.
-4. Run:
-
-   `VCamdroid-main\windows\x64\Release\VCamPanel.exe`
-
-5. Enter the page address, or leave the last one you used, and click **Open**. The window remembers that address.
-
-The meeting app still uses **OBS Virtual Camera**. `VCamPanel.exe` only changes the shot. It does not replace OBS. On a Mac, use the OBS dock, or open the same page address in a browser.
-
-**Check:** moving Zoom in the dock or in VCamPanel changes the OBS preview, and the zoom control on the phone moves with it.
+**Check:** moving Zoom in the companion or in the dock changes the OBS preview, and the zoom control on the phone moves with it.
 
 ## While you are live
 
@@ -208,13 +189,13 @@ On the phone, the picture fills the screen and the OBS address stays at the top.
 
 Portrait blurs the background in the stream. The iPhone preview stays off for that, and the phone tells you to watch the picture in OBS. **Show on iPhone**, or the **iPhone preview** switch in the portrait tool, draws the blurred picture on the phone. Leave it off if the phone warms up.
 
-From the computer, section 6 opens that same set of controls in an OBS dock or in `VCamPanel.exe`. Resolution, frame rate, and bitrate stay in **Settings** on the phone.
+From the computer, section 6 is that same camera desk in `VCamPanel.exe`, including resolution, frame rate, and bitrate. The OBS source stays the picture.
 
-In **Settings** on the phone:
+Resolution, frame rate, and bitrate are also on the desk in section 6. In **Settings** on the phone:
 
 - Resolution is **1280×720** or **1920×1080**. Frame rate is **30**. 1080p60 appears only after that phone has been allowed to offer it.
 - Bitrate runs from **2500** to **16000** kbps. The default is **4000**.
-- **Curtain** can be Automatic, Always on, or Off. Tap **Curtain** for a black screen that keeps the stream going and saves the OLED panel. Tap the black screen to get the controls back.
+- **Curtain** can be Automatic, Always on, or Off. Tap **Curtain** for a black screen that keeps the stream going and saves the OLED panel. Tap the black screen to get the controls back. Curtain stays on the phone; it is not on the PC desk.
 - **Show tally** and **Confirm before stopping**.
 
 With the iPhone preview on, the phone matches the picture OBS receives. With portrait’s preview left off, OBS is the picture to watch.
@@ -225,9 +206,9 @@ For a long session, keep the phone plugged in, leave Low Power Mode off, and use
 
 - The phone must stay on the studio screen. **Waiting for OBS** means the app is ready and OBS has not connected yet.
 - Wi-Fi: the PC and the phone are on the same network, and the IP in OBS is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.
-- USB: `usbmux_forward.exe` is still running. Its window names the usual failures: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or the phone app is not in front.
-- The OBS source address for USB is **127.0.0.1** port **4747**, with the forwarder running.
-- **That port is already in use** on the phone means something else has port 4747. Change **Port** in the phone’s Settings, then use the new port in OBS and, for USB, in `usbmux_forward.exe`.
+- USB: **VCamPanel** is still connected. Its status line names the usual failures: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or the phone app is not in front.
+- The OBS source address for USB is **127.0.0.1** port **4747**, with the companion connected.
+- **That port is already in use** on the phone means something else has port 4747. Change **Port** in the phone’s Settings, then use the new port in OBS and in the companion.
 - **Camera access is off** means the iPhone blocked the camera. Turn it on in **Settings → Privacy & Security → Camera → VCamdroid**.
 - The meeting app shows a black camera or your old webcam when **OBS Virtual Camera** is not the selected camera, or when **Start Virtual Camera** is off in OBS.
-- The camera-control page is blank when the address is missing `http://` or `/panel`, when the phone has left the studio screen, or when a USB page is opened without `usbmux_forward.exe` running. `VCamPanel.exe` also needs the WebView2 Runtime installed.
+- The camera desk is blank when the phone has left the studio screen, when USB is not connected in **VCamPanel**, or when the WebView2 Runtime is missing. `VCamPanel.exe` needs that runtime.

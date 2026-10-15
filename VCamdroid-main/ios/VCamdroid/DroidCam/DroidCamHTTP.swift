@@ -162,6 +162,9 @@ enum DroidCamHTTP {
         if let value = query["portraitstrength"], let number = finite(value) {
             update.portraitStrength = number
         }
+        if let value = query["bitratekbps"] ?? query["bitrate"], let number = Int(value) {
+            update.bitrateKbps = number
+        }
         return update
     }
 

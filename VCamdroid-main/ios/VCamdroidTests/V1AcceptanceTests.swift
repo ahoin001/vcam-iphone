@@ -20,7 +20,7 @@ import Testing
 
 @Test func controlJSONMatchesTheStudio() {
     let json = ControlState(settings: StudioSettings()).json()
-    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65}")
+    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65,\"bitrateKbps\":4000}")
     #expect(ControlState(settings: StudioSettings()).json(success: true).hasPrefix("{\"success\":true,"))
 }
 

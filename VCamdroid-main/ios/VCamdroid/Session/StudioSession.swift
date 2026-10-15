@@ -329,9 +329,17 @@ final class StudioSession {
         if let portraitStrength = update.portraitStrength {
             settings.portraitStrength = portraitStrength
         }
+        var restartBitrate = false
+        if let bitrateKbps = update.bitrateKbps, bitrateKbps != settings.bitrateKbps {
+            settings.bitrateKbps = bitrateKbps
+            restartBitrate = true
+        }
         settings = settings.sanitized()
         snapshot.lens = settings.lens
         applyControls()
+        if restartBitrate, encoderActive {
+            Task { await restartEncoder() }
+        }
         return true
     }
 
