@@ -1,0 +1,247 @@
+#include "net/serializer.h"
+
+#include <string>
+
+namespace Serializer
+{
+	static uint16_t ReadInt16(const uint8_t* bytes)
+	{
+		uint8_t b0 = static_cast<uint8_t>(bytes[0]);
+		uint8_t b1 = static_cast<uint8_t>(bytes[1]);
+
+		return (b0 << 8) | b1;
+	}
+
+	static bool HasBytes(size_t offset, size_t needed, size_t total)
+	{
+		return (offset + needed <= total);
+	}
+
+	static uint16_t SafeReadInt16(const uint8_t* bytes, size_t offset, size_t total)
+	{
+		if (!HasBytes(offset, 2, total)) return 0;
+		uint8_t b0 = static_cast<uint8_t>(bytes[offset]);
+		uint8_t b1 = static_cast<uint8_t>(bytes[offset + 1]);
+		return (b0 << 8) | b1;
+	}
+
+	static std::string SafeReadString(const uint8_t* bytes, size_t& offset, size_t total)
+	{
+		if (!HasBytes(offset, 2, total)) return "";
+		uint16_t strLen = SafeReadInt16(bytes, offset, total);
+		offset += 2;
+		if (!HasBytes(offset, strLen, total)) {
+			offset = total;
+			return "";
+		}
+		std::string result((const char*)&bytes[offset], strLen);
+		offset += strLen;
+		return result;
+	}
+
+	static void WriteInt16(std::vector<uint8_t>& buffer, uint16_t value)
+	{
+		buffer.push_back((value >> 8) & 0xFF);
+		buffer.push_back(value & 0xFF);
+	}
+
+	static void WriteInt32(std::vector<uint8_t>& buffer, uint32_t value)
+	{
+		buffer.push_back((value >> 24) & 0xFF);
+		buffer.push_back((value >> 16) & 0xFF);
+		buffer.push_back((value >> 8) & 0xFF);
+		buffer.push_back(value & 0xFF);
+	}
+
+	static void WriteBool(std::vector<uint8_t>& buffer, bool value)
+	{
+		WriteInt32(buffer, value);
+	}
+
+	static void WriteString(std::vector<uint8_t>& buffer, std::string value)
+	{
+		WriteInt16(buffer, static_cast<uint16_t>(value.size()));
+		buffer.insert(buffer.end(), value.begin(), value.end());
+	}
+
+	bool IsDeviceDescriptorComplete(const uint8_t* bytes, size_t available, size_t& outTotalSize)
+	{
+		outTotalSize = 0;
+		if (!bytes || available < 2) return false;
+
+		// Maximum sanity limit for entire descriptor payload
+		constexpr size_t MAX_DESCRIPTOR_SIZE = 65536; // 64 KB
+		if (available > MAX_DESCRIPTOR_SIZE) return false;
+
+		constexpr uint16_t MAX_NAME_LEN = 256;
+		constexpr uint16_t MAX_URL_LEN = 512;
+		constexpr uint16_t MAX_RES_COUNT = 128;
+		constexpr uint16_t MAX_FILTER_COUNT = 256;
+		constexpr uint16_t MAX_FILTER_NAME_LEN = 256;
+
+		size_t offset = 0;
+
+		// 1. Name
+		if (offset + 2 > available) return false;
+		uint16_t nameLen = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+		if (nameLen > MAX_NAME_LEN) return false;
+		offset += 2 + nameLen;
+		if (offset > available) return false;
+
+		// 2. RTSP URL
+		if (offset + 2 > available) return false;
+		uint16_t urlLen = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+		if (urlLen > MAX_URL_LEN) return false;
+		offset += 2 + urlLen;
+		if (offset > available) return false;
+
+		// 3. Front resolutions
+		if (offset + 2 > available) return false;
+		uint16_t frontCount = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+		if (frontCount > MAX_RES_COUNT) return false;
+		offset += 2 + (static_cast<size_t>(frontCount) * 4);
+		if (offset > available) return false;
+
+		// 4. Back resolutions
+		if (offset + 2 > available) return false;
+		uint16_t backCount = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+		if (backCount > MAX_RES_COUNT) return false;
+		offset += 2 + (static_cast<size_t>(backCount) * 4);
+		if (offset > available) return false;
+
+		// 5. Filters
+		if (offset + 2 > available) return false;
+		uint16_t filterCount = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+		if (filterCount > MAX_FILTER_COUNT) return false;
+		offset += 2;
+		if (offset > available) return false;
+
+		for (uint16_t i = 0; i < filterCount; i++)
+		{
+			if (offset + 2 > available) return false;
+			uint16_t filterNameLen = (static_cast<uint16_t>(bytes[offset]) << 8) | bytes[offset + 1];
+			if (filterNameLen > MAX_FILTER_NAME_LEN) return false;
+			offset += 2 + filterNameLen + 1; // 2 len + name bytes + 1 category
+			if (offset > available) return false;
+		}
+
+		if (offset > MAX_DESCRIPTOR_SIZE) return false;
+
+		outTotalSize = offset;
+		return true;
+	}
+
+	DeviceDescriptor DeserializeDeviceDescriptor(const uint8_t* bytes, size_t size)
+	{
+		if (!bytes || size < 4)
+		{
+			return DeviceDescriptor("", "", "udp", {}, {}, {});
+		}
+
+		size_t offset = 0;
+
+		// Name is the first thing
+		auto name = SafeReadString(bytes, offset, size);
+
+		// The RTSP url follows after the name
+		auto url = SafeReadString(bytes, offset, size);
+
+		// Default protocol is udp. If it is a usb connection (via adb) switch to tcp
+		std::string protocol = "udp";
+		if (url.find("127.0.0.1") != std::string::npos)
+		{
+			protocol = "tcp";
+		}
+
+		// Represents how many resolutions are provided
+		uint16_t frontResolutionCount = SafeReadInt16(bytes, offset, size);
+		offset += 2;
+
+		std::vector<DeviceDescriptor::Resolution> frontResolutions;
+		for (int i = 0; i < frontResolutionCount && HasBytes(offset, 4, size); i++)
+		{
+			auto w = SafeReadInt16(bytes, offset, size);
+			auto h = SafeReadInt16(bytes, offset + 2, size);
+			frontResolutions.push_back(DeviceDescriptor::Resolution(w, h));
+			offset += 4;
+		}
+
+		uint16_t backResolutionCount = SafeReadInt16(bytes, offset, size);
+		offset += 2;
+
+		std::vector<DeviceDescriptor::Resolution> backResolutions;
+		for (int i = 0; i < backResolutionCount && HasBytes(offset, 4, size); i++)
+		{
+			auto w = SafeReadInt16(bytes, offset, size);
+			auto h = SafeReadInt16(bytes, offset + 2, size);
+			backResolutions.push_back(DeviceDescriptor::Resolution(w, h));
+			offset += 4;
+		}
+
+		// How many filters
+		uint16_t filterCount = SafeReadInt16(bytes, offset, size);
+		offset += 2;
+
+		Video::Filter::Registry filters;
+		for (int i = 0; i < filterCount && offset < size; i++)
+		{
+			auto filterName = SafeReadString(bytes, offset, size);
+			if (offset < size)
+			{
+				auto cat = static_cast<Video::Filter::Category>(bytes[offset]);
+				offset++;
+				filters[cat].push_back(filterName);
+			}
+		}
+
+		return DeviceDescriptor(name, url, protocol, frontResolutions, backResolutions, filters);
+	}
+
+	std::vector<uint8_t> SerializeStreamOptions(const StreamOptions& state)
+	{
+		std::vector<uint8_t> buffer;
+		buffer.reserve(512);
+
+		// First byte of the buffer is reserved
+		buffer.push_back(0);
+
+		WriteInt32(buffer, state.fps);
+		WriteInt32(buffer, state.resolution.first);
+		WriteInt32(buffer, state.resolution.second);
+
+		WriteBool(buffer, state.backCameraActive);
+		
+		WriteBool(buffer, state.adaptiveBitrate);
+		WriteInt32(buffer, state.bitrate);
+		WriteInt32(buffer, state.minBitrate);
+		WriteInt32(buffer, state.maxBitrate);
+
+		WriteBool(buffer, state.stabilizationEnabled);
+		WriteBool(buffer, state.flashEnabled);
+		WriteBool(buffer, state.h265Enabled);
+
+		WriteInt16(buffer, static_cast<uint16_t>(state.filterSliderValues.size()));
+		for (const auto& [name, value] : state.filterSliderValues)
+		{
+			WriteString(buffer, name);
+			WriteInt32(buffer, value);
+		}
+
+		WriteString(buffer, state.activeEffectFilter);
+
+		return buffer;
+	}
+
+	Connection::ErrorReport DeserializeErrorReport(const uint8_t* bytes, size_t size)
+	{
+		Connection::ErrorReport report;
+		if (!bytes || size < 3) return report;
+
+		size_t offset = 0;
+		report.severity = bytes[offset++];
+		report.error = SafeReadString(bytes, offset, size);
+		report.description = SafeReadString(bytes, offset, size);
+		
+		return report;
+	}
+}
