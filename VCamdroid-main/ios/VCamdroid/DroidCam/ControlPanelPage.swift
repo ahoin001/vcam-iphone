@@ -212,7 +212,7 @@ enum ControlPanelPage {
         </div>
         <div class="stage" id="stage">
           <img id="preview-image" alt="Desk preview" decoding="async">
-          <div class="stage-empty" id="stage-empty">Turn on Show preview for a low-rate desk feed. The computer shows the live picture.</div>
+          <div class="stage-empty" id="stage-empty">Optional glance feed (~12 fps). The live picture is on the computer / OBS — that is the smooth feed.</div>
         </div>
       </section>
       <section class="shot">
@@ -246,6 +246,14 @@ enum ControlPanelPage {
       </div>
       <section id="tool-exposure">
         <div class="heading"><span>Exposure</span><label class="toggle"><input id="manual-exposure" type="checkbox">Manual</label></div>
+        <p class="note" id="exposure-auto-note">
+          <strong>Suggested</strong>
+          Leave Auto on for a smooth picture. Nudge EV if the room is too dark or bright. ISO and shutter do not need a hand unless you are locking a look.
+        </p>
+        <p class="note" id="exposure-manual-note" hidden>
+          <strong>Manual tip</strong>
+          At 30 fps keep shutter at <strong>1/60 or faster</strong>. Slower shutter (1/30, 1/15) smears motion and feels choppy — that is not a network issue. Brighten with ISO instead. Noise goes up with ISO; chop goes up with a slow shutter.
+        </p>
         <label class="slider" id="ev-row">
           <span>EV <strong id="ev-value">0.0</strong></span>
           <input id="ev" type="range" min="-3" max="3" step="0.1" value="0">
@@ -259,6 +267,7 @@ enum ControlPanelPage {
             <span>Shutter <strong id="shutter-value">1/60</strong></span>
             <input id="shutter" type="range" min="0" max="1" step="0.001" value="0.5">
           </label>
+          <p class="quiet" id="shutter-warn" hidden>Shutter is slower than 1/60. Expect motion smear at 30 fps.</p>
         </div>
       </section>
       <section id="tool-whiteBalance" hidden>
@@ -292,6 +301,10 @@ enum ControlPanelPage {
       </section>
       <section>
         <div class="heading"><span>Stream</span><strong id="bitrate-value">4000 kbps</strong></div>
+        <p class="note">
+          <strong>Suggested</strong>
+          1080p30 and about 4 Mbps for live calls. Raise bitrate toward 6–8 Mbps if you record in OBS. Desk preview above is a glance only — judge smoothness in OBS or the meeting app.
+        </p>
         <div class="choices" id="resolution">
           <button type="button" data-width="1280" data-height="720">1280×720</button>
           <button type="button" data-width="1920" data-height="1080">1920×1080</button>
@@ -407,7 +420,10 @@ enum ControlPanelPage {
       bindRange(iso, "iso", "iso-value", (value) => String(Math.round(Number(value))),
         (t) => logFrom(t, isoMin, isoMax),
         (value) => logTo(value, isoMin, isoMax));
-      bindRange(shutter, "shutter", "shutter-value", shutterLabel,
+      bindRange(shutter, "shutter", "shutter-value", (seconds) => {
+        updateShutterWarn();
+        return shutterLabel(seconds);
+      },
         (t) => logFrom(t, shutterMin, shutterMax),
         (value) => logTo(value, shutterMin, shutterMax));
       bindRange(focus, "focus", "focus-value", (value) => Number(value).toFixed(2));
@@ -515,10 +531,21 @@ enum ControlPanelPage {
         const focusManual = document.getElementById("manual-focus").checked;
         document.getElementById("ev-row").hidden = exposure;
         document.getElementById("manual-exposure-fields").hidden = !exposure;
+        document.getElementById("exposure-auto-note").hidden = exposure;
+        document.getElementById("exposure-manual-note").hidden = !exposure;
         document.getElementById("focus-row").hidden = !focusManual;
         const portraitOn = document.getElementById("portrait").checked;
         document.getElementById("portrait-row").hidden = !portraitOn;
         document.getElementById("portrait-on-hint").hidden = !portraitOn;
+        updateShutterWarn();
+      }
+
+      function updateShutterWarn() {
+        const warn = document.getElementById("shutter-warn");
+        if (!warn) return;
+        const manual = document.getElementById("manual-exposure").checked;
+        const seconds = logFrom(shutter.value, shutterMin, shutterMax);
+        warn.hidden = !(manual && seconds > (1 / 60) + 0.0005);
       }
 
       function showTool() {
@@ -613,7 +640,7 @@ enum ControlPanelPage {
           return;
         }
         tickPreview();
-        previewTimer = setInterval(tickPreview, 180);
+        previewTimer = setInterval(tickPreview, 90);
       }
 
       showPreview.addEventListener("change", () => setPreview(showPreview.checked));
@@ -643,8 +670,8 @@ enum ControlPanelPage {
             ].filter(Boolean).join(" · ");
             document.getElementById("hint-line").textContent = live
               ? (previewOn
-                ? "Desk preview is low-rate · the computer shows the live picture"
-                : "Changes apply live · the computer shows the picture")
+                ? "Desk preview is a glance (~12 fps) · judge smoothness in OBS"
+                : "Changes apply live · judge smoothness in OBS, not this page")
               : "Connect the computer first, then use these controls from the desk";
           }
           if (catalog.ok) {

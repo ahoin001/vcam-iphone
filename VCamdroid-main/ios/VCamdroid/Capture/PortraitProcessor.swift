@@ -14,25 +14,45 @@ final class PortraitProcessor: @unchecked Sendable {
     private var maskWidth = 0
     private var maskHeight = 0
     private var hasPreviousMask = false
+    private var frameIndex = 0
+    private var busy = false
 
     init() {
         request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        request.qualityLevel = .fast
     }
 
     func set(_ command: PortraitCommand) {
         lock.lock()
         self.command = command
+        if command.grade == .off {
+            hasPreviousMask = false
+            frameIndex = 0
+        }
         lock.unlock()
     }
 
     func process(_ source: CVPixelBuffer) -> CVPixelBuffer {
         lock.lock()
         let command = command
+        let wasBusy = busy
+        if command.grade == .balanced || command.grade == .fast, command.strength > 0.01, !wasBusy {
+            busy = true
+        }
         lock.unlock()
+
         guard command.grade == .balanced || command.grade == .fast, command.strength > 0.01 else {
-            hasPreviousMask = false
             return source
         }
+        if wasBusy {
+            return source
+        }
+        defer {
+            lock.lock()
+            busy = false
+            lock.unlock()
+        }
+
         guard CVPixelBufferGetPixelFormatType(source) == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange else {
             return source
         }
@@ -42,7 +62,21 @@ final class PortraitProcessor: @unchecked Sendable {
             return source
         }
         prepare(width: width, height: height)
-        guard let mask = personMask(from: source, grade: command.grade), maskMeansPerson(mask) else {
+
+        frameIndex &+= 1
+        let refreshMask = !hasPreviousMask || shouldRefreshMask(grade: command.grade, width: width, height: height)
+        if refreshMask {
+            guard let mask = personMask(from: source, grade: command.grade), maskMeansPerson(mask) else {
+                return source
+            }
+            // Mask planes live in scratch; personMask already wrote feathered.
+            _ = mask.width
+        } else if !hasPreviousMask {
+            return source
+        }
+
+        guard let feathered = scratch.plane("maskFeathered", width: maskWidth, height: maskHeight),
+              hasPreviousMask else {
             return source
         }
         guard let output = outputBuffer(width: width, height: height) else { return source }
@@ -52,7 +86,7 @@ final class PortraitProcessor: @unchecked Sendable {
             CVPixelBufferUnlockBaseAddress(output, [])
             CVPixelBufferUnlockBaseAddress(source, .readOnly)
         }
-        guard composite(source: source, output: output, mask: mask, command: command) else {
+        guard composite(source: source, output: output, mask: feathered, command: command) else {
             return source
         }
         if let attachments = CVBufferCopyAttachments(source, .shouldPropagate) {
@@ -61,8 +95,14 @@ final class PortraitProcessor: @unchecked Sendable {
         return output
     }
 
+    private func shouldRefreshMask(grade: PortraitGrade, width: Int, height: Int) -> Bool {
+        let heavy = height > 1080 || width > 1920
+        let interval = grade == .fast || heavy ? 3 : 2
+        return frameIndex % interval == 0
+    }
+
     private func personMask(from source: CVPixelBuffer, grade: PortraitGrade) -> vImage_Buffer? {
-        request.qualityLevel = grade == .fast ? .fast : .balanced
+        request.qualityLevel = .fast
         let handler = VNImageRequestHandler(cvPixelBuffer: source, orientation: .up, options: [:])
         guard (try? handler.perform([request])) != nil,
               let observation = request.results?.first else { return nil }
@@ -91,7 +131,7 @@ final class PortraitProcessor: @unchecked Sendable {
             return nil
         }
         if hasPreviousMask {
-            blend(current: &raw, previous: previous, newWeight: 166)
+            blend(current: &raw, previous: previous, newWeight: 140)
         }
         guard copy(raw, into: &previous) else { return nil }
         hasPreviousMask = true
@@ -109,9 +149,10 @@ final class PortraitProcessor: @unchecked Sendable {
         let width = Int(mask.width)
         let height = Int(mask.height)
         guard let data = mask.data else { return false }
-        for y in 0..<height {
+        let step = max(width / 32, 1)
+        for y in stride(from: 0, to: height, by: step) {
             let row = data.advanced(by: y * mask.rowBytes).assumingMemoryBound(to: UInt8.self)
-            for x in 0..<width where row[x] >= 8 {
+            for x in stride(from: 0, to: width, by: step) where row[x] >= 8 {
                 return true
             }
         }
@@ -132,11 +173,11 @@ final class PortraitProcessor: @unchecked Sendable {
               var maskC = scratch.plane("maskC", width: cWidth, height: cHeight),
               var opaqueY = scratch.plane("opaqueY", width: yWidth, height: yHeight, fill: 255),
               var opaqueC = scratch.plane("opaqueC", width: cWidth, height: cHeight, fill: 255) else { return false }
-        let maskFlags = vImage_Flags(kvImageHighQualityResampling | kvImageDoNotTile)
+        let maskFlags = vImage_Flags(kvImageDoNotTile)
         guard vImageScale_Planar8(&mask, &maskY, nil, maskFlags) == kvImageNoError,
               vImageScale_Planar8(&mask, &maskC, nil, maskFlags) == kvImageNoError else { return false }
 
-        let divisor = command.grade == .fast ? 8 : 4
+        let divisor = command.grade == .fast ? 8 : 6
         guard blur(sourceY, into: &destY, name: "y", divisor: divisor, strength: command.strength, grade: command.grade),
               var blurredY = scratch.plane("yFull", width: yWidth, height: yHeight) else { return false }
         guard copy(destY, into: &blurredY) else { return false }
@@ -151,8 +192,9 @@ final class PortraitProcessor: @unchecked Sendable {
               var outCB = scratch.plane("cbOut", width: cWidth, height: cHeight),
               var outCR = scratch.plane("crOut", width: cWidth, height: cHeight) else { return false }
         guard splitChroma(sourceC, cb: &cb, cr: &cr) else { return false }
-        guard blur(cb, into: &blurredCB, name: "cb", divisor: max(2, divisor / 2), strength: command.strength, grade: command.grade),
-              blur(cr, into: &blurredCR, name: "cr", divisor: max(2, divisor / 2), strength: command.strength, grade: command.grade) else { return false }
+        let chromaDivisor = max(2, divisor / 2)
+        guard blur(cb, into: &blurredCB, name: "cb", divisor: chromaDivisor, strength: command.strength, grade: command.grade),
+              blur(cr, into: &blurredCR, name: "cr", divisor: chromaDivisor, strength: command.strength, grade: command.grade) else { return false }
         guard vImageAlphaBlend_Planar8(&cb, &maskC, &blurredCB, &opaqueC, &opaqueC, &outCB, vImage_Flags(kvImageDoNotTile)) == kvImageNoError,
               vImageAlphaBlend_Planar8(&cr, &maskC, &blurredCR, &opaqueC, &opaqueC, &outCR, vImage_Flags(kvImageDoNotTile)) == kvImageNoError else {
             return false
@@ -171,19 +213,18 @@ final class PortraitProcessor: @unchecked Sendable {
         let kernel = blurKernel(strength: strength, grade: grade, width: smallWidth, height: smallHeight)
         if kernel >= 3 {
             guard vImageBoxConvolve_Planar8(&smallA, &smallB, nil, 0, 0, kernel, kernel, 0, flags) == kvImageNoError,
-                  vImageBoxConvolve_Planar8(&smallB, &smallA, nil, 0, 0, kernel, kernel, 0, flags) == kvImageNoError,
-                  vImageBoxConvolve_Planar8(&smallA, &smallB, nil, 0, 0, kernel, kernel, 0, flags) == kvImageNoError else { return false }
-            return vImageScale_Planar8(&smallB, &dest, nil, vImage_Flags(kvImageDoNotTile)) == kvImageNoError
+                  vImageBoxConvolve_Planar8(&smallB, &smallA, nil, 0, 0, kernel, kernel, 0, flags) == kvImageNoError else { return false }
+            return vImageScale_Planar8(&smallA, &dest, nil, vImage_Flags(kvImageDoNotTile)) == kvImageNoError
         }
         return vImageScale_Planar8(&smallA, &dest, nil, vImage_Flags(kvImageDoNotTile)) == kvImageNoError
     }
 
     private func blurKernel(strength: Double, grade: PortraitGrade, width: Int, height: Int) -> UInt32 {
-        let span = grade == .fast ? 14.0 : 28.0
+        let span = grade == .fast ? 12.0 : 20.0
         var radius = Int((1 + strength * span).rounded())
         if radius < 3 { radius = 3 }
         if radius % 2 == 0 { radius += 1 }
-        let limit = min(radius, width, height, grade == .fast ? 15 : 31)
+        let limit = min(radius, width, height, grade == .fast ? 13 : 21)
         let odd = limit % 2 == 0 ? limit - 1 : limit
         return UInt32(max(odd, 1))
     }
@@ -197,6 +238,7 @@ final class PortraitProcessor: @unchecked Sendable {
         hasPreviousMask = false
         maskWidth = 0
         maskHeight = 0
+        frameIndex = 0
     }
 
     private func outputBuffer(width: Int, height: Int) -> CVPixelBuffer? {

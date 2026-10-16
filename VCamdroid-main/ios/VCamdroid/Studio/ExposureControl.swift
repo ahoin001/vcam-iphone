@@ -25,6 +25,10 @@ struct ExposureControl: View {
                         session.applyControls()
                     }
             }
+            Text(session.settings.manualExposure ? .exposureManualHint : .exposureAutoHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.32, dampingFraction: 1), value: session.settings.manualExposure)
     }

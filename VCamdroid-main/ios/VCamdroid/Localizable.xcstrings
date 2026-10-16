@@ -301,6 +301,28 @@
         }
       }
     },
+    "exposureAutoHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto is smoothest for most rooms. Use EV to brighten or darken without touching shutter."
+          }
+        }
+      }
+    },
+    "exposureManualHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For 30 fps keep shutter at 1/60 or faster. Slower shutter looks smear and choppy. Raise ISO to brighten instead."
+          }
+        }
+      }
+    },
     "flip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -814,6 +836,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Leave Portrait off for a cleaner cut. On the PC, choose VCamdroid in NVIDIA Broadcast, or add Background Removal in OBS. This iPhone blur is a light backup and warms the phone."
+          }
+        }
+      }
+    },
+    "portraitSmoothnessHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portrait can drop frames on the phone. For the smoothest feed, leave it off and watch OBS."
           }
         }
       }

@@ -10,8 +10,9 @@ final class PreviewJPEGSink: @unchecked Sendable {
     private var latest: CVPixelBuffer?
     private var cachedJPEG: Data?
     private var lastEncode = Date.distantPast
-    private let minInterval: TimeInterval = 1.0 / 7.0
-    private let maxLongEdge = 640
+    /// Desk glance feed only. Keep this well under the live stream rate so the phone stays free for encode.
+    private let minInterval: TimeInterval = 1.0 / 12.0
+    private let maxLongEdge = 480
     private let context = CIContext(options: [.cacheIntermediates: false])
 
     func enqueue(_ pixelBuffer: CVPixelBuffer) {
