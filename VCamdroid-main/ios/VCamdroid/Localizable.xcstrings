@@ -186,7 +186,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OBS will disconnect."
+            "value" : "The computer will disconnect."
           }
         }
       }
@@ -241,7 +241,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Always on"
+            "value" : "Always dim"
           }
         }
       }
@@ -253,6 +253,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Automatic"
+          }
+        }
+      }
+    },
+    "curtainAutomaticHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dims after 8s"
+          }
+        }
+      }
+    },
+    "curtainAlwaysHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stays dim until you tap"
+          }
+        }
+      }
+    },
+    "curtainOffHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon still works"
           }
         }
       }
@@ -648,7 +681,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Output"
+            "value" : "For a DroidCam OBS source"
+          }
+        }
+      }
+    },
+    "obsOutputSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For a DroidCam OBS source"
+          }
+        }
+      }
+    },
+    "portSettingsFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VCamPanel uses this port. Change it only if 4747 is already in use."
           }
         }
       }
@@ -703,7 +758,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatic curtain blacks the screen while the camera keeps streaming. Leave the phone plugged in for long sessions, and keep Low Power Mode off."
+            "value" : "Automatic dims after 8 seconds of no touch. Always dim stays dark until you tap. Off never auto-dims; the moon still works. Tap the moon to dim now. Long-press it to change the mode."
           }
         }
       }

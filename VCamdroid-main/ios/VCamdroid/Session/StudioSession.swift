@@ -425,18 +425,23 @@ final class StudioSession {
         }
         panelStream = request.client == .panel
         adopt(quality)
-        snapshot.isStreaming = true
-        snapshot.status = "streaming"
         persist()
         pushPortrait()
         do {
             try await capture.update(CaptureConfiguration(settings: settings))
             try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
             encoderActive = true
+            snapshot.isStreaming = true
+            snapshot.status = "streaming"
             statusMessage = .streaming
             appendLog(String(localized: .clientConnected))
         } catch {
             encoderActive = false
+            panelStream = false
+            activeBitrateKbps = settings.bitrateKbps
+            snapshot.isStreaming = false
+            snapshot.status = "waiting"
+            statusMessage = .waitingForOBS
             appendLog(String(localized: .startFailed))
         }
     }
@@ -513,7 +518,9 @@ final class StudioSession {
     }
 
     private func pauseForBackground() async {
+        await server.dropVideo()
         encoderActive = false
+        panelStream = false
         await encoder.stop()
         await capture.stop()
         snapshot.isStreaming = false
@@ -529,16 +536,7 @@ final class StudioSession {
             appendLog(String(localized: .startFailed))
             return
         }
-        guard clientAddress != nil else {
-            statusMessage = .waitingForOBS
-            return
-        }
-        await encoder.markConfigurationUnsent()
-        await restartEncoder()
-        snapshot.isStreaming = true
-        snapshot.status = "streaming"
-        statusMessage = .streaming
-        pushPortrait()
+        statusMessage = .waitingForOBS
     }
 
     private func showCurtain() {

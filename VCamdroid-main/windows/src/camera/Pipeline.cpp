@@ -20,7 +20,7 @@ std::wstring Pipeline::Prepare() {
 }
 
 void Pipeline::Start(const std::string& host, int port) {
-    if (!available_ || host.empty() || port <= 0) {
+    if (host.empty() || port <= 0) {
         return;
     }
     client_.Start(host, port);
@@ -31,9 +31,6 @@ void Pipeline::Stop() {
 }
 
 LinkState Pipeline::State() const {
-    if (!available_) {
-        return LinkState::Idle;
-    }
     return client_.State();
 }
 

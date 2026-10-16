@@ -11,8 +11,8 @@ enum class LinkState {
     Interrupted
 };
 
-// Reads the phone's port 4747 video socket. One connection. It does not reconnect
-// after the phone or another app closes that socket.
+// Reads the phone's port 4747 video socket. While Start() is in effect it retries
+// a closed socket a few times, then waits for the user to Connect again.
 class VideoClient {
 public:
     VideoClient();
