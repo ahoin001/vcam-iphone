@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Cut a Windows companion GitHub Release: tag + push. Actions builds the zip.
+# Usage:  ./scripts/release           # next patch (v0.1.0 if none)
+#         ./scripts/release v0.2.0    # exact tag
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree not clean. Commit your changes first." >&2
+  exit 1
+fi
+
+git fetch --tags origin 2>/dev/null || true
+
+if [[ $# -ge 1 ]]; then
+  tag="$1"
+  if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+    echo "Tag must look like v0.1.0 (got: $tag)" >&2
+    exit 1
+  fi
+else
+  latest="$(git tag -l 'v*' --sort=-v:refname | head -1 || true)"
+  if [[ -z "$latest" ]]; then
+    tag="v0.1.0"
+  else
+    ver="${latest#v}"
+    ver="${ver%%-*}"
+    IFS=. read -r major minor patch <<<"$ver"
+    tag="v${major}.${minor}.$((patch + 1))"
+  fi
+fi
+
+if git rev-parse "$tag" >/dev/null 2>&1; then
+  echo "Tag $tag already exists." >&2
+  exit 1
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+git push -u origin "$branch"
+git tag -a "$tag" -m "Release $tag"
+git push origin "$tag"
+
+echo "Pushed $tag. Actions will publish VCamdroid-Windows-x64.zip at:"
+echo "https://github.com/ahoin001/vcam-iphone/releases/tag/$tag"

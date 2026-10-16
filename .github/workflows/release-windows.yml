@@ -1,0 +1,110 @@
+name: Release Windows companion
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update (for example v0.1.0). Leave empty on a tag push."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish VCamPanel
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore WebView2 package
+        working-directory: VCamdroid-main/windows
+        shell: pwsh
+        run: |
+          msbuild VCamPanel.vcxproj -t:Restore -p:Configuration=Release -p:Platform=x64 -v:m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build VCamPanel and usbmux_forward
+        working-directory: VCamdroid-main/windows
+        shell: pwsh
+        run: |
+          msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          msbuild usbmux_forward.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          $out = "VCamdroid-main\windows\x64\Release"
+          $panel = Join-Path $out "VCamPanel.exe"
+          $forward = Join-Path $out "usbmux_forward.exe"
+          if (-not (Test-Path $panel)) {
+            Write-Error "Missing $panel"
+            Get-ChildItem -Recurse VCamdroid-main\windows -Filter VCamPanel.exe | ForEach-Object { $_.FullName }
+            exit 1
+          }
+          if (-not (Test-Path $forward)) {
+            Write-Error "Missing $forward"
+            exit 1
+          }
+
+          $stage = "release-stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $panel $stage\
+          Copy-Item $forward $stage\
+          Copy-Item ".github\release\WINDOWS.txt" "$stage\README.txt"
+
+          $zip = "VCamdroid-Windows-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "$stage\*" -DestinationPath $zip
+          Get-Item $zip | Format-List Name, Length, FullName
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=v0.0.0-ci-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: VCamdroid ${{ steps.tag.outputs.name }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.name, '-') }}
+          generate_release_notes: true
+          files: |
+            VCamdroid-Windows-x64.zip
+          body: |
+            ## Windows companion
+
+            Download **VCamdroid-Windows-x64.zip**, unzip it, and run `VCamPanel.exe`.
+
+            | File | Role |
+            | --- | --- |
+            | `VCamPanel.exe` | Finds the iPhone over USB or Wi-Fi and hosts the camera desk |
+            | `usbmux_forward.exe` | Optional console USB forwarder if you skip the companion |
+
+            Windows needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (included on current Windows 11). USB also needs **Apple Devices** or iTunes from the Microsoft Store.
+
+            Phone setup and OBS steps: see the [README](https://github.com/ahoin001/vcam-iphone#what-to-download).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

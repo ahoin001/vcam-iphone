@@ -9,7 +9,7 @@ The root [`README.md`](README.md) is the zero-to-use guide. When you change anyt
 
 ## What to update
 
-- **What to download** table if a new binary, dependency, or “needed for” path appears or disappears.
+- **What to download** table if a new binary, dependency, or “needed for” path appears or disappears. Prefer GitHub Release assets (`/releases/latest/download/…`) over “build it yourself” when a binary ships; keep Visual Studio as an optional footnote.
 - **Sections 3–6** for Wi-Fi, USB, webcam, and desk controls. USB’s normal path is **VCamPanel** (usbmux inside). `usbmux_forward.exe` is optional CLI only.
 - **While you are live** and **If the picture never appears** when status copy, companion behavior, or failure modes change.
 - Intro blurb when the product split changes (OBS = picture; companion / `/panel` = shot controls).

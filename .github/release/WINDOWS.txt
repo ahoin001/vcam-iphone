@@ -1,0 +1,17 @@
+VCamdroid Windows companion
+===========================
+
+1. Unzip this folder somewhere permanent (for example Documents\VCamdroid).
+2. For USB: install Apple Devices (or iTunes) from the Microsoft Store and open it once.
+3. On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front.
+4. Run VCamPanel.exe. Click Refresh, select the phone, then Connect.
+5. In OBS, add a VCamdroid or DroidCam OBS source.
+   - USB: IP 127.0.0.1, port 4747
+   - Wi-Fi: use the address shown in VCamPanel (Copy button)
+
+WebView2 Runtime is required (current Windows 11 already has it):
+https://developer.microsoft.com/microsoft-edge/webview2/
+
+usbmux_forward.exe is optional. You do not need it when VCamPanel is connected over USB.
+
+Full guide: https://github.com/ahoin001/vcam-iphone
