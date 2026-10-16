@@ -29,9 +29,9 @@ Download these before you start. Skip an item only when its “Needed for” lin
 | --- | --- | --- |
 | **Xcode** | Mac App Store. Open it once after install so it can finish installing components. You need the version that includes the iOS 26 SDK. | Putting the app on the iPhone. |
 | **This repository** | On the Mac: [github.com/ahoin001/vcam-iphone](https://github.com/ahoin001/vcam-iphone). Clone it or download the ZIP. | The iPhone app only. You do not need the repo on the PC if you use the Windows companion release below. |
-| **Windows companion** | On the Windows PC: [latest release](https://github.com/ahoin001/vcam-iphone/releases/latest) → download **VCamdroid-Windows-x64.zip**, or the direct link [VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip). Unzip and keep `VCamPanel.exe`. | Finds the iPhone over USB or Wi-Fi and hosts the camera desk. Required for USB. Useful on Wi-Fi when you want the desk outside OBS. |
+| **Windows companion** | On the Windows PC: this repo’s **[latest release](https://github.com/ahoin001/vcam-iphone/releases/latest)** (the iPhone-compatible build) → download **VCamdroid-Windows-x64.zip**, or the direct link [VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip). Unzip and keep `VCamPanel.exe`. Do not use an older Android-only Windows zip from another VCamdroid fork. | Finds the iPhone over USB or Wi-Fi and hosts the camera desk. Required for USB. Useful on Wi-Fi when you want the desk outside OBS. |
 | **OBS Studio** | On the Windows PC: [obsproject.com/download](https://obsproject.com/download). | Seeing the iPhone picture, and publishing it as a webcam. |
-| **An OBS source for the phone** | Install **one** of these on the Windows PC, then quit and reopen OBS. [VCamdroid OBS plugin](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), or [DroidCam OBS](https://www.dev47apps.com/obs/). The DroidCam OBS page currently asks for OBS 32 or newer. | The **VCamdroid** or **DroidCam OBS** item in OBS’s source list. OBS does not include that source by itself. |
+| **An OBS source for the phone** | Install [DroidCam OBS](https://www.dev47apps.com/obs/) on the Windows PC, then quit and reopen OBS. That page currently asks for OBS 32 or newer. A **VCamdroid** OBS source works the same way if you already have one. | The **DroidCam OBS** or **VCamdroid** item in OBS’s source list. OBS does not include that source by itself. |
 | **Apple Devices** (or iTunes) | Microsoft Store, on the Windows PC. Open it once after install. | USB only. It starts Apple Mobile Device Service, which the cable path needs. Wi-Fi does not need it. |
 | **WebView2 Runtime** | [Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/). | The companion window. Current Windows 11 already includes it. |
 
@@ -76,14 +76,13 @@ Do this on the Windows PC.
 
 1. Download OBS Studio from [obsproject.com/download](https://obsproject.com/download).
 2. Run the installer and accept the default options.
-3. Install one phone source, then fully quit OBS if it was open:
-   - **VCamdroid OBS plugin:** open the [latest release](https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/tag/latest), download the Windows installer or archive from that page, and run its installer.
-   - **DroidCam OBS:** open [dev47apps.com/obs](https://www.dev47apps.com/obs/), download the Windows **DroidCam OBS Plugin**, and run that installer. Use this when the VCamdroid plugin release is missing a Windows build.
-4. Open OBS.
-5. If Windows Firewall asks, allow OBS on **Private** networks.
-6. In the **Sources** panel, click **+**. Confirm that **VCamdroid** or **DroidCam OBS** is in the list. Click **Cancel** so you do not add a source yet.
+3. Install the phone source, then fully quit OBS if it was open: open [dev47apps.com/obs](https://www.dev47apps.com/obs/), download the Windows **DroidCam OBS Plugin**, and run that installer.
+4. From this repo’s **[latest release](https://github.com/ahoin001/vcam-iphone/releases/latest)**, download **[VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip)** if you have not already. Unzip it and keep `VCamPanel.exe` for USB and the camera desk.
+5. Open OBS.
+6. If Windows Firewall asks, allow OBS on **Private** networks.
+7. In the **Sources** panel, click **+**. Confirm that **DroidCam OBS** (or **VCamdroid**) is in the list. Click **Cancel** so you do not add a source yet.
 
-**Check:** OBS is open, and the **+** menu in **Sources** contains **VCamdroid** or **DroidCam OBS**.
+**Check:** OBS is open, and the **+** menu in **Sources** contains **DroidCam OBS** or **VCamdroid**.
 
 ## 3. Use the iPhone as the camera in OBS over Wi-Fi
 
@@ -99,7 +98,7 @@ Use this when the phone and the PC are on the same Wi-Fi and you do not want the
    - The number before the colon is the IP address. In the example, that is `192.168.1.20`.
    - The number after the colon is the port. The default is **4747**.
 8. On the PC, in OBS, click **+** in the **Sources** panel.
-9. Choose **VCamdroid** if it is listed. Otherwise choose **DroidCam OBS**.
+9. Choose **DroidCam OBS**. If you already have a **VCamdroid** source installed, that works too.
 10. Name the source if OBS asks, then click **OK**.
 11. In the source properties, enter the IP from the phone and set the port to **4747**. If the dialog has a Wi-Fi / USB choice, choose Wi-Fi.
 12. Click **OK**.
@@ -115,12 +114,12 @@ Keep the phone on that studio screen. The side button and the app switcher stop 
 Use this when you want the cable instead of Wi-Fi. The Windows companion finds the iPhone and keeps the USB tunnel open. OBS only receives the picture.
 
 1. On the PC, install **Apple Devices** or iTunes from the Microsoft Store and open it once.
-2. Download **[VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip)** from the [latest release](https://github.com/ahoin001/vcam-iphone/releases/latest). Unzip it. Run `VCamPanel.exe` from that folder. The window stays on top.
+2. Download **[VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip)** from this repo’s **[latest release](https://github.com/ahoin001/vcam-iphone/releases/latest)** (skip this if you already unzipped it in section 2). Unzip it. Run `VCamPanel.exe` from that folder. The window stays on top.
 3. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer** if it asks.
 4. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The status can say **Waiting for OBS**.
 5. In **VCamPanel**, click **Refresh**. The iPhone should appear as **USB**. Select it and click **Connect**. The status line names the usual failures if it cannot: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or VCamdroid is not in front.
 6. Click **Copy** for the OBS address. For USB that is **127.0.0.1:4747**.
-7. In OBS, click **+** in **Sources** and add a **VCamdroid** or **DroidCam OBS** source.
+7. In OBS, click **+** in **Sources** and add a **DroidCam OBS** source (or **VCamdroid** if you already have it).
 8. Enter the IP **127.0.0.1** and the port **4747**. If the dialog has a USB choice, you can select that instead of typing the address.
 9. Click **OK**. Leave the companion open while you stream.
 
