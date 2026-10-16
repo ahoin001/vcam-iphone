@@ -170,30 +170,79 @@ enum ControlPanelPage {
         gap: 10px;
       }
       .preview-bar .heading { flex: 1; }
-      .note {
-        margin: 0;
-        padding: 10px 12px;
+      .guide {
+        display: grid;
+        gap: 8px;
+        padding: 11px 12px;
         border-radius: var(--radius-sm);
-        background: var(--accent-soft);
-        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line-soft));
-        color: var(--text);
-        font-size: 12px;
-        line-height: 1.45;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line-soft);
       }
-      .note strong {
+      .guide-lead {
+        margin: 0;
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: var(--text);
+      }
+      .guide-lead b {
+        color: var(--accent);
+        font-weight: 650;
+      }
+      .guide-uses {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .guide-uses.three { grid-template-columns: 1fr; }
+      @media (min-width: 380px) {
+        .guide-uses.three { grid-template-columns: 1fr 1fr 1fr; }
+      }
+      .guide-use {
+        padding: 8px 9px;
+        border-radius: 10px;
+        background: var(--card-lift);
+        border: 1px solid var(--line-soft);
+        min-width: 0;
+      }
+      .guide-use span {
         display: block;
-        margin-bottom: 4px;
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--accent);
         font-weight: 650;
+        margin-bottom: 3px;
       }
+      .guide-use p {
+        margin: 0;
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      .guide-use.warn span { color: #e0a070; }
+      .guide-use.warn {
+        border-color: color-mix(in srgb, #e0a070 35%, var(--line-soft));
+        background: color-mix(in srgb, #e0a070 8%, var(--card-lift));
+      }
+      .field-tip {
+        margin: -2px 0 2px;
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      .field-tip b { color: var(--text); font-weight: 600; }
       p.quiet {
         margin: 0;
         color: var(--muted);
         font-size: 12px;
         line-height: 1.45;
+      }
+      p.quiet.warn {
+        color: #e0a070;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: color-mix(in srgb, #e0a070 10%, transparent);
+        border: 1px solid color-mix(in srgb, #e0a070 30%, var(--line-soft));
       }
       [hidden] { display: none !important; }
     </style>
@@ -210,13 +259,28 @@ enum ControlPanelPage {
           <div class="heading"><span>Preview</span><strong id="preview-label">Off</strong></div>
           <label class="toggle"><input id="show-preview" type="checkbox">Show preview</label>
         </div>
+        <div class="guide">
+          <p class="guide-lead">This is a <b>glance feed</b> only (~12 fps). Judge smoothness in OBS or your call app.</p>
+          <div class="guide-uses">
+            <div class="guide-use"><span>Use for</span><p>Framing checks while you tweak controls at the desk.</p></div>
+            <div class="guide-use warn"><span>Not for</span><p>Judging chop, blur quality, or final look — that lives on the computer.</p></div>
+          </div>
+        </div>
         <div class="stage" id="stage">
           <img id="preview-image" alt="Desk preview" decoding="async">
-          <div class="stage-empty" id="stage-empty">Optional glance feed (~12 fps). The live picture is on the computer / OBS — that is the smooth feed.</div>
+          <div class="stage-empty" id="stage-empty">Turn on Show preview when you need a desk glance. The live picture stays on the computer.</div>
         </div>
       </section>
       <section class="shot">
-        <div class="heading"><span>Lens</span></div>
+        <div class="heading"><span>Lens &amp; framing</span></div>
+        <div class="guide">
+          <p class="guide-lead">Pick the camera that matches the shot, then frame with zoom. Keep torch off unless the room is very dark.</p>
+          <div class="guide-uses three">
+            <div class="guide-use"><span>Streams</span><p>Back camera + 1–2× for talking-head. Front for face-to-camera.</p></div>
+            <div class="guide-use"><span>Recording</span><p>Stay near optical stops (1× / 2×). Heavy digital zoom softens detail.</p></div>
+            <div class="guide-use"><span>Flip / torch</span><p>Flip if the phone is upside-down on a mount. Torch eats battery and looks harsh on face cams.</p></div>
+          </div>
+        </div>
         <div class="choices" id="lens">
           <button type="button" data-value="back">Back</button>
           <button type="button" data-value="front">Front</button>
@@ -246,32 +310,50 @@ enum ControlPanelPage {
       </div>
       <section id="tool-exposure">
         <div class="heading"><span>Exposure</span><label class="toggle"><input id="manual-exposure" type="checkbox">Manual</label></div>
-        <p class="note" id="exposure-auto-note">
-          <strong>Suggested</strong>
-          Leave Auto on for a smooth picture. Nudge EV if the room is too dark or bright. ISO and shutter do not need a hand unless you are locking a look.
-        </p>
-        <p class="note" id="exposure-manual-note" hidden>
-          <strong>Manual tip</strong>
-          At 30 fps keep shutter at <strong>1/60 or faster</strong>. Slower shutter (1/30, 1/15) smears motion and feels choppy — that is not a network issue. Brighten with ISO instead. Noise goes up with ISO; chop goes up with a slow shutter.
-        </p>
+        <div class="guide" id="exposure-auto-note">
+          <p class="guide-lead">Leave <b>Auto</b> on for most streams and videos. Use EV to brighten or darken without locking shutter.</p>
+          <div class="guide-uses">
+            <div class="guide-use"><span>Streams / calls</span><p>Auto + a little EV. The phone tracks lights as you move.</p></div>
+            <div class="guide-use"><span>Recording</span><p>Still start on Auto. Switch to Manual only if the room light is fixed and Auto hunts.</p></div>
+          </div>
+        </div>
+        <div class="guide" id="exposure-manual-note" hidden>
+          <p class="guide-lead"><b>ISO</b> brightens (and adds grain). <b>Shutter</b> freezes motion — keep it fast at 30 fps.</p>
+          <div class="guide-uses three">
+            <div class="guide-use"><span>ISO</span><p>Raise ISO to get brighter when shutter is already at 1/60+. Prefer the lowest ISO that still looks bright enough.</p></div>
+            <div class="guide-use"><span>Shutter</span><p>At 30 fps use <b>1/60 or faster</b>. 1/30 or slower smears motion and feels choppy — that is not lag.</p></div>
+            <div class="guide-use"><span>Recording tip</span><p>Lock ISO + shutter once the look is right so brightness does not drift mid-take.</p></div>
+          </div>
+        </div>
         <label class="slider" id="ev-row">
           <span>EV <strong id="ev-value">0.0</strong></span>
           <input id="ev" type="range" min="-3" max="3" step="0.1" value="0">
         </label>
+        <p class="field-tip" id="ev-tip">EV is overall brightness while Auto still picks shutter and ISO.</p>
         <div id="manual-exposure-fields" hidden>
           <label class="slider">
             <span>ISO <strong id="iso-value">100</strong></span>
             <input id="iso" type="range" min="0" max="1" step="0.001" value="0.2">
           </label>
+          <p class="field-tip">Sensor sensitivity. Higher = brighter + more noise. Use this before slowing shutter.</p>
           <label class="slider">
             <span>Shutter <strong id="shutter-value">1/60</strong></span>
             <input id="shutter" type="range" min="0" max="1" step="0.001" value="0.5">
           </label>
-          <p class="quiet" id="shutter-warn" hidden>Shutter is slower than 1/60. Expect motion smear at 30 fps.</p>
+          <p class="field-tip">How long each frame is open. Fast = crisp motion. Slow = smear that looks like stutter.</p>
+          <p class="quiet warn" id="shutter-warn" hidden>Shutter is slower than 1/60. Expect motion smear at 30 fps — raise ISO instead.</p>
         </div>
       </section>
       <section id="tool-whiteBalance" hidden>
         <div class="heading"><span>White balance</span></div>
+        <div class="guide">
+          <p class="guide-lead">Sets how warm or cool skin and walls look. Match the light you are under.</p>
+          <div class="guide-uses three">
+            <div class="guide-use"><span>Streams</span><p>Auto is fine under mixed desk lights. Pick a preset if skin looks green or orange.</p></div>
+            <div class="guide-use"><span>Recording</span><p>Lock a preset so color does not shift when someone walks by with a lamp.</p></div>
+            <div class="guide-use"><span>Quick map</span><p>Daylight = window. Incandescent = warm bulbs. Fluorescent = office tubes. Cloudy = soft overcast.</p></div>
+          </div>
+        </div>
         <div class="choices" id="wb">
           <button type="button" data-value="auto">Auto</button>
           <button type="button" data-value="daylight">Daylight</button>
@@ -282,29 +364,46 @@ enum ControlPanelPage {
       </section>
       <section id="tool-focus" hidden>
         <div class="heading"><span>Focus</span><label class="toggle"><input id="manual-focus" type="checkbox">Manual</label></div>
+        <div class="guide">
+          <p class="guide-lead">Keep <b>Auto</b> for talking-head streams. Use Manual when you want the focus plane locked.</p>
+          <div class="guide-uses">
+            <div class="guide-use"><span>Streams / calls</span><p>Auto. Tap the phone preview if you need a quick re-focus on your face.</p></div>
+            <div class="guide-use"><span>Recording</span><p>Manual after you set distance — stops hunting when you gesture toward the lens.</p></div>
+          </div>
+        </div>
         <label class="slider" id="focus-row" hidden>
           <span>Position <strong id="focus-value">1.00</strong></span>
           <input id="focus" type="range" min="0" max="1" step="0.01" value="1">
         </label>
+        <p class="field-tip" id="focus-tip" hidden>Near = closer subjects. Far = distance / background. Set it, then leave it alone.</p>
       </section>
       <section id="tool-portrait" hidden>
         <div class="heading"><span>Portrait</span><label class="toggle"><input id="portrait" type="checkbox">On</label></div>
-        <p class="note">
-          <strong>Suggested</strong>
-          Leave Portrait off for a cleaner background. On the PC, set the camera to VCamdroid in NVIDIA Broadcast, or add Background Removal on a VCamdroid source in OBS. Phone portrait is a light blur if you need it here, and it warms the iPhone.
-        </p>
-        <p class="quiet" id="portrait-on-hint" hidden>Portrait is on this iPhone. Turn it off if NVIDIA Broadcast or OBS is already cutting the background, or the edges stack and the phone runs hotter.</p>
+        <div class="guide">
+          <p class="guide-lead">Phone blur is a light backup. Prefer <b>NVIDIA Broadcast</b> or <b>OBS Background Removal</b> on the PC for streams and recordings.</p>
+          <div class="guide-uses three">
+            <div class="guide-use"><span>Streams</span><p>Do blur on the PC so the phone stays cool and the feed stays smooth.</p></div>
+            <div class="guide-use"><span>Recording</span><p>Same — PC removal usually looks cleaner and keeps 1080p30 stable.</p></div>
+            <div class="guide-use warn"><span>If you use this</span><p>Do not stack with PC background tools. It warms the iPhone and can drop frames.</p></div>
+          </div>
+        </div>
+        <p class="quiet" id="portrait-on-hint" hidden>Portrait is on this iPhone. Turn it off if NVIDIA Broadcast or OBS is already cutting the background.</p>
         <label class="slider" id="portrait-row" hidden>
           <span>Strength <strong id="portrait-value">65%</strong></span>
           <input id="portrait-strength" type="range" min="0" max="1" step="0.01" value="0.65">
         </label>
+        <p class="field-tip" id="portrait-strength-tip" hidden>Start around 50–70%. Higher softens the background more and costs more heat.</p>
       </section>
       <section>
         <div class="heading"><span>Stream</span><strong id="bitrate-value">4000 kbps</strong></div>
-        <p class="note">
-          <strong>Suggested</strong>
-          1080p30 and about 4 Mbps for live calls. Raise bitrate toward 6–8 Mbps if you record in OBS. Desk preview above is a glance only — judge smoothness in OBS or the meeting app.
-        </p>
+        <div class="guide">
+          <p class="guide-lead">Resolution, frame rate, and bitrate set how heavy the phone works and how sharp OBS gets.</p>
+          <div class="guide-uses three">
+            <div class="guide-use"><span>Live / calls</span><p><b>1080p30</b> · about <b>4 Mbps</b>. Smooth and kind to heat and upload.</p></div>
+            <div class="guide-use"><span>Recording in OBS</span><p>Still 1080p30; raise bitrate to <b>6–8 Mbps</b> for cleaner files.</p></div>
+            <div class="guide-use warn"><span>Avoid first</span><p>60 fps and very high bitrate until you know the phone stays cool on a long take.</p></div>
+          </div>
+        </div>
         <div class="choices" id="resolution">
           <button type="button" data-width="1280" data-height="720">1280×720</button>
           <button type="button" data-width="1920" data-height="1080">1920×1080</button>
@@ -322,6 +421,7 @@ enum ControlPanelPage {
           <span>Bitrate <strong id="bitrate-saved">4000 kbps</strong></span>
           <input id="bitrate" type="range" min="2500" max="16000" step="100" value="4000">
         </label>
+        <p class="field-tip">Bitrate is how many bits per second leave the phone. Higher = sharper, more heat and bandwidth.</p>
       </section>
     </main>
     <script>
@@ -530,12 +630,15 @@ enum ControlPanelPage {
         const exposure = document.getElementById("manual-exposure").checked;
         const focusManual = document.getElementById("manual-focus").checked;
         document.getElementById("ev-row").hidden = exposure;
+        document.getElementById("ev-tip").hidden = exposure;
         document.getElementById("manual-exposure-fields").hidden = !exposure;
         document.getElementById("exposure-auto-note").hidden = exposure;
         document.getElementById("exposure-manual-note").hidden = !exposure;
         document.getElementById("focus-row").hidden = !focusManual;
+        document.getElementById("focus-tip").hidden = !focusManual;
         const portraitOn = document.getElementById("portrait").checked;
         document.getElementById("portrait-row").hidden = !portraitOn;
+        document.getElementById("portrait-strength-tip").hidden = !portraitOn;
         document.getElementById("portrait-on-hint").hidden = !portraitOn;
         updateShutterWarn();
       }
@@ -571,6 +674,7 @@ enum ControlPanelPage {
         setRange(ev, "ev-value", data.exposureBias, (value) => Number(value).toFixed(1), "exposureBias");
         setRange(iso, "iso-value", data.iso, (value) => String(Math.round(Number(value))), "iso");
         setRange(shutter, "shutter-value", data.shutter, shutterLabel, "shutter");
+        updateShutterWarn();
         setRange(focus, "focus-value", data.focus, (value) => Number(value).toFixed(2), "focus");
         setFlag("torch", data.torch, "torch");
         setFlag("flip", data.flip, "flip");
