@@ -76,6 +76,10 @@ actor DroidCamServer {
         await onClient?(nil, false)
     }
 
+    func dropVideo() {
+        videoConnection?.cancel()
+    }
+
     func send(pts: UInt64, payload: Data) async {
         guard let videoConnection else { return }
         let packet = DroidCamPacketFramer.frame(pts: pts, payload: payload)

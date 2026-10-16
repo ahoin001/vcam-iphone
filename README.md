@@ -145,17 +145,17 @@ Closing VCamPanel, or leaving the phone app, stops the live picture. The camera 
 
 The lower part of VCamPanel is the camera desk. Finish section 3 or section 4 first, then leave `VCamPanel.exe` connected.
 
+On a wide window the preview fills the left side and the shot controls sit on the right. A narrow OBS dock still stacks them. **Show preview** is on after Connect so you can frame in the companion. Leave it off if the phone is warming up. The app you selected in section 5 is the live picture.
+
 The desk matches the phone: front or back camera, zoom stops 1× / 2× / 3× / 5× / 10× and a 1.0×–10.0× slider, torch, flip, then one tool at a time for exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Moving a control on the computer moves it on the phone. Moving it on the phone updates the desk.
 
 The Portrait tool on the desk says to leave Portrait off for meetings. NVIDIA Broadcast or OBS Background Removal on **VCamdroid** is the cleaner cut. Use the iPhone blur only when you do not have those PC tools.
 
 The stream heading shows the rate actually in use. While VCamPanel is the video client, that is 1080p30 at **12 Mbps** on Wi-Fi and **30 Mbps** on USB. The bitrate slider under it stays on the saved rate for the optional OBS source in section 7 (2500–16000 kbps). Moving that slider does not change the VCamdroid picture.
 
-At the top of the desk is an optional **Show preview** switch. It is off by default. Turn it on for a low-rate picture in the companion so you can frame the shot. Leave preview off if the phone is warming up. The app you selected in section 5 is the live picture.
-
 **On Windows:**
 
-1. Run `VCamPanel.exe` if it is not already open. Before Connect, the lower area shows a short “Connect a phone” card instead of a blank black panel.
+1. Run `VCamPanel.exe` if it is not already open. Before Connect, the lower area shows a “Connect a phone” card with the preview space on the left.
 2. Click **Refresh**. Pick the USB iPhone or a Wi-Fi phone from the list. If Wi-Fi discovery misses it, type the IP from the phone and Connect.
 3. Leave the window on top while you shoot. **Copy** puts the optional OBS address on the clipboard.
 
@@ -172,13 +172,12 @@ At the top of the desk is an optional **Show preview** switch. It is off by defa
 
 Use this when you want OBS to connect to port 4747 itself, instead of selecting the VCamdroid camera. This is the picture path on Windows 10. It is also available on Windows 11.
 
-The phone allows one video connection. If VCamPanel is already connected, disconnect it before you add this source. If the source connects first, VCamPanel reports that the video connection closed. Click **Connect** after the source is gone. It does not reconnect in a loop.
+The phone allows one video connection. Connect in VCamPanel always takes that socket, including on Windows 10. Disconnect VCamPanel before you add this source. If the source connects first, VCamPanel retries a few times, then says the video connection closed. Click **Connect** after the source is gone.
 
 1. Install [DroidCam OBS](https://www.dev47apps.com/obs/) and reopen OBS.
 2. On Wi-Fi, leave VCamPanel disconnected. The source uses the IP on the phone and port **4747**.
-3. On USB with Windows 10, click **Connect** in VCamPanel. It opens the tunnel and does not take the video. The source uses **127.0.0.1** and port **4747**.
-4. On USB with Windows 11, click **Disconnect** in VCamPanel so it is not the video client. In the unzipped folder, run `usbmux_forward.exe` and leave that window open. The source uses **127.0.0.1** and port **4747**.
-5. In OBS, click **+** in **Sources** and add **DroidCam OBS** (or **VCamdroid** if you already have that source). Enter the address from the step above. **Copy** in VCamPanel copies it when the companion is open. Click **OK**.
+3. On USB, click **Disconnect** in VCamPanel so it is not the video client. In the unzipped folder, run `usbmux_forward.exe` and leave that window open. The source uses **127.0.0.1** and port **4747**.
+4. In OBS, click **+** in **Sources** and add **DroidCam OBS** (or **VCamdroid** if you already have that source). Enter the address from the step above. **Copy** in VCamPanel copies it when the companion is open. Click **OK**.
 
 **Check:** the phone says **Streaming**, and the picture is in the OBS preview.
 
@@ -188,28 +187,29 @@ Other apps still need a camera. With this optional source, that camera is OBS’
 
 ## While you are live
 
-On the phone, the picture fills the screen and the address stays at the top. Tap the preview to focus and put the open control away. The bottom bar opens one tool at a time: switch camera, zoom (1×, 2×, 3×, 5×, 10×, or 1.0×–10.0×), exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Torch and Flip 180° toggle immediately. Curtain, Settings, and Log are on the lower left. Stop is on the lower right.
+On the phone, the picture fills the screen and the address stays at the top. Tap the preview to focus and put the open control away. The bottom bar opens one tool at a time: switch camera, zoom (1×, 2×, 3×, 5×, 10×, or 1.0×–10.0×), exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Torch and Flip 180° toggle immediately. Moon and Settings sit together on the lower right, next to Stop. Tap the moon to dim the screen now. Long-press it for Automatic, Always dim, or Off. Log is in Settings.
 
 Portrait on the phone is a light background blur. Leave it off when NVIDIA Broadcast or OBS is already cutting the background. If you turn it on, the iPhone preview stays off, and the phone tells you to watch the picture on the computer. **Show on iPhone**, or the **iPhone preview** switch in the portrait tool, draws the blurred picture on the phone. Leave it off if the phone warms up.
 
 From the computer, section 6 is that same camera desk in `VCamPanel.exe`. While VCamPanel is connected, the picture stays 1080p30 at the Wi-Fi or USB rate above. Resolution and frame-rate changes wait until that client disconnects.
 
-In **Settings** on the phone, the saved stream is the optional OBS path:
+In **Settings** on the phone:
 
-- Resolution is **1280×720** or **1920×1080**. Frame rate is **30**. 1080p60 appears only after that phone has been allowed to offer it.
-- Bitrate runs from **2500** to **16000** kbps. The default is **4000**.
-- **Curtain** can be Automatic, Always on, or Off. Tap **Curtain** for a black screen that keeps the stream going and saves the OLED panel. Tap the black screen to get the controls back. Curtain stays on the phone; it is not on the PC desk.
+- **Curtain** is Automatic (dims after 8 seconds), Always dim, or Off. The moon still works when Off. Tap the black screen to get the controls back.
 - **Show tally** follows a DroidCam OBS source when that source is the video client. The VCamdroid camera does not send tally.
 - **Confirm before stopping**.
+- **Port** is 4747 unless something else is using it.
+- Resolution, frame rate, and bitrate under **For a DroidCam OBS source** are the saved rates for section 7. They do not change the VCamdroid picture while VCamPanel is connected.
 
 For a long session, keep the phone plugged in, leave Low Power Mode off, and use the curtain. If the phone gets hot, the studio warns you. Pressing the side button pauses the stream. Unlock the phone and open **VCamdroid** again to continue.
 
 ## If the picture never appears
 
-- The phone must stay on the studio screen. **Waiting for the computer** means the app is ready and VCamPanel has not connected yet.
+- The phone must stay on the studio screen. **Waiting for the computer** means the app is ready and VCamPanel has not opened the picture yet.
+- Connect starts the picture even if the camera-list warning is showing. Disconnect stops it.
 - VCamPanel must stay running. The picture goes black when it closes, even if **VCamdroid** is still listed.
-- `VCamSource.dll` must sit in the same folder as `VCamPanel.exe`. If it is missing, the status says the system camera was not registered.
-- Windows 11 is required for the camera. If the status says the camera list needs Windows 11, use section 7.
+- `VCamSource.dll` must sit in the same folder as `VCamPanel.exe`. If it is missing, the status says so.
+- Windows 11 is required for the camera to appear in the list. The status names that, a missing DLL, or another registration failure. On Windows 10 use section 7.
 - In the meeting app or OBS, the device name is **VCamdroid**.
 - The phone allows one video connection. A DroidCam OBS source connected at the same time takes the picture. VCamPanel then says the video connection closed. Disconnect the source and click **Connect**.
 - Wi-Fi: the PC and the phone are on the same network, and the IP in VCamPanel is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.

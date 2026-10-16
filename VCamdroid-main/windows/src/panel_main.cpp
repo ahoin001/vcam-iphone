@@ -11,6 +11,7 @@
 #include "usbmux.h"
 #include "camera/Pipeline.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
@@ -205,24 +206,28 @@ std::wstring IdleDeskHtml() {
     color: #f2efe8;
     font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
   }
-  .card {
-    width: min(360px, 86vw);
-    padding: 28px 24px;
-    border-radius: 18px;
+  .shell {
+    width: min(920px, 92vw);
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(260px, 340px);
+    gap: 28px;
+    align-items: center;
+    padding: 28px;
+  }
+  .stage {
+    min-height: 220px;
+    border-radius: 16px;
     border: 1px solid #2a3036;
-    background: rgba(26, 30, 34, 0.92);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
-    text-align: center;
-  }
-  .eyebrow {
-    margin: 0 0 8px;
-    font-size: 12px; font-weight: 600;
-    letter-spacing: 0.1em; text-transform: uppercase;
+    background:
+      linear-gradient(180deg, #14181c, #0c0e10);
+    display: grid;
+    place-items: center;
     color: #9a958c;
+    font-size: 13px;
   }
-  h1 { margin: 0 0 10px; font-size: 22px; font-weight: 600; }
-  p { margin: 0; color: #9a958c; font-size: 13px; }
-  .steps { margin: 18px 0 0; padding: 0; list-style: none; text-align: left; }
+  .copy h1 { margin: 0 0 10px; font-size: 28px; font-weight: 600; }
+  .copy p { margin: 0; color: #9a958c; font-size: 14px; }
+  .steps { margin: 18px 0 0; padding: 0; list-style: none; }
   .steps li {
     display: flex; gap: 10px; align-items: flex-start;
     padding: 8px 0; border-top: 1px solid #24292e;
@@ -235,16 +240,22 @@ std::wstring IdleDeskHtml() {
     background: rgba(217,160,74,0.18); color: #d9a04a;
     font-size: 11px; font-weight: 700;
   }
+  @media (max-width: 720px) {
+    .shell { grid-template-columns: 1fr; padding: 20px 16px; }
+    .stage { min-height: 140px; }
+  }
 </style></head><body>
-  <div class="card">
-    <p class="eyebrow">Camera desk</p>
-    <h1>Connect a phone</h1>
-    <p>This window connects the iPhone and publishes it as the VCamdroid camera.</p>
-    <ol class="steps">
-      <li><span class="n">1</span><span>Click Refresh to find USB or Wi-Fi phones.</span></li>
-      <li><span class="n">2</span><span>Select a phone, or type the Wi-Fi IP.</span></li>
-      <li><span class="n">3</span><span>Click Connect to open the camera desk.</span></li>
-    </ol>
+  <div class="shell">
+    <div class="stage">Preview opens here after Connect</div>
+    <div class="copy">
+      <h1>Connect a phone</h1>
+      <p>This window receives the iPhone and publishes the VCamdroid camera. Shot controls sit beside the preview.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><span>Click Refresh to find USB or Wi-Fi phones.</span></li>
+        <li><span class="n">2</span><span>Select a phone, or type the Wi-Fi IP.</span></li>
+        <li><span class="n">3</span><span>Click Connect. The picture opens in this window.</span></li>
+      </ol>
+    </div>
   </div>
 </body></html>)HTML";
 }
@@ -393,38 +404,43 @@ void Layout() {
     }
     RECT client{};
     GetClientRect(g_window, &client);
-    const int margin = Scale(g_window, 14);
-    const int row = Scale(g_window, 30);
+    const int margin = Scale(g_window, 12);
     const int gap = Scale(g_window, 8);
-    const int label = Scale(g_window, 18);
-    const int listHeight = Scale(g_window, 92);
-    const int button = Scale(g_window, 96);
+    const int titleH = Scale(g_window, 22);
+    const int bar = Scale(g_window, 56);
+    const int row = Scale(g_window, 30);
+    const int label = Scale(g_window, 16);
+    const int copyW = Scale(g_window, 72);
+    const int refreshW = Scale(g_window, 80);
+    const int connectW = Scale(g_window, 88);
+    const int disconnectW = Scale(g_window, 100);
+    const int listW = Scale(g_window, 260);
     const int width = client.right - client.left;
     const int inner = width - margin * 2;
     int y = margin;
-    MoveWindow(g_title, margin, y, inner, Scale(g_window, 24), TRUE);
-    y += Scale(g_window, 28);
-    MoveWindow(g_devicesLabel, margin, y, inner - button - gap, label, TRUE);
-    y += label + Scale(g_window, 4);
-    MoveWindow(g_list, margin, y, inner - button - gap, listHeight, TRUE);
-    MoveWindow(g_refresh, width - margin - button, y, button, listHeight, TRUE);
-    y += listHeight + gap;
-    MoveWindow(g_linkLabel, margin, y, inner, label, TRUE);
-    y += label + Scale(g_window, 4);
-    const int connect = Scale(g_window, 92);
-    const int disconnect = Scale(g_window, 100);
-    const int editWidth = inner - connect - disconnect - gap * 2;
-    MoveWindow(g_address, margin, y, editWidth, row, TRUE);
-    MoveWindow(g_connect, margin + editWidth + gap, y, connect, row, TRUE);
-    MoveWindow(g_disconnect, margin + editWidth + gap * 2 + connect, y, disconnect, row, TRUE);
-    y += row + gap;
-    MoveWindow(g_status, margin, y, inner - button - gap, row, TRUE);
-    MoveWindow(g_copy, width - margin - button, y, button, row, TRUE);
-    y += row + Scale(g_window, 2);
+    const int titleW = Scale(g_window, 200);
+    MoveWindow(g_title, margin, y, titleW, titleH, TRUE);
+    MoveWindow(g_status, margin + titleW + gap, y, inner - titleW - copyW - gap * 2, titleH, TRUE);
+    MoveWindow(g_copy, width - margin - copyW, y, copyW, titleH, TRUE);
+    y += titleH + gap;
+    MoveWindow(g_devicesLabel, 0, 0, 0, 0, TRUE);
+    MoveWindow(g_linkLabel, 0, 0, 0, 0, TRUE);
+    MoveWindow(g_list, margin, y, listW, bar, TRUE);
+    int x = margin + listW + gap;
+    MoveWindow(g_refresh, x, y, refreshW, bar, TRUE);
+    x += refreshW + gap;
+    const int actions = connectW + disconnectW + gap;
+    const int addressW = (width - margin) - x - actions - gap;
+    MoveWindow(g_address, x, y + (bar - row) / 2, (std::max)(Scale(g_window, 140), addressW), row, TRUE);
+    x += (std::max)(Scale(g_window, 140), addressW) + gap;
+    MoveWindow(g_connect, x, y + (bar - row) / 2, connectW, row, TRUE);
+    x += connectW + gap;
+    MoveWindow(g_disconnect, x, y + (bar - row) / 2, disconnectW, row, TRUE);
+    y += bar + Scale(g_window, 4);
     MoveWindow(g_obs, margin, y, inner, label, TRUE);
     y += label + gap;
     if (g_controller) {
-        RECT bounds{margin / 2, y, client.right - margin / 2, client.bottom};
+        RECT bounds{0, y, client.right, client.bottom};
         g_controller->put_Bounds(bounds);
     }
 }
@@ -570,20 +586,27 @@ void UpdateSessionStatus() {
     if (link == vcam::LinkState::Live) {
         line += L"  VCamdroid";
     } else if (link == vcam::LinkState::Connecting) {
-        line += L"  Opening camera";
-    } else if (!vcam::Pipeline::Shared().Available()) {
-        line += L"  Camera list needs Windows 11";
+        line += L"  Opening picture";
+    }
+    if (!vcam::Pipeline::Shared().Available() && !vcam::Pipeline::Shared().Warning().empty()) {
+        line += L"  ";
+        line += vcam::Pipeline::Shared().Warning();
     }
     SetStatus(line);
 }
 
 void NoteConnected(const std::wstring& address) {
+    vcam::Pipeline::Shared().Start(g_connectedHost, g_connectedPort);
     if (vcam::Pipeline::Shared().Available()) {
         SetStatus(L"Connected. Choose VCamdroid as the camera.");
-        vcam::Pipeline::Shared().Start(g_connectedHost, g_connectedPort);
-    } else {
-        SetStatus(L"Connected. VCamdroid needs Windows 11 to appear as a camera. OBS can still use " + address + L".");
+        return;
     }
+    const std::wstring warning = vcam::Pipeline::Shared().Warning();
+    if (!warning.empty()) {
+        SetStatus(L"Connected. Opening the picture. " + warning);
+        return;
+    }
+    SetStatus(L"Connected. Opening the picture. Optional OBS address " + address + L".");
 }
 
 void ConnectSelected() {
@@ -610,8 +633,8 @@ void ConnectSelected() {
         chosen.port = typedPort;
     }
 
-    usbmux::stop();
     vcam::Pipeline::Shared().Stop();
+    usbmux::stop();
     g_usbConnected = false;
     KillTimer(g_window, kStatusTimer);
 
@@ -797,6 +820,12 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_SIZE:
         Layout();
         return 0;
+    case WM_GETMINMAXINFO: {
+        auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+        limits->ptMinTrackSize.x = Scale(window, 960);
+        limits->ptMinTrackSize.y = Scale(window, 640);
+        return 0;
+    }
     case WM_DPICHANGED: {
         const auto* suggested = reinterpret_cast<RECT*>(lparam);
         SetWindowPos(window, nullptr, suggested->left, suggested->top,
@@ -865,8 +894,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        480,
-        860,
+        1280,
+        800,
         nullptr,
         nullptr,
         instance,
@@ -899,8 +928,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
-    usbmux::stop();
     vcam::Pipeline::Shared().Stop();
+    usbmux::stop();
     if (g_background) {
         DeleteObject(g_background);
     }

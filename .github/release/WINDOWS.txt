@@ -7,13 +7,14 @@ VCamdroid Windows companion
 3. On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front.
    The status reads Waiting for the computer.
 4. Run VCamPanel.exe. Click Refresh, select the phone, then Connect.
+   Connect starts the picture. The desk shows a large preview with shot controls on the side.
 5. Windows 11: choose the camera named VCamdroid in NVIDIA Broadcast, OBS (Video Capture Device), Zoom, Teams, or another app.
    Leave VCamPanel running. Closing it turns the picture black.
-6. Windows 10 can open the desk, and it says the camera list needs Windows 11.
-   The optional path there is a DroidCam OBS source:
-   - USB: IP 127.0.0.1, port 4747
+6. If the status names a camera-list problem (Windows 10, missing VCamSource.dll, or a registration failure),
+   the picture still streams to this window. Other apps will not see VCamdroid until that is fixed.
+   The optional DroidCam OBS source cannot share the picture with VCamPanel. Disconnect first:
+   - USB: run usbmux_forward.exe, then IP 127.0.0.1, port 4747
    - Wi-Fi: use the address shown in VCamPanel (Copy button)
-   That source and VCamPanel cannot share the picture. Use one of them.
 
 WebView2 Runtime is required (current Windows 11 already has it):
 https://developer.microsoft.com/microsoft-edge/webview2/

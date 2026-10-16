@@ -301,9 +301,9 @@ VCamPanel is the video client:
 
 `client=panel` selects a separate encode policy. A DroidCam OBS client stays on H.264 Baseline and the 2500–16000 kbps slider, with each second clamped at that average. The panel client is 1920×1080 at 30 fps, H.264 High, real-time, no frame reordering, no frame delay, Rec.709, 30 Mbps when the client address is loopback and 12 Mbps on Wi-Fi, with a one-second peak of twice that average. Those rates are not written through `StudioSettings`, which still clamps the saved slider. The desk shows the rate actually in use.
 
-The phone allows one video socket. If a DroidCam OBS source connects while VCamPanel holds it, the picture moves and VCamPanel waits for Connect. It does not reconnect in a loop. Short desk requests stay on their own connections.
+The phone allows one video socket. Connect always opens that socket. If a DroidCam OBS source takes it, VCamPanel retries a few times, then waits for Connect. Short desk requests stay on their own connections.
 
-Windows 10 keeps the desk and the optional OBS source. VCamPanel does not take the video socket there, and it says the camera list needs Windows 11.
+Windows 10 still opens the desk. Connect still starts the picture. The camera list warning names the real reason, usually that the system camera needs Windows 11.
 
 ---
 

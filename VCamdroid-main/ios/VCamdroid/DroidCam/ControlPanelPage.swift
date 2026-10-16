@@ -27,6 +27,7 @@ enum ControlPanelPage {
         --radius-sm: 12px;
       }
       * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
         min-height: 100%;
@@ -39,11 +40,17 @@ enum ControlPanelPage {
         -webkit-font-smoothing: antialiased;
       }
       main {
-        max-width: 460px;
+        min-height: 100%;
         margin: 0 auto;
         padding: 16px 16px 28px;
         display: grid;
         gap: 12px;
+        align-content: start;
+      }
+      .controls {
+        display: grid;
+        gap: 12px;
+        align-content: start;
       }
       header {
         display: grid;
@@ -245,6 +252,40 @@ enum ControlPanelPage {
         border: 1px solid color-mix(in srgb, #e0a070 30%, var(--line-soft));
       }
       [hidden] { display: none !important; }
+      @media (min-width: 900px) {
+        body { overflow: hidden; }
+        main {
+          height: 100%;
+          min-height: 0;
+          max-width: none;
+          margin: 0;
+          padding: 16px 18px 18px;
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+          grid-template-rows: auto minmax(0, 1fr);
+          overflow: hidden;
+        }
+        header { grid-column: 1 / -1; }
+        .preview {
+          grid-column: 1;
+          grid-row: 2;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .stage {
+          flex: 1 1 auto;
+          aspect-ratio: auto;
+          min-height: 0;
+          height: auto;
+        }
+        .controls {
+          grid-column: 2;
+          grid-row: 2;
+          min-height: 0;
+          overflow: auto;
+          padding-right: 4px;
+        }
+      }
     </style>
     </head>
     <body>
@@ -252,7 +293,7 @@ enum ControlPanelPage {
       <header>
         <h1>Camera desk</h1>
         <p id="status-line">Waiting for the computer</p>
-        <p id="hint-line">1080p30 · the computer sets the rate while it is connected</p>
+        <p id="hint-line">1080p30 · Connect opens the picture</p>
       </header>
       <section class="preview">
         <div class="preview-bar">
@@ -268,9 +309,10 @@ enum ControlPanelPage {
         </div>
         <div class="stage" id="stage">
           <img id="preview-image" alt="Desk preview" decoding="async">
-          <div class="stage-empty" id="stage-empty">Turn on Show preview when you need a desk glance. The live picture stays on the computer.</div>
+          <div class="stage-empty" id="stage-empty">Waiting for a frame from the iPhone.</div>
         </div>
       </section>
+      <div class="controls">
       <section class="shot">
         <div class="heading"><span>Lens &amp; framing</span></div>
         <div class="guide">
@@ -423,6 +465,7 @@ enum ControlPanelPage {
         </label>
         <p class="field-tip">Bitrate is how many bits per second leave the phone. Higher = sharper, more heat and bandwidth.</p>
       </section>
+      </div>
     </main>
     <script>
       const active = new Set();
@@ -735,6 +778,12 @@ enum ControlPanelPage {
         showPreview.checked = on;
         showPreview.parentElement.classList.toggle("on", on);
         text("preview-label", on ? "On" : "Off");
+        const empty = document.getElementById("stage-empty");
+        if (empty) {
+          empty.textContent = on
+            ? "Waiting for a frame from the iPhone."
+            : "Turn on Show preview when you need a desk glance. The live picture stays on the computer.";
+        }
         clearInterval(previewTimer);
         if (!on) {
           stage.classList.remove("live");
@@ -774,9 +823,9 @@ enum ControlPanelPage {
             ].filter(Boolean).join(" · ");
             document.getElementById("hint-line").textContent = live
               ? (previewOn
-                ? "Desk preview is a glance (~12 fps) · judge smoothness in OBS"
-                : "Changes apply live · judge smoothness in OBS, not this page")
-              : "Connect the computer first, then use these controls from the desk";
+                ? "Desk preview is low-rate · apps that selected VCamdroid show the live picture"
+                : "Changes apply live · apps that selected VCamdroid show the picture")
+              : "The companion is connected. The picture is opening.";
           }
           if (catalog.ok) {
             const text = await catalog.text();
@@ -787,7 +836,7 @@ enum ControlPanelPage {
       }
 
       showTool();
-      setPreview(false);
+      setPreview(true);
       poll();
       setInterval(poll, 500);
     </script>
