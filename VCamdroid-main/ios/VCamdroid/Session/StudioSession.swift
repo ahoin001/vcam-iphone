@@ -29,10 +29,13 @@ final class StudioSession {
         settings.portraitEnabled && !settings.portraitPhonePreview && portraitCare != .hidden && portraitCare != .paused
     }
     let portraitPreview = PortraitPreviewSink()
+    private let deskPreview = PreviewJPEGSink()
     private var curtainTask: Task<Void, Never>?
     private var careTasks: [Task<Void, Never>] = []
     private var lastPortraitCommand = PortraitCommand.off
     private var encoderActive = false
+    private var panelStream = false
+    private var activeBitrateKbps: Int
     private var pausedForBackground = false
     private var listenFailed = false
     private var lastCurtainArm = Date.distantPast
@@ -45,6 +48,7 @@ final class StudioSession {
         server = DroidCamServer()
         let stored = StudioSettingsStore.load()
         settings = stored
+        activeBitrateKbps = stored.bitrateKbps
         snapshot = SessionSnapshot(
             status: "waiting",
             isStreaming: false,
@@ -77,6 +81,7 @@ final class StudioSession {
         await server.configure(
             snapshot: { await self.currentSnapshot() },
             catalog: { await self.catalog() },
+            preview: { await self.deskPreview.jpegData() },
             onVideo: { request in await self.beginVideo(request) },
             onVideoStopped: { await self.endVideo() },
             onUpdate: { update in await self.apply(update: update) },
@@ -90,9 +95,11 @@ final class StudioSession {
             Task { await server.send(pts: pts, payload: payload) }
         }
         let preview = portraitPreview
-        await capture.setFrameHandler { [encoder, preview] pixelBuffer, time in
+        let desk = deskPreview
+        await capture.setFrameHandler { [encoder, preview, desk] pixelBuffer, time in
             encoder.submit(pixelBuffer, time: time)
             preview.enqueue(pixelBuffer, time: time)
+            desk.enqueue(pixelBuffer)
         }
         let command = updatePortraitCare()
         lastPortraitCommand = command
@@ -139,12 +146,15 @@ final class StudioSession {
         await encoder.stop()
         await capture.stop()
         await server.stop()
+        deskPreview.clear()
         isRunning = false
         isThermalHot = false
         snapshot.isStreaming = false
         snapshot.status = "waiting"
         clientAddress = nil
         isUSBClient = false
+        panelStream = false
+        activeBitrateKbps = settings.bitrateKbps
         statusMessage = .waitingForOBS
     }
 
@@ -233,9 +243,12 @@ final class StudioSession {
         let clamped = copy.sanitized().bitrateKbps
         guard clamped != settings.bitrateKbps else { return }
         settings.bitrateKbps = clamped
+        if !panelStream {
+            activeBitrateKbps = clamped
+        }
         persist()
         noteActivity()
-        guard encoderActive else { return }
+        guard encoderActive, !panelStream else { return }
         Task { await restartEncoder() }
     }
 
@@ -246,6 +259,7 @@ final class StudioSession {
     }
 
     func setMode(_ mode: VideoMode) {
+        guard !panelStream else { return }
         settings.width = mode.width
         settings.height = mode.height
         settings.fps = mode.fps
@@ -260,6 +274,7 @@ final class StudioSession {
     }
 
     func updateFrameRate(_ fps: Int) {
+        guard !panelStream else { return }
         settings.fps = fps
         snapshot.fps = fps
         applyControls()
@@ -274,12 +289,23 @@ final class StudioSession {
     }
 
     func apply(update: SessionUpdate) -> Bool {
+        if let format = update.format, format != .avc { return false }
+        if panelStream {
+            if let lens = update.lens {
+                settings.lens = lens
+                snapshot.lens = lens
+                persist()
+                Task {
+                    try? await capture.update(CaptureConfiguration(settings: settings))
+                }
+            }
+            return true
+        }
         var next = settings
         if let width = update.width { next.width = width }
         if let height = update.height { next.height = height }
         if let fps = update.fps { next.fps = fps }
         if let lens = update.lens { next.lens = lens }
-        if let format = update.format, format != .avc { return false }
         let allowed = VideoMode.allowed(allowsHighFrameRate: next.allowsHighFrameRate)
         guard allowed.contains(next.mode) else { return false }
         settings = next.sanitized()
@@ -346,9 +372,12 @@ final class StudioSession {
         var restartBitrate = false
         if let bitrateKbps = update.bitrateKbps, bitrateKbps != settings.bitrateKbps {
             settings.bitrateKbps = bitrateKbps
-            restartBitrate = true
+            restartBitrate = !panelStream
         }
         settings = settings.sanitized()
+        if !panelStream {
+            activeBitrateKbps = settings.bitrateKbps
+        }
         snapshot.lens = settings.lens
         applyControls()
         if restartBitrate, encoderActive {
@@ -358,7 +387,7 @@ final class StudioSession {
     }
 
     private func currentControls() -> ControlState {
-        ControlState(settings: settings)
+        ControlState(settings: settings, activeBitrateKbps: activeBitrateKbps)
     }
 
     private func currentSnapshot() -> SessionSnapshot {
@@ -373,30 +402,36 @@ final class StudioSession {
     }
 
     private func beginVideo(_ request: VideoRequest) async {
-        let allowed = VideoMode.allowed(allowsHighFrameRate: settings.allowsHighFrameRate)
-        let requested = VideoMode(width: request.width, height: request.height, fps: settings.fps)
-        guard request.format == .avc, allowed.contains(where: { $0.width == requested.width && $0.height == requested.height }) else {
+        guard request.format == .avc else {
             appendLog(String(localized: .unsupportedMode))
             return
         }
-        settings.width = request.width
-        settings.height = request.height
-        snapshot.width = request.width
-        snapshot.height = request.height
-        snapshot.format = .avc
+        let quality: StreamQuality
+        if request.client == .panel {
+            quality = .panel(usb: isUSBClient)
+        } else {
+            let allowed = VideoMode.allowed(allowsHighFrameRate: settings.allowsHighFrameRate)
+            let matches = allowed.contains { $0.width == request.width && $0.height == request.height }
+            guard matches else {
+                appendLog(String(localized: .unsupportedMode))
+                return
+            }
+            quality = .legacy(
+                width: request.width,
+                height: request.height,
+                fps: settings.fps,
+                bitrateKbps: settings.bitrateKbps
+            )
+        }
+        panelStream = request.client == .panel
+        adopt(quality)
         snapshot.isStreaming = true
         snapshot.status = "streaming"
         persist()
         pushPortrait()
         do {
             try await capture.update(CaptureConfiguration(settings: settings))
-            try await encoder.start(
-                width: request.width,
-                height: request.height,
-                fps: settings.fps,
-                bitrateKbps: settings.bitrateKbps,
-                keyframeInterval: settings.keyframeInterval
-            )
+            try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
             encoderActive = true
             statusMessage = .streaming
             appendLog(String(localized: .clientConnected))
@@ -408,6 +443,8 @@ final class StudioSession {
 
     private func endVideo() async {
         encoderActive = false
+        panelStream = false
+        activeBitrateKbps = settings.bitrateKbps
         await encoder.stop()
         snapshot.isStreaming = false
         snapshot.status = "waiting"
@@ -416,20 +453,34 @@ final class StudioSession {
     }
 
     private func restartEncoder() async {
-        await encoder.stop()
-        do {
-            try await encoder.start(
+        let quality = panelStream
+            ? StreamQuality.panel(usb: isUSBClient)
+            : StreamQuality.legacy(
                 width: settings.width,
                 height: settings.height,
                 fps: settings.fps,
-                bitrateKbps: settings.bitrateKbps,
-                keyframeInterval: settings.keyframeInterval
+                bitrateKbps: settings.bitrateKbps
             )
+        adopt(quality)
+        await encoder.stop()
+        do {
+            try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
             encoderActive = true
         } catch {
             encoderActive = false
             appendLog(String(localized: .startFailed))
         }
+    }
+
+    private func adopt(_ quality: StreamQuality) {
+        settings.width = quality.width
+        settings.height = quality.height
+        settings.fps = quality.fps
+        activeBitrateKbps = quality.bitrateKbps
+        snapshot.width = quality.width
+        snapshot.height = quality.height
+        snapshot.fps = quality.fps
+        snapshot.format = .avc
     }
 
     private func setTally(_ tally: TallyState) {

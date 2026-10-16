@@ -9,6 +9,7 @@
 
 #include "mdns_browse.h"
 #include "usbmux.h"
+#include "camera/Pipeline.h"
 
 #include <cstdint>
 #include <cstring>
@@ -28,6 +29,7 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 
+constexpr int kTitleId = 1000;
 constexpr int kListId = 1001;
 constexpr int kRefreshId = 1002;
 constexpr int kAddressId = 1003;
@@ -36,7 +38,14 @@ constexpr int kDisconnectId = 1005;
 constexpr int kCopyId = 1006;
 constexpr int kStatusId = 1007;
 constexpr int kObsId = 1008;
+constexpr int kDevicesLabelId = 1009;
+constexpr int kLinkLabelId = 1010;
 constexpr UINT kStatusTimer = 1;
+
+constexpr COLORREF kBg = RGB(18, 20, 22);
+constexpr COLORREF kCard = RGB(28, 31, 34);
+constexpr COLORREF kText = RGB(242, 239, 232);
+constexpr COLORREF kMuted = RGB(154, 149, 140);
 
 enum class Kind { Usb, Wifi };
 
@@ -49,8 +58,11 @@ struct Listed {
 };
 
 HWND g_window = nullptr;
+HWND g_title = nullptr;
+HWND g_devicesLabel = nullptr;
 HWND g_list = nullptr;
 HWND g_refresh = nullptr;
+HWND g_linkLabel = nullptr;
 HWND g_address = nullptr;
 HWND g_connect = nullptr;
 HWND g_disconnect = nullptr;
@@ -58,6 +70,7 @@ HWND g_copy = nullptr;
 HWND g_status = nullptr;
 HWND g_obs = nullptr;
 HBRUSH g_background = nullptr;
+HBRUSH g_card = nullptr;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::wstring g_pendingUrl;
@@ -66,6 +79,9 @@ bool g_usbConnected = false;
 std::string g_connectedHost = "127.0.0.1";
 int g_connectedPort = 4747;
 std::wstring g_obsAddress = L"127.0.0.1:4747";
+HFONT g_titleFont = nullptr;
+HFONT g_uiFont = nullptr;
+HFONT g_smallFont = nullptr;
 
 int Scale(HWND window, int pixels) {
     const UINT dpi = GetDpiForWindow(window);
@@ -170,7 +186,76 @@ void SetStatus(const std::wstring& text) {
 void SetObs(const std::wstring& text) {
     g_obsAddress = text;
     if (g_obs) {
-        SetWindowTextW(g_obs, (L"OBS  " + text).c_str());
+        SetWindowTextW(g_obs, (L"VCamdroid    optional OBS  " + text).c_str());
+    }
+}
+
+std::wstring IdleDeskHtml() {
+    return LR"HTML(<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; place-items: center;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(217,160,74,0.08), transparent 55%),
+      linear-gradient(180deg, #171a1d, #121416);
+    color: #f2efe8;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  .card {
+    width: min(360px, 86vw);
+    padding: 28px 24px;
+    border-radius: 18px;
+    border: 1px solid #2a3036;
+    background: rgba(26, 30, 34, 0.92);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+    text-align: center;
+  }
+  .eyebrow {
+    margin: 0 0 8px;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #9a958c;
+  }
+  h1 { margin: 0 0 10px; font-size: 22px; font-weight: 600; }
+  p { margin: 0; color: #9a958c; font-size: 13px; }
+  .steps { margin: 18px 0 0; padding: 0; list-style: none; text-align: left; }
+  .steps li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px 0; border-top: 1px solid #24292e;
+    color: #f2efe8; font-size: 13px;
+  }
+  .steps li:first-child { border-top: 0; }
+  .n {
+    flex: 0 0 22px; height: 22px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: rgba(217,160,74,0.18); color: #d9a04a;
+    font-size: 11px; font-weight: 700;
+  }
+</style></head><body>
+  <div class="card">
+    <p class="eyebrow">Camera desk</p>
+    <h1>Connect a phone</h1>
+    <p>This window connects the iPhone and publishes it as the VCamdroid camera.</p>
+    <ol class="steps">
+      <li><span class="n">1</span><span>Click Refresh to find USB or Wi-Fi phones.</span></li>
+      <li><span class="n">2</span><span>Select a phone, or type the Wi-Fi IP.</span></li>
+      <li><span class="n">3</span><span>Click Connect to open the camera desk.</span></li>
+    </ol>
+  </div>
+</body></html>)HTML";
+}
+
+void ShowIdleDesk() {
+    g_pendingUrl.clear();
+    if (g_title) {
+        SetWindowTextW(g_title, L"VCamdroid");
+    }
+    if (g_webview) {
+        g_webview->NavigateToString(IdleDeskHtml().c_str());
     }
 }
 
@@ -308,19 +393,26 @@ void Layout() {
     }
     RECT client{};
     GetClientRect(g_window, &client);
-    const int margin = Scale(g_window, 10);
-    const int row = Scale(g_window, 28);
+    const int margin = Scale(g_window, 14);
+    const int row = Scale(g_window, 30);
     const int gap = Scale(g_window, 8);
-    const int listHeight = Scale(g_window, 86);
-    const int button = Scale(g_window, 92);
+    const int label = Scale(g_window, 18);
+    const int listHeight = Scale(g_window, 92);
+    const int button = Scale(g_window, 96);
     const int width = client.right - client.left;
     const int inner = width - margin * 2;
     int y = margin;
+    MoveWindow(g_title, margin, y, inner, Scale(g_window, 24), TRUE);
+    y += Scale(g_window, 28);
+    MoveWindow(g_devicesLabel, margin, y, inner - button - gap, label, TRUE);
+    y += label + Scale(g_window, 4);
     MoveWindow(g_list, margin, y, inner - button - gap, listHeight, TRUE);
     MoveWindow(g_refresh, width - margin - button, y, button, listHeight, TRUE);
     y += listHeight + gap;
-    const int connect = Scale(g_window, 88);
-    const int disconnect = Scale(g_window, 96);
+    MoveWindow(g_linkLabel, margin, y, inner, label, TRUE);
+    y += label + Scale(g_window, 4);
+    const int connect = Scale(g_window, 92);
+    const int disconnect = Scale(g_window, 100);
     const int editWidth = inner - connect - disconnect - gap * 2;
     MoveWindow(g_address, margin, y, editWidth, row, TRUE);
     MoveWindow(g_connect, margin + editWidth + gap, y, connect, row, TRUE);
@@ -328,11 +420,11 @@ void Layout() {
     y += row + gap;
     MoveWindow(g_status, margin, y, inner - button - gap, row, TRUE);
     MoveWindow(g_copy, width - margin - button, y, button, row, TRUE);
-    y += row + 2;
-    MoveWindow(g_obs, margin, y, inner, row, TRUE);
-    y += row + gap;
+    y += row + Scale(g_window, 2);
+    MoveWindow(g_obs, margin, y, inner, label, TRUE);
+    y += label + gap;
     if (g_controller) {
-        RECT bounds{0, y, client.right, client.bottom};
+        RECT bounds{margin / 2, y, client.right - margin / 2, client.bottom};
         g_controller->put_Bounds(bounds);
     }
 }
@@ -373,12 +465,14 @@ void StartWebView() {
                             }
                             ComPtr<ICoreWebView2Controller2> controller2;
                             if (SUCCEEDED(g_controller.As(&controller2)) && controller2) {
-                                const COREWEBVIEW2_COLOR background{255, 20, 22, 24};
+                                const COREWEBVIEW2_COLOR background{255, 18, 20, 22};
                                 controller2->put_DefaultBackgroundColor(background);
                             }
                             Layout();
                             if (!g_pendingUrl.empty()) {
                                 g_webview->Navigate(g_pendingUrl.c_str());
+                            } else {
+                                ShowIdleDesk();
                             }
                             return S_OK;
                         }
@@ -431,7 +525,7 @@ void RefreshDevices() {
 
     if (!g_devices.empty()) {
         SendMessageW(g_list, LB_SETCURSEL, 0, 0);
-        SetStatus(L"Select a phone, then Connect. OBS only needs the picture.");
+        SetStatus(L"Select a phone, then Connect.");
     } else if (!usb.error.empty()) {
         SetStatus(Wide(usb.error));
     } else {
@@ -444,10 +538,15 @@ void UpdateSessionStatus() {
     if (g_connectedHost.empty()) {
         return;
     }
+    const vcam::LinkState link = vcam::Pipeline::Shared().State();
+    if (link == vcam::LinkState::Interrupted) {
+        SetStatus(L"The video connection closed. Click Connect to try again.");
+        return;
+    }
     std::string body;
     if (!HttpGet(g_connectedHost, g_connectedPort, "/v1/session", body)) {
         SetStatus(g_usbConnected
-            ? L"USB is on. Unlock the iPhone, keep VCamdroid in front, then Activate in OBS."
+            ? L"USB is on. Unlock the iPhone and keep VCamdroid in front."
             : L"Waiting for the phone. Keep VCamdroid in front.");
         return;
     }
@@ -461,14 +560,30 @@ void UpdateSessionStatus() {
     if (battery >= 0) {
         line += L"  " + std::to_wstring(battery) + L"%";
     }
-    line += streaming ? L"  Streaming" : L"  Waiting for OBS";
+    line += (streaming || link == vcam::LinkState::Live) ? L"  Streaming" : L"  Waiting";
     if (width > 0 && height > 0) {
         line += L"  " + std::to_wstring(width) + L"x" + std::to_wstring(height);
         if (fps > 0) {
             line += L" @" + std::to_wstring(fps);
         }
     }
+    if (link == vcam::LinkState::Live) {
+        line += L"  VCamdroid";
+    } else if (link == vcam::LinkState::Connecting) {
+        line += L"  Opening camera";
+    } else if (!vcam::Pipeline::Shared().Available()) {
+        line += L"  Camera list needs Windows 11";
+    }
     SetStatus(line);
+}
+
+void NoteConnected(const std::wstring& address) {
+    if (vcam::Pipeline::Shared().Available()) {
+        SetStatus(L"Connected. Choose VCamdroid as the camera.");
+        vcam::Pipeline::Shared().Start(g_connectedHost, g_connectedPort);
+    } else {
+        SetStatus(L"Connected. VCamdroid needs Windows 11 to appear as a camera. OBS can still use " + address + L".");
+    }
 }
 
 void ConnectSelected() {
@@ -496,6 +611,7 @@ void ConnectSelected() {
     }
 
     usbmux::stop();
+    vcam::Pipeline::Shared().Stop();
     g_usbConnected = false;
     KillTimer(g_window, kStatusTimer);
 
@@ -511,7 +627,10 @@ void ConnectSelected() {
         g_connectedPort = port;
         SetObs(L"127.0.0.1:" + std::to_wstring(port));
         Navigate(L"http://127.0.0.1:" + std::to_wstring(port) + L"/panel");
-        SetStatus(L"USB connected. In OBS, use 127.0.0.1 and port " + std::to_wstring(port) + L".");
+        if (g_title) {
+            SetWindowTextW(g_title, L"VCamdroid  ·  USB");
+        }
+        NoteConnected(L"127.0.0.1:" + std::to_wstring(port));
     } else {
         if (chosen.ipv4.empty() && haveTyped) {
             chosen.ipv4 = typedHost;
@@ -528,7 +647,10 @@ void ConnectSelected() {
         SaveAddress(host);
         SetObs(host);
         Navigate(L"http://" + host + L"/panel");
-        SetStatus(L"Wi-Fi connected. In OBS, use " + host + L".");
+        if (g_title) {
+            SetWindowTextW(g_title, L"VCamdroid  ·  Wi-Fi");
+        }
+        NoteConnected(host);
     }
     SetTimer(g_window, kStatusTimer, 1000, nullptr);
     UpdateSessionStatus();
@@ -536,28 +658,51 @@ void ConnectSelected() {
 
 void Disconnect() {
     KillTimer(g_window, kStatusTimer);
+    vcam::Pipeline::Shared().Stop();
     usbmux::stop();
     g_usbConnected = false;
     g_connectedHost.clear();
-    Navigate(L"about:blank");
-    SetStatus(L"Disconnected. The iPhone is still the camera once you Connect again.");
+    ShowIdleDesk();
+    SetStatus(L"Disconnected. Connect again to use the iPhone as a camera.");
 }
 
 void LayoutFont(HWND window, HFONT font) {
     SendMessageW(window, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
 }
 
+void AutoConnect() {
+    for (size_t index = 0; index < g_devices.size(); ++index) {
+        if (g_devices[index].kind == Kind::Usb) {
+            SendMessageW(g_list, LB_SETCURSEL, static_cast<WPARAM>(index), 0);
+            ConnectSelected();
+            return;
+        }
+    }
+    wchar_t typed[256] = {};
+    GetWindowTextW(g_address, typed, 256);
+    if (typed[0] != L'\0') {
+        SendMessageW(g_list, LB_SETCURSEL, static_cast<WPARAM>(-1), 0);
+        ConnectSelected();
+    }
+}
+
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
     case WM_CREATE: {
         const DWORD child = WS_CHILD | WS_VISIBLE;
+        g_title = CreateWindowExW(0, L"STATIC", L"VCamdroid",
+            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kTitleId)), nullptr, nullptr);
+        g_devicesLabel = CreateWindowExW(0, L"STATIC", L"Phones",
+            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kDevicesLabelId)), nullptr, nullptr);
         g_list = CreateWindowExW(0, L"LISTBOX", L"", child | WS_VSCROLL | WS_BORDER | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kListId)), nullptr, nullptr);
         g_refresh = CreateWindowExW(0, L"BUTTON", L"Refresh", child | BS_PUSHBUTTON,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kRefreshId)), nullptr, nullptr);
+        g_linkLabel = CreateWindowExW(0, L"STATIC", L"Address",
+            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kLinkLabelId)), nullptr, nullptr);
         g_address = CreateWindowExW(0, L"EDIT", L"", child | WS_BORDER | ES_AUTOHSCROLL,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kAddressId)), nullptr, nullptr);
-        g_connect = CreateWindowExW(0, L"BUTTON", L"Connect", child | BS_PUSHBUTTON,
+        g_connect = CreateWindowExW(0, L"BUTTON", L"Connect", child | BS_DEFPUSHBUTTON,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kConnectId)), nullptr, nullptr);
         g_disconnect = CreateWindowExW(0, L"BUTTON", L"Disconnect", child | BS_PUSHBUTTON,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kDisconnectId)), nullptr, nullptr);
@@ -565,22 +710,34 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             child | SS_LEFT | SS_WORDELLIPSIS, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kStatusId)), nullptr, nullptr);
         g_copy = CreateWindowExW(0, L"BUTTON", L"Copy", child | BS_PUSHBUTTON,
             0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCopyId)), nullptr, nullptr);
-        g_obs = CreateWindowExW(0, L"STATIC", L"OBS  127.0.0.1:4747",
+        g_obs = CreateWindowExW(0, L"STATIC", L"VCamdroid    optional OBS  127.0.0.1:4747",
             child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kObsId)), nullptr, nullptr);
         SendMessageW(g_address, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Wi-Fi IP, if the list is empty"));
         NONCLIENTMETRICSW metrics{};
         metrics.cbSize = sizeof(metrics);
         SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0);
-        const HFONT font = CreateFontIndirectW(&metrics.lfMessageFont);
-        LayoutFont(g_list, font);
-        LayoutFont(g_refresh, font);
-        LayoutFont(g_address, font);
-        LayoutFont(g_connect, font);
-        LayoutFont(g_disconnect, font);
-        LayoutFont(g_status, font);
-        LayoutFont(g_copy, font);
-        LayoutFont(g_obs, font);
-        SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(font));
+        g_uiFont = CreateFontIndirectW(&metrics.lfMessageFont);
+        const HDC screen = GetDC(window);
+        const int dpiY = GetDeviceCaps(screen, LOGPIXELSY);
+        ReleaseDC(window, screen);
+        LOGFONTW titleFont = metrics.lfMessageFont;
+        titleFont.lfWeight = FW_SEMIBOLD;
+        titleFont.lfHeight = -MulDiv(16, dpiY, 72);
+        g_titleFont = CreateFontIndirectW(&titleFont);
+        LOGFONTW smallFont = metrics.lfMessageFont;
+        smallFont.lfHeight = -MulDiv(11, dpiY, 72);
+        g_smallFont = CreateFontIndirectW(&smallFont);
+        LayoutFont(g_title, g_titleFont);
+        LayoutFont(g_devicesLabel, g_smallFont);
+        LayoutFont(g_linkLabel, g_smallFont);
+        LayoutFont(g_list, g_uiFont);
+        LayoutFont(g_refresh, g_uiFont);
+        LayoutFont(g_address, g_uiFont);
+        LayoutFont(g_connect, g_uiFont);
+        LayoutFont(g_disconnect, g_uiFont);
+        LayoutFont(g_status, g_uiFont);
+        LayoutFont(g_copy, g_uiFont);
+        LayoutFont(g_obs, g_smallFont);
         return 0;
     }
     case WM_COMMAND:
@@ -596,7 +753,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             return 0;
         case kCopyId:
             CopyText(g_obsAddress);
-            SetStatus(L"Copied " + g_obsAddress + L" for OBS.");
+            SetStatus(L"Copied the optional OBS address.");
             return 0;
         case kListId:
             if (HIWORD(wparam) == LBN_DBLCLK) {
@@ -611,13 +768,25 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             UpdateSessionStatus();
         }
         return 0;
-    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLORSTATIC: {
+        const HDC dc = reinterpret_cast<HDC>(wparam);
+        const HWND child = reinterpret_cast<HWND>(lparam);
+        if (child == g_devicesLabel || child == g_linkLabel || child == g_obs) {
+            SetTextColor(dc, kMuted);
+        } else if (child == g_title) {
+            SetTextColor(dc, kText);
+        } else {
+            SetTextColor(dc, kText);
+        }
+        SetBkColor(dc, kBg);
+        return reinterpret_cast<LRESULT>(g_background);
+    }
     case WM_CTLCOLORLISTBOX:
     case WM_CTLCOLOREDIT: {
         const HDC dc = reinterpret_cast<HDC>(wparam);
-        SetTextColor(dc, RGB(243, 241, 236));
-        SetBkColor(dc, RGB(28, 31, 34));
-        return reinterpret_cast<LRESULT>(g_background);
+        SetTextColor(dc, kText);
+        SetBkColor(dc, kCard);
+        return reinterpret_cast<LRESULT>(g_card);
     }
     case WM_ERASEBKGND: {
         RECT client{};
@@ -638,9 +807,19 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     }
     case WM_DESTROY: {
         KillTimer(window, kStatusTimer);
+        vcam::Pipeline::Shared().Stop();
         usbmux::stop();
-        if (const LONG_PTR font = GetWindowLongPtrW(window, GWLP_USERDATA)) {
-            DeleteObject(reinterpret_cast<HFONT>(font));
+        if (g_titleFont) {
+            DeleteObject(g_titleFont);
+            g_titleFont = nullptr;
+        }
+        if (g_uiFont) {
+            DeleteObject(g_uiFont);
+            g_uiFont = nullptr;
+        }
+        if (g_smallFont) {
+            DeleteObject(g_smallFont);
+            g_smallFont = nullptr;
         }
         PostQuitMessage(0);
         return 0;
@@ -668,7 +847,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         return 1;
     }
     const bool ownsCom = SUCCEEDED(com);
-    g_background = CreateSolidBrush(RGB(20, 22, 24));
+    g_background = CreateSolidBrush(kBg);
+    g_card = CreateSolidBrush(kCard);
 
     WNDCLASSW windowClass{};
     windowClass.lpfnWndProc = WindowProc;
@@ -685,8 +865,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        460,
-        820,
+        480,
+        860,
         nullptr,
         nullptr,
         instance,
@@ -700,7 +880,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     UpdateWindow(g_window);
     Layout();
     StartWebView();
+    const std::wstring cameraWarning = vcam::Pipeline::Shared().Prepare();
     RefreshDevices();
+    AutoConnect();
+    if (!vcam::Pipeline::Shared().Available() && g_connectedHost.empty() && !cameraWarning.empty()) {
+        SetStatus(cameraWarning);
+    }
 
     MSG message{};
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
@@ -715,8 +900,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         DispatchMessageW(&message);
     }
     usbmux::stop();
+    vcam::Pipeline::Shared().Stop();
     if (g_background) {
         DeleteObject(g_background);
+    }
+    if (g_card) {
+        DeleteObject(g_card);
     }
     if (ownsCom) {
         CoUninitialize();

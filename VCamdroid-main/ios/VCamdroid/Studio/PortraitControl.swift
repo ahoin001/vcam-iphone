@@ -16,6 +16,10 @@ struct PortraitControl: View {
                 .onChange(of: session.settings.portraitEnabled) {
                     session.applyPortrait()
                 }
+            Text(.portraitControlHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if session.settings.portraitEnabled {
                 Slider(value: StudioBindings.setting(\.portraitStrength, on: session), in: 0...1)
                     .tint(.yellow)

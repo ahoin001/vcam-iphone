@@ -20,13 +20,13 @@ final class EncoderCore: @unchecked Sendable {
         lock.unlock()
     }
 
-    func start(width: Int, height: Int, fps: Int, bitrateKbps: Int, keyframeInterval: Int) throws {
+    func start(_ quality: StreamQuality, keyframeInterval: Int) throws {
         stop()
         var compression: VTCompressionSession?
         let status = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
-            width: Int32(width),
-            height: Int32(height),
+            width: Int32(quality.width),
+            height: Int32(quality.height),
             codecType: kCMVideoCodecType_H264,
             encoderSpecification: nil,
             imageBufferAttributes: nil,
@@ -36,16 +36,20 @@ final class EncoderCore: @unchecked Sendable {
             compressionSessionOut: &compression
         )
         guard status == noErr, let compression else { throw EncoderError.cannotCreate }
-        let bitrate = bitrateKbps * 1000
+        let bitrate = quality.bitrateKbps * 1000
+        let profile: CFString = quality.profile == .high
+            ? kVTProfileLevel_H264_High_AutoLevel
+            : kVTProfileLevel_H264_Baseline_AutoLevel
+        let peak = max(quality.peakMultiplier, 1)
         set(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue, on: compression)
         set(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse, on: compression)
-        set(kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Baseline_AutoLevel, on: compression)
+        set(kVTCompressionPropertyKey_ProfileLevel, profile, on: compression)
         set(kVTCompressionPropertyKey_AverageBitRate, bitrate as CFNumber, on: compression)
-        set(kVTCompressionPropertyKey_ExpectedFrameRate, fps as CFNumber, on: compression)
-        set(kVTCompressionPropertyKey_MaxKeyFrameInterval, (fps * max(keyframeInterval, 1)) as CFNumber, on: compression)
+        set(kVTCompressionPropertyKey_ExpectedFrameRate, quality.fps as CFNumber, on: compression)
+        set(kVTCompressionPropertyKey_MaxKeyFrameInterval, (quality.fps * max(keyframeInterval, 1)) as CFNumber, on: compression)
         set(kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, keyframeInterval as CFNumber, on: compression)
         set(kVTCompressionPropertyKey_MaxFrameDelayCount, 0 as CFNumber, on: compression)
-        let limits = [bitrate / 8, 1] as CFArray
+        let limits = [(bitrate / 8) * peak, 1] as CFArray
         set(kVTCompressionPropertyKey_DataRateLimits, limits, on: compression)
         set(kVTCompressionPropertyKey_ColorPrimaries, kCMFormatDescriptionColorPrimaries_ITU_R_709_2, on: compression)
         set(kVTCompressionPropertyKey_TransferFunction, kCMFormatDescriptionTransferFunction_ITU_R_709_2, on: compression)

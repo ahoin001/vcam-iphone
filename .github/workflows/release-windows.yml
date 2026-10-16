@@ -35,10 +35,12 @@ jobs:
           msbuild VCamPanel.vcxproj -t:Restore -p:Configuration=Release -p:Platform=x64 -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build VCamPanel and usbmux_forward
+      - name: Build VCamPanel, VCamSource, and usbmux_forward
         working-directory: VCamdroid-main/windows
         shell: pwsh
         run: |
+          msbuild VCamSource.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msbuild usbmux_forward.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
@@ -49,10 +51,15 @@ jobs:
         run: |
           $out = "VCamdroid-main\windows\x64\Release"
           $panel = Join-Path $out "VCamPanel.exe"
+          $source = Join-Path $out "VCamSource.dll"
           $forward = Join-Path $out "usbmux_forward.exe"
           if (-not (Test-Path $panel)) {
             Write-Error "Missing $panel"
             Get-ChildItem -Recurse VCamdroid-main\windows -Filter VCamPanel.exe | ForEach-Object { $_.FullName }
+            exit 1
+          }
+          if (-not (Test-Path $source)) {
+            Write-Error "Missing $source"
             exit 1
           }
           if (-not (Test-Path $forward)) {
@@ -63,6 +70,7 @@ jobs:
           $stage = "release-stage"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item $panel $stage\
+          Copy-Item $source $stage\
           Copy-Item $forward $stage\
           Copy-Item ".github\release\WINDOWS.txt" "$stage\README.txt"
 
@@ -100,10 +108,11 @@ jobs:
 
             | File | Role |
             | --- | --- |
-            | `VCamPanel.exe` | Finds the iPhone over USB or Wi-Fi and hosts the camera desk |
+            | `VCamPanel.exe` | Connects to the iPhone and publishes the VCamdroid camera |
+            | `VCamSource.dll` | The camera Windows loads. Keep it in the same folder as VCamPanel.exe |
             | `usbmux_forward.exe` | Optional console USB forwarder if you skip the companion |
 
-            Windows needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (included on current Windows 11). USB also needs **Apple Devices** or iTunes from the Microsoft Store.
+            Windows 11 is required for VCamdroid to appear as a camera. Leave VCamPanel running while you use it. Windows needs the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (included on current Windows 11). USB also needs **Apple Devices** or iTunes from the Microsoft Store.
 
             Phone setup and OBS steps: see the [README](https://github.com/ahoin001/vcam-iphone#what-to-download).
         env:

@@ -20,7 +20,7 @@ import Testing
 
 @Test func controlJSONMatchesTheStudio() {
     let json = ControlState(settings: StudioSettings()).json()
-    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65,\"bitrateKbps\":4000}")
+    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65,\"bitrateKbps\":4000,\"activeBitrateKbps\":4000}")
     #expect(ControlState(settings: StudioSettings()).json(success: true).hasPrefix("{\"success\":true,"))
 }
 
@@ -37,6 +37,29 @@ import Testing
     #expect(json.contains("\"zoom\":2.5"))
     #expect(json.contains("\"whiteBalance\":\"cloudy\""))
     #expect(json.contains("\"torch\":true"))
+}
+
+@Test func controlJSONReportsTheRateInUse() {
+    let state = ControlState(settings: StudioSettings(), activeBitrateKbps: 12_000)
+    #expect(state.bitrateKbps == 4000)
+    #expect(state.json().contains("\"bitrateKbps\":4000"))
+    #expect(state.json().contains("\"activeBitrateKbps\":12000"))
+}
+
+@Test func panelQualityFollowsTheTransport() {
+    let usb = StreamQuality.panel(usb: true)
+    #expect(usb == StreamQuality(width: 1920, height: 1080, fps: 30, bitrateKbps: 30_000, peakMultiplier: 2, profile: .high))
+    let wifi = StreamQuality.panel(usb: false)
+    #expect(wifi.bitrateKbps == 12_000)
+    #expect(wifi.fps == 30)
+    #expect(wifi.profile == .high)
+    #expect(wifi.peakMultiplier == 2)
+    let legacy = StreamQuality.legacy(width: 1280, height: 720, fps: 30, bitrateKbps: 6000)
+    #expect(legacy.profile == .baseline)
+    #expect(legacy.peakMultiplier == 1)
+    var stored = StudioSettings()
+    stored.bitrateKbps = usb.bitrateKbps
+    #expect(stored.sanitized().bitrateKbps == 16_000)
 }
 
 @Test func studioControlRangesClamp() {

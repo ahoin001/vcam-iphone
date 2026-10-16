@@ -11,75 +11,210 @@ enum ControlPanelPage {
     <style>
       :root {
         color-scheme: dark;
-        --bg: #141618;
-        --card: #1c1f22;
-        --line: #2c3136;
-        --text: #f3f1ec;
-        --muted: #a7a39a;
-        --accent: #e2a23a;
+        --bg: #121416;
+        --bg-soft: #171a1d;
+        --card: #1a1e22;
+        --card-lift: #20252a;
+        --line: #2a3036;
+        --line-soft: #24292e;
+        --text: #f2efe8;
+        --muted: #9a958c;
+        --accent: #d9a04a;
+        --accent-soft: rgba(217, 160, 74, 0.18);
         --accent-ink: #1a1408;
+        --stage: #0c0e10;
+        --radius: 16px;
+        --radius-sm: 12px;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        background: var(--bg);
+        min-height: 100%;
+        background:
+          radial-gradient(120% 80% at 50% -10%, rgba(217, 160, 74, 0.07), transparent 55%),
+          linear-gradient(180deg, var(--bg-soft), var(--bg));
         color: var(--text);
-        font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+        font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
         font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
       }
       main {
-        max-width: 440px;
+        max-width: 460px;
         margin: 0 auto;
-        padding: 14px 16px 24px;
+        padding: 16px 16px 28px;
+        display: grid;
+        gap: 12px;
+      }
+      header {
+        display: grid;
+        gap: 4px;
+        padding: 2px 2px 4px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      #status-line {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      #hint-line {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      section, .shot, .preview {
+        background: color-mix(in srgb, var(--card) 92%, transparent);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        padding: 14px;
         display: grid;
         gap: 10px;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
       }
-      h1 { margin: 0; font-size: 15px; font-weight: 600; }
-      p { margin: 0; color: var(--muted); font-size: 12px; }
-      section, .shot {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 12px;
+      .preview { gap: 10px; }
+      .stage {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: var(--radius-sm);
+        background:
+          linear-gradient(180deg, #14181c, var(--stage));
+        border: 1px solid var(--line-soft);
+        overflow: hidden;
         display: grid;
-        gap: 8px;
+        place-items: center;
       }
+      .stage img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: none;
+        background: #000;
+      }
+      .stage.live img { display: block; }
+      .stage-empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        pointer-events: none;
+      }
+      .stage.live .stage-empty { display: none; }
       .row, .choices, .tools { display: flex; gap: 8px; flex-wrap: wrap; }
       .tools { gap: 6px; }
       button, label.toggle {
         appearance: none;
         border: 1px solid var(--line);
-        background: transparent;
+        background: var(--card-lift);
         color: var(--text);
         border-radius: 999px;
-        padding: 7px 12px;
+        padding: 8px 13px;
         font: inherit;
         cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
       }
-      button:active, label.toggle:active { transform: scale(0.97); }
+      button:hover, label.toggle:hover {
+        border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+      }
+      button:active, label.toggle:active { transform: scale(0.98); }
       button.on, label.toggle.on {
         background: var(--accent);
         border-color: var(--accent);
         color: var(--accent-ink);
       }
+      /* Keep unselected choice buttons visually stable — no pulse/opacity flicker */
+      .choices button:not(.on) {
+        background: var(--card-lift);
+        color: var(--text);
+        opacity: 1;
+      }
       .tools button { flex: 1; text-align: center; min-width: 64px; }
-      .stops button { flex: 1; min-width: 0; padding: 7px 0; }
-      label.toggle { display: inline-flex; align-items: center; gap: 6px; }
+      .stops button { flex: 1; min-width: 0; padding: 8px 0; }
+      label.toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        user-select: none;
+      }
       label.toggle input { position: absolute; opacity: 0; pointer-events: none; }
-      .slider { display: grid; gap: 4px; }
-      .slider span, .heading { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+      .slider { display: grid; gap: 5px; }
+      .slider span, .heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
       .slider strong, .heading strong { color: var(--text); font-weight: 600; }
-      input[type="range"] { width: 100%; accent-color: var(--accent); }
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+        height: 1.4rem;
+      }
+      .preview-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .preview-bar .heading { flex: 1; }
+      .note {
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        background: var(--accent-soft);
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line-soft));
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .note strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 650;
+      }
+      p.quiet {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
       [hidden] { display: none !important; }
     </style>
     </head>
     <body>
     <main>
       <header>
-        <h1>Camera</h1>
-        <p id="status-line">Waiting for OBS · watch the picture there</p>
-        <p id="hint-line">1080p30 · 6–8 Mbps for recording · curtain on the phone keeps it cooler</p>
+        <h1>Camera desk</h1>
+        <p id="status-line">Waiting for the computer</p>
+        <p id="hint-line">1080p30 · the computer sets the rate while it is connected</p>
       </header>
+      <section class="preview">
+        <div class="preview-bar">
+          <div class="heading"><span>Preview</span><strong id="preview-label">Off</strong></div>
+          <label class="toggle"><input id="show-preview" type="checkbox">Show preview</label>
+        </div>
+        <div class="stage" id="stage">
+          <img id="preview-image" alt="Desk preview" decoding="async">
+          <div class="stage-empty" id="stage-empty">Turn on Show preview for a low-rate desk feed. The computer shows the live picture.</div>
+        </div>
+      </section>
       <section class="shot">
         <div class="heading"><span>Lens</span></div>
         <div class="choices" id="lens">
@@ -145,7 +280,11 @@ enum ControlPanelPage {
       </section>
       <section id="tool-portrait" hidden>
         <div class="heading"><span>Portrait</span><label class="toggle"><input id="portrait" type="checkbox">On</label></div>
-        <p>Leave the iPhone preview off and watch the blurred background in OBS.</p>
+        <p class="note">
+          <strong>Suggested</strong>
+          Leave Portrait off for a cleaner background. On the PC, set the camera to VCamdroid in NVIDIA Broadcast, or add Background Removal on a VCamdroid source in OBS. Phone portrait is a light blur if you need it here, and it warms the iPhone.
+        </p>
+        <p class="quiet" id="portrait-on-hint" hidden>Portrait is on this iPhone. Turn it off if NVIDIA Broadcast or OBS is already cutting the background, or the edges stack and the phone runs hotter.</p>
         <label class="slider" id="portrait-row" hidden>
           <span>Strength <strong id="portrait-value">65%</strong></span>
           <input id="portrait-strength" type="range" min="0" max="1" step="0.01" value="0.65">
@@ -167,7 +306,7 @@ enum ControlPanelPage {
           <button type="button" data-rate="8000">8 Mbps</button>
         </div>
         <label class="slider">
-          <span>Bitrate</span>
+          <span>Bitrate <strong id="bitrate-saved">4000 kbps</strong></span>
           <input id="bitrate" type="range" min="2500" max="16000" step="100" value="4000">
         </label>
       </section>
@@ -179,6 +318,9 @@ enum ControlPanelPage {
       let inflight = false;
       let tool = "exposure";
       let session = { width: 1920, height: 1080, fps: 30 };
+      let previewOn = false;
+      let previewTimer = 0;
+      let previewBusy = false;
 
       const zoom = document.getElementById("zoom");
       const ev = document.getElementById("ev");
@@ -187,6 +329,9 @@ enum ControlPanelPage {
       const focus = document.getElementById("focus");
       const portraitStrength = document.getElementById("portrait-strength");
       const bitrate = document.getElementById("bitrate");
+      const stage = document.getElementById("stage");
+      const previewImage = document.getElementById("preview-image");
+      const showPreview = document.getElementById("show-preview");
       const isoMin = 50, isoMax = 6400;
       const shutterMin = 0.0001, shutterMax = 0.5;
 
@@ -267,7 +412,7 @@ enum ControlPanelPage {
         (value) => logTo(value, shutterMin, shutterMax));
       bindRange(focus, "focus", "focus-value", (value) => Number(value).toFixed(2));
       bindRange(portraitStrength, "portraitStrength", "portrait-value", (value) => Math.round(Number(value) * 100) + "%");
-      bindRange(bitrate, "bitrateKbps", "bitrate-value", (value) => Math.round(Number(value)) + " kbps");
+      bindRange(bitrate, "bitrateKbps", "bitrate-saved", (value) => Math.round(Number(value)) + " kbps");
 
       function bindChoice(group, key) {
         group.addEventListener("click", (event) => {
@@ -338,24 +483,31 @@ enum ControlPanelPage {
           const selected = button.dataset.value === value
             || button.dataset.stop === String(value)
             || (button.dataset.width && Number(button.dataset.width) === Number(value));
+          if (button.classList.contains("on") === selected) continue;
           button.classList.toggle("on", selected);
         }
       }
 
       function markMode() {
         for (const button of document.getElementById("resolution").querySelectorAll("button")) {
-          button.classList.toggle("on", Number(button.dataset.width) === session.width && Number(button.dataset.height) === session.height);
+          const selected = Number(button.dataset.width) === session.width && Number(button.dataset.height) === session.height;
+          if (button.classList.contains("on") === selected) continue;
+          button.classList.toggle("on", selected);
         }
         for (const button of document.getElementById("fps").querySelectorAll("button")) {
-          button.classList.toggle("on", Number(button.dataset.fps) === session.fps);
+          const selected = Number(button.dataset.fps) === session.fps;
+          if (button.classList.contains("on") === selected) continue;
+          button.classList.toggle("on", selected);
         }
       }
 
       function setFlag(id, checked, key) {
         if (pending.has(key)) return;
         const input = document.getElementById(id);
-        input.checked = !!checked;
-        input.parentElement.classList.toggle("on", input.checked);
+        const next = !!checked;
+        if (input.checked === next && input.parentElement.classList.contains("on") === next) return;
+        input.checked = next;
+        input.parentElement.classList.toggle("on", next);
       }
 
       function showManual() {
@@ -364,12 +516,16 @@ enum ControlPanelPage {
         document.getElementById("ev-row").hidden = exposure;
         document.getElementById("manual-exposure-fields").hidden = !exposure;
         document.getElementById("focus-row").hidden = !focusManual;
-        document.getElementById("portrait-row").hidden = !document.getElementById("portrait").checked;
+        const portraitOn = document.getElementById("portrait").checked;
+        document.getElementById("portrait-row").hidden = !portraitOn;
+        document.getElementById("portrait-on-hint").hidden = !portraitOn;
       }
 
       function showTool() {
         for (const button of document.getElementById("tools").querySelectorAll("button")) {
-          button.classList.toggle("on", button.dataset.tool === tool);
+          const selected = button.dataset.tool === tool;
+          if (button.classList.contains("on") === selected) continue;
+          button.classList.toggle("on", selected);
         }
         for (const name of ["exposure", "whiteBalance", "focus", "portrait"]) {
           document.getElementById("tool-" + name).hidden = name !== tool;
@@ -381,7 +537,9 @@ enum ControlPanelPage {
         mark(document.getElementById("wb"), data.whiteBalance);
         setRange(zoom, "zoom-value", data.zoom, (value) => Number(value).toFixed(1) + "×", "zoom");
         for (const button of document.getElementById("zoom-stops").querySelectorAll("button")) {
-          button.classList.toggle("on", Math.abs(Number(button.dataset.stop) - Number(data.zoom)) < 0.05);
+          const selected = Math.abs(Number(button.dataset.stop) - Number(data.zoom)) < 0.05;
+          if (button.classList.contains("on") === selected) continue;
+          button.classList.toggle("on", selected);
         }
         setRange(ev, "ev-value", data.exposureBias, (value) => Number(value).toFixed(1), "exposureBias");
         setRange(iso, "iso-value", data.iso, (value) => String(Math.round(Number(value))), "iso");
@@ -394,9 +552,13 @@ enum ControlPanelPage {
         setFlag("portrait", data.portrait, "portrait");
         setRange(portraitStrength, "portrait-value", data.portraitStrength, (value) => Math.round(Number(value) * 100) + "%", "portraitStrength");
         if (data.bitrateKbps != null) {
-          setRange(bitrate, "bitrate-value", data.bitrateKbps, (value) => Math.round(Number(value)) + " kbps", "bitrateKbps");
+          const activeRate = data.activeBitrateKbps != null ? data.activeBitrateKbps : data.bitrateKbps;
+          text("bitrate-value", Math.round(Number(activeRate)) + " kbps");
+          setRange(bitrate, "bitrate-saved", data.bitrateKbps, (value) => Math.round(Number(value)) + " kbps", "bitrateKbps");
           for (const button of document.getElementById("bitrate-presets").querySelectorAll("button")) {
-            button.classList.toggle("on", Number(button.dataset.rate) === Math.round(Number(data.bitrateKbps)));
+            const selected = Number(button.dataset.rate) === Math.round(Number(data.bitrateKbps));
+            if (button.classList.contains("on") === selected) continue;
+            button.classList.toggle("on", selected);
           }
         }
         showManual();
@@ -415,6 +577,46 @@ enum ControlPanelPage {
         } catch (_) {
         }
       }
+
+      async function tickPreview() {
+        if (!previewOn || previewBusy) return;
+        previewBusy = true;
+        try {
+          const response = await fetch("/v1/preview.jpg?t=" + Date.now(), { cache: "no-store" });
+          if (!response.ok) return;
+          const blob = await response.blob();
+          if (!previewOn) return;
+          const url = URL.createObjectURL(blob);
+          const previous = previewImage.src;
+          previewImage.onload = () => {
+            if (previous && previous.indexOf("blob:") === 0) URL.revokeObjectURL(previous);
+          };
+          previewImage.src = url;
+          stage.classList.add("live");
+        } catch (_) {
+        } finally {
+          previewBusy = false;
+        }
+      }
+
+      function setPreview(on) {
+        previewOn = on;
+        showPreview.checked = on;
+        showPreview.parentElement.classList.toggle("on", on);
+        text("preview-label", on ? "On" : "Off");
+        clearInterval(previewTimer);
+        if (!on) {
+          stage.classList.remove("live");
+          const previous = previewImage.src;
+          previewImage.removeAttribute("src");
+          if (previous && previous.indexOf("blob:") === 0) URL.revokeObjectURL(previous);
+          return;
+        }
+        tickPreview();
+        previewTimer = setInterval(tickPreview, 180);
+      }
+
+      showPreview.addEventListener("change", () => setPreview(showPreview.checked));
 
       async function poll() {
         if (inflight || pending.size) return;
@@ -435,13 +637,15 @@ enum ControlPanelPage {
             const battery = data.battery != null ? data.battery + "%" : "";
             const size = session.width + "×" + session.height + " @" + session.fps;
             document.getElementById("status-line").textContent = [
-              live ? "Streaming" : "Waiting for OBS",
+              live ? "Streaming" : "Waiting for the computer",
               battery,
               size
             ].filter(Boolean).join(" · ");
             document.getElementById("hint-line").textContent = live
-              ? "Changes apply live · watch the picture in OBS"
-              : "Connect OBS first, then use these controls from the desk";
+              ? (previewOn
+                ? "Desk preview is low-rate · the computer shows the live picture"
+                : "Changes apply live · the computer shows the picture")
+              : "Connect the computer first, then use these controls from the desk";
           }
           if (catalog.ok) {
             const text = await catalog.text();
@@ -452,6 +656,7 @@ enum ControlPanelPage {
       }
 
       showTool();
+      setPreview(false);
       poll();
       setInterval(poll, 500);
     </script>

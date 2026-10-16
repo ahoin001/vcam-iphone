@@ -33,6 +33,9 @@ enum DroidCamHTTP {
         if line.hasPrefix("GET /panel") {
             return .panel
         }
+        if line.hasPrefix("GET /v1/preview.jpg") || line.hasPrefix("GET /preview.jpg") {
+            return .preview
+        }
         if line.hasPrefix("GET /battery") {
             return .battery
         }
@@ -52,6 +55,9 @@ enum DroidCamHTTP {
         var header = "HTTP/1.1 \(status) \(reason(status))\r\n"
         if let contentType {
             header += "Content-Type: \(contentType)\r\n"
+        }
+        if contentType == "image/jpeg" {
+            header += "Cache-Control: no-store\r\n"
         }
         header += "Content-Length: \(body.count)\r\nConnection: close\r\n\r\n"
         var data = Data(header.utf8)
@@ -78,6 +84,7 @@ enum DroidCamHTTP {
     private static func reason(_ status: Int) -> String {
         switch status {
         case 200: "OK"
+        case 204: "No Content"
         case 404: "Not Found"
         default: "OK"
         }

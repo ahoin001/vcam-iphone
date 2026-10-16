@@ -802,7 +802,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Portrait is on. 1080p30 and plugged in keeps the phone cooler."
+            "value" : "Portrait is on this iPhone. NVIDIA Broadcast or OBS Background Removal on the PC is cleaner. 1080p30 and plugged in keeps the phone cooler."
           }
         }
       }
@@ -813,7 +813,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1080p30 and plugged in keeps the phone cooler."
+            "value" : "Leave Portrait off for a cleaner cut. On the PC, choose VCamdroid in NVIDIA Broadcast, or add Background Removal in OBS. This iPhone blur is a light backup and warms the phone."
           }
         }
       }
@@ -846,7 +846,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leave this off and watch the portrait picture in OBS. Showing it here uses more of the phone."
+            "value" : "Leave this off. Watch the picture on the computer. Showing the blur here uses more of the phone."
           }
         }
       }
@@ -857,7 +857,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The iPhone preview is off so the phone stays cooler. The blurred background is in OBS."
+            "value" : "The iPhone preview is off so the phone stays cooler. Watch the picture on the computer. For a cleaner background, leave Portrait off and use NVIDIA Broadcast or OBS Background Removal on the PC."
           }
         }
       }
@@ -890,7 +890,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Portrait blurs the background on this iPhone, so the computer does not have to. Leave iPhone preview off and watch the picture in OBS. 1080p30 is the easiest mode. Keep the phone plugged in, and take the case off if it warms up. Portrait switches to a lighter blur when the phone gets hot, and it pauses if the phone needs to cool down. The picture keeps streaming."
+            "value" : "Portrait is a light blur on this iPhone. For a cleaner background, leave it off and do the cut on the PC: NVIDIA Broadcast with camera VCamdroid, or Background Removal on a VCamdroid source in OBS. Do not run both, or the edges stack and the phone runs hotter. If you use this iPhone blur, leave iPhone preview off, stay at 1080p30, and keep the phone plugged in. Portrait switches to a lighter blur when the phone gets hot, and it pauses if the phone needs to cool down. The picture keeps streaming."
           }
         }
       }
@@ -1121,7 +1121,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Waiting for OBS"
+            "value" : "Waiting for the computer"
           }
         }
       }

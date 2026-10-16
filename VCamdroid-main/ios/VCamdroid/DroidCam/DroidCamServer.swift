@@ -14,11 +14,13 @@ actor DroidCamServer {
     private var onTally: (@Sendable (TallyState) async -> Void)?
     private var onClient: (@Sendable (String?, Bool) async -> Void)?
     private var catalogProvider: (@Sendable () async -> ResolutionCatalog)?
+    private var previewProvider: (@Sendable () async -> Data?)?
     private var onListenFailed: (@Sendable () async -> Void)?
 
     func configure(
         snapshot: @escaping @Sendable () async -> SessionSnapshot,
         catalog: @escaping @Sendable () async -> ResolutionCatalog,
+        preview: @escaping @Sendable () async -> Data?,
         onVideo: @escaping @Sendable (VideoRequest) async -> Void,
         onVideoStopped: @escaping @Sendable () async -> Void,
         onUpdate: @escaping @Sendable (SessionUpdate) async -> Bool,
@@ -30,6 +32,7 @@ actor DroidCamServer {
     ) {
         snapshotProvider = snapshot
         catalogProvider = catalog
+        previewProvider = preview
         self.onVideo = onVideo
         self.onVideoStopped = onVideoStopped
         self.onUpdate = onUpdate
@@ -136,6 +139,11 @@ actor DroidCamServer {
             return DroidCamHTTP.jsonReply(state.json())
         case .panel:
             return DroidCamHTTP.htmlReply(ControlPanelPage.html)
+        case .preview:
+            if let jpeg = await previewProvider?() {
+                return DroidCamHTTP.reply(status: 200, body: jpeg, contentType: "image/jpeg")
+            }
+            return DroidCamHTTP.reply(status: 204, body: Data(), contentType: nil)
         case .battery:
             return DroidCamHTTP.reply(status: 200, body: Data("\(snapshot.batteryPercent)".utf8), contentType: nil)
         case .unknown:

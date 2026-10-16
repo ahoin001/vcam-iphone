@@ -52,6 +52,17 @@ func parsesControlRoutes(_ line: String) {
     #expect(VideoRequestParser.parse(line: "GET /video HTTP/1.1", fallback: fallback) == VideoRequest(format: .avc, width: 1920, height: 1080))
 }
 
+@Test func panelClientSelectsTheSystemCameraRequest() {
+    let fallback = VideoMode(width: 1280, height: 720, fps: 60)
+    let request = VideoRequestParser.parse(
+        line: "GET /video?1920x1080&client=panel HTTP/1.1",
+        fallback: fallback
+    )
+    #expect(request == VideoRequest(format: .avc, width: 1920, height: 1080, client: .panel))
+    let legacy = VideoRequestParser.parse(line: "GET /video?1280x720 HTTP/1.1", fallback: fallback)
+    #expect(legacy.client == .legacy)
+}
+
 @Test func sessionUpdateQuery() {
     let request = DroidCamHTTP.parse(
         firstLine: "PUT /v1/session?width=1280&height=720&fps=30&lens=front&format=avc HTTP/1.1",
@@ -124,5 +135,21 @@ func parsesControlRoutes(_ line: String) {
     #expect(text.contains("Content-Type: text/html"))
     #expect(text.contains("/v1/controls"))
     #expect(text.contains("/v1/session"))
+    #expect(text.contains("/v1/preview.jpg"))
+    #expect(text.contains("NVIDIA Broadcast"))
+    #expect(text.contains("Leave Portrait off"))
     #expect(!text.contains("GET /video"))
+}
+
+@Test func previewIsNotAVideoStream() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "GET /v1/preview.jpg HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .preview)
+    let jpeg = DroidCamHTTP.reply(status: 200, body: Data([0xFF, 0xD8, 0xFF]), contentType: "image/jpeg")
+    let text = String(decoding: jpeg, as: UTF8.self)
+    #expect(text.contains("Content-Type: image/jpeg"))
+    #expect(text.contains("Cache-Control: no-store"))
+    #expect(request != .video(VideoRequest(format: .avc, width: 1920, height: 1080)))
 }

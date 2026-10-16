@@ -9,14 +9,8 @@ actor Encoder {
         core.setHandler(handler)
     }
 
-    func start(width: Int, height: Int, fps: Int, bitrateKbps: Int, keyframeInterval: Int) throws {
-        try core.start(
-            width: width,
-            height: height,
-            fps: fps,
-            bitrateKbps: bitrateKbps,
-            keyframeInterval: keyframeInterval
-        )
+    func start(_ quality: StreamQuality, keyframeInterval: Int) throws {
+        try core.start(quality, keyframeInterval: keyframeInterval)
     }
 
     func stop() {

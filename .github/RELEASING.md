@@ -1,6 +1,6 @@
 # Cutting a Windows release
 
-The root workflow [`.github/workflows/release-windows.yml`](workflows/release-windows.yml) builds `VCamPanel.exe` and `usbmux_forward.exe`, zips them as **`VCamdroid-Windows-x64.zip`**, and publishes a GitHub Release. Keep that zip name stable so the README download link does not need a version bump.
+The root workflow [`.github/workflows/release-windows.yml`](workflows/release-windows.yml) builds `VCamPanel.exe`, `VCamSource.dll`, and `usbmux_forward.exe`, zips them as **`VCamdroid-Windows-x64.zip`**, and publishes a GitHub Release. Keep that zip name stable so the README download link does not need a version bump. `VCamSource.dll` has to stay next to `VCamPanel.exe`.
 
 ## One-line release (preferred)
 

@@ -40,8 +40,9 @@ struct ControlState: Equatable, Sendable {
     var portrait: Bool
     var portraitStrength: Double
     var bitrateKbps: Int
+    var activeBitrateKbps: Int
 
-    init(settings: StudioSettings) {
+    init(settings: StudioSettings, activeBitrateKbps: Int? = nil) {
         lens = settings.lens
         zoom = settings.zoom
         manualExposure = settings.manualExposure
@@ -56,6 +57,7 @@ struct ControlState: Equatable, Sendable {
         portrait = settings.portraitEnabled
         portraitStrength = settings.portraitStrength
         bitrateKbps = settings.bitrateKbps
+        self.activeBitrateKbps = activeBitrateKbps ?? settings.bitrateKbps
     }
 
     func json(success: Bool? = nil) -> String {
@@ -77,6 +79,7 @@ struct ControlState: Equatable, Sendable {
         fields.append("\"portrait\":\(portrait ? "true" : "false")")
         fields.append("\"portraitStrength\":\(Self.number(portraitStrength))")
         fields.append("\"bitrateKbps\":\(bitrateKbps)")
+        fields.append("\"activeBitrateKbps\":\(activeBitrateKbps)")
         return "{\(fields.joined(separator: ","))}"
     }
 
@@ -105,10 +108,16 @@ struct ControlState: Equatable, Sendable {
     }
 }
 
+enum VideoClientKind: Equatable, Sendable {
+    case legacy
+    case panel
+}
+
 struct VideoRequest: Equatable, Sendable {
     var format: StreamFormat
     var width: Int
     var height: Int
+    var client: VideoClientKind = .legacy
 }
 
 enum DroidCamRequest: Equatable, Sendable {
@@ -120,6 +129,7 @@ enum DroidCamRequest: Equatable, Sendable {
     case controls
     case applyControls(ControlUpdate)
     case panel
+    case preview
     case battery
     case tally(TallyState)
     case video(VideoRequest)

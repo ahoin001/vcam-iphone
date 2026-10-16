@@ -15,7 +15,7 @@ The Android tree remains the source of truth for byte layouts. If this spec and 
 Ship an iPhone app that turns the phone into the same broadcast camera the Android app already is:
 
 1. **OBS mode (required first).** The phone is a DroidCam-compatible streaming server. OBS on Windows connects over Wi-Fi or USB and receives H.264 (and later HEVC) with the existing tally and session controls.
-2. **Desktop virtual-webcam mode (later).** The phone pairs with `VCamdroid.exe`, which decodes RTSP and exposes a DirectShow camera to Zoom, Teams, Discord, and Meet.
+2. **Windows camera.** VCamPanel on the PC is the only video client of that same port 4747 stream. It decodes once and publishes a Windows camera named **VCamdroid**. NVIDIA Broadcast, OBS, Zoom, Teams, and other apps select that camera. Windows 11 is required for the camera to appear. The direct DroidCam OBS source remains an optional client, and it cannot share the video socket with VCamPanel.
 
 Optimize for **sustained broadcast stability** on iPhone 16 Pro: no dropped frames, no UI hitch, no stretched pixels, hours of streaming while plugged in. Experimental features stay off until they meet that bar. That is already the Android project's rule, and it carries over.
 
@@ -128,15 +128,13 @@ Encoder               VTCompressionSession. Annex-B NALs. No B-frames.
 DroidCamServer        NWListener on 4747. HTTP routes + video socket. Same bytes as Android.
 Discovery             NetService / NWListener advertisement of _droidcamobs._tcp.
 ScreenCurtain         Black overlay, brightness 0, idle timer disabled. Foreground only.
-UsbTransport          Not in the iOS app. A Windows usbmux forwarder beside adb.h.
-
-Later:
-DesktopLink           NWConnection client to PC :6969. DeviceDescriptor bytes.
-RtspServer            RTSP on 8554 for the existing Windows FFmpeg client.
+UsbTransport          Not in the iOS app. VCamPanel forwards port 4747 over usbmux.
 VisionTracker         Vision / Neural Engine. Must not be a capture output that can stall frames.
 ```
 
-The Windows OBS plugin and `VCamdroid.exe` stay as they are for v1, except for one new Windows component: a usbmux port forwarder that sits next to `adb.h`. See section 5.
+The iPhone does not add a port 6969 client or an RTSP server. Android's `VCamdroid.exe` still uses those.
+
+The Windows OBS plugin and `VCamdroid.exe` stay the Android receivers. The iPhone's Windows client is VCamPanel plus `VCamSource.dll`. See section 5.
 
 ---
 
@@ -266,7 +264,7 @@ A Windows helper, using Apple's usbmux protocol (the channel iTunes / Finder / t
 PC 127.0.0.1:4747  →  iPhone app port 4747
 ```
 
-OBS keeps connecting to `127.0.0.1:4747`. The DroidCam bytes do not change. `adb.h` stays for Android. Add a sibling, for example `usbmux.h`, that the Windows app or a small helper can call the same way: forward, and remove the forward on shutdown.
+OBS keeps connecting to `127.0.0.1:4747` only on the optional direct-source path. The normal Windows client is VCamPanel, which opens that same address itself. The DroidCam bytes do not change. `adb.h` stays for Android. The usbmux forward lives in VCamPanel. `usbmux_forward.exe` is an optional console helper.
 
 Practical requirements for the user:
 
@@ -278,8 +276,8 @@ Practical requirements for the user:
 
 ### 5.2 What it is not
 
-- It is not a generic UVC webcam. Windows will not show "iPhone" in the camera list with no extra software. Android does not do that in this project either. OBS or the DirectShow filter is still required.
-- It is not Continuity Camera. Continuity Camera is Apple's Mac-only system feature. It uses the system camera, not this app's encoder, and it does not feed the Windows DroidCam plugin.
+- It is not a generic UVC webcam. The iPhone does not appear in the camera list by itself. VCamPanel has to be running, and Windows 11 has to load the VCamdroid camera that VCamPanel registers.
+- It is not Continuity Camera. Continuity Camera is Apple's Mac-only system feature. It does not feed this app, and this app does not run on macOS.
 - It does not replace Wi-Fi. Wi-Fi to the phone's LAN IP on port 4747 remains the other supported path.
 
 ### 5.3 Windows work item
@@ -290,14 +288,22 @@ Implement the forwarder with a maintained usbmux client (libimobiledevice's `ipr
 
 Failure copy for the user should name the three usual causes: cable is not data, Trust was not accepted, Apple Mobile Device Service is not running.
 
-### 5.4 Desktop mode USB (later)
+### 5.4 iPhone desktop camera
 
-Pipeline B needs two tunnels, matching `server.cpp`:
+The iPhone does not use pipeline B. There is no RTSP server, no port 6969 client, and no DirectShow softcam on this path. `VCamdroid.exe` stays the Android desktop client and is left alone.
 
-- Reverse: phone connects to PC port 6969 through the cable.
-- Forward: PC pulls RTSP from phone port 8554.
+VCamPanel is the video client:
 
-Do not build this in v1. Wi-Fi QR pairing for pipeline B can follow once RTSP exists. USB reverse is a separate milestone because usbmux "reverse" is more awkward than `adb reverse`.
+1. It opens the existing tunnel (USB wins when a phone is plugged in; otherwise it uses the last Wi-Fi address).
+2. It sends `GET /video?1920x1080&client=panel` and reads the 12-byte DroidCam packets. The phone writes no HTTP body before those packets.
+3. It decodes H.264 with the Windows Media Foundation decoder and publishes NV12 frames on a shared mapping.
+4. `VCamSource.dll`, loaded by the Windows Frame Server, exposes one camera named **VCamdroid**: 1920×1080 NV12 at 30 fps. Apps select that camera. VCamPanel has to keep running; with no producer the camera repeats black frames and stays in the list.
+
+`client=panel` selects a separate encode policy. A DroidCam OBS client stays on H.264 Baseline and the 2500–16000 kbps slider, with each second clamped at that average. The panel client is 1920×1080 at 30 fps, H.264 High, real-time, no frame reordering, no frame delay, Rec.709, 30 Mbps when the client address is loopback and 12 Mbps on Wi-Fi, with a one-second peak of twice that average. Those rates are not written through `StudioSettings`, which still clamps the saved slider. The desk shows the rate actually in use.
+
+The phone allows one video socket. If a DroidCam OBS source connects while VCamPanel holds it, the picture moves and VCamPanel waits for Connect. It does not reconnect in a loop. Short desk requests stay on their own connections.
+
+Windows 10 keeps the desk and the optional OBS source. VCamPanel does not take the video socket there, and it says the camera list needs Windows 11.
 
 ---
 
@@ -428,13 +434,15 @@ Explicitly not in v1: locked-screen streaming, UVC gadget mode, HEVC, 4K, AI tra
 
 Android's tracker is experimental on purpose: a 640×480 `ImageReader` plus crop updates can starve the camera and flicker exposure. The iPhone version should avoid that class of bug by keeping inference off the capture deadline. If it is not stable, it stays off.
 
-### v3 — desktop virtual webcam
+### v3 — iPhone system camera
 
-- Phone connects to Windows port 6969 and sends `DeviceDescriptor` (section 10).
-- RTSP server on 8554 that the existing FFmpeg client can open.
-- QR pairing from the existing desktop QR.
-- USB for this path (reverse 6969, forward 8554) only after Wi-Fi RTSP is solid.
-- Filter parity with RootEncoder is optional. Do not block the webcam on a Metal port of the artistic filters. Brightness, contrast, and temperature are enough if any filters ship.
+Shipped as the Windows client of the port 4747 stream, not as an RTSP port of pipeline B:
+
+- VCamPanel decodes that stream once.
+- `VCamSource.dll` is the Media Foundation camera named VCamdroid on Windows 11.
+- `client=panel` uses the High-profile transport rates in section 5.4. Legacy OBS clients stay on Baseline and the saved slider.
+
+The Android RTSP / DirectShow path in section 2.2 and section 10 is unchanged and is not the iPhone camera.
 
 ### v4 — audio, only with a confirmed framing spec
 
@@ -442,9 +450,9 @@ Android returns 404 for `GET /v2/audio`. Implement AAC only after the OBS plugin
 
 ---
 
-## 10. Protocol contract — desktop mode (not v1)
+## 10. Protocol contract — Android desktop client
 
-Included so the later milestone does not drift.
+This is the Android `VCamdroid.exe` contract (pipeline B). The iPhone camera does not use it. The iPhone desktop path is the port 4747 client in section 5.4.
 
 ### 10.1 Device descriptor (phone → PC, big-endian)
 
@@ -518,7 +526,7 @@ State these in user-facing help so support does not treat them as bugs.
 | --- | --- |
 | Power-button screen-off streaming via a foreground camera service | Not available. Curtain while the app is open is the product. |
 | `adb forward` with no Apple driver | Replaced by usbmux plus Apple Mobile Device Support and Trust This Computer. |
-| Phone appears as a driverless USB webcam | Not available. Same as Android in this project: OBS or DirectShow is required. |
+| Phone appears as a driverless USB webcam | Not available. VCamPanel publishes a camera named VCamdroid on Windows 11. The phone itself is not a USB video device. |
 | 12-hour CPU and Wi-Fi power-save override | Not available. Stay plugged in. Keep Low Power Mode off. |
 | `SCALER_CROP_REGION` inside the ISP before a zero-copy encoder | Not available. v1 uses `videoZoomFactor` only. A Metal crop is a later, explicit cost. |
 | Manual ISO with a fully independent auto shutter | Not the same API. Expose ISO and shutter together in manual mode. |
@@ -533,7 +541,7 @@ State these in user-facing help so support does not treat them as bugs.
 
 Match the Android information architecture, not its layouts pixel for pixel.
 
-1. **Home.** Two actions: OBS mode, and (later) desktop pairing. Short "how to connect" for Wi-Fi and USB. Show the usbmux trust steps, not ADB commands.
+1. **Home.** One action into the studio. Short "how to connect" for Wi-Fi and USB. Show the usbmux trust steps, not ADB commands. The Windows camera is VCamPanel, not a second pairing screen.
 2. **OBS studio.** Live preview, IP:port, USB vs Wi-Fi badge, tally, curtain button, studio controls, settings for resolution, fps, bitrate, codec (H.264 only until HEVC is enabled).
 3. **Settings.** Curtain behavior, keep-awake (idle timer), confirm before stop, show tally. No antibanding row.
 4. **Permissions, in order, with rationale screens:** Camera, Microphone only when audio exists, Local Network.
