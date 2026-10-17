@@ -131,6 +131,7 @@ enum DroidCamRequest: Equatable, Sendable {
     case presets
     case presetCommand(PresetCommand)
     case panel
+    case guidePhoto(String)
     case preview
     case battery
     case tally(TallyState)

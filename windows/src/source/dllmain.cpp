@@ -106,7 +106,7 @@ STDAPI DllRegisterServer() {
     wcscat_s(key, vcam::kSourceClsidText);
     wcscat_s(key, L"\\InprocServer32");
     HKEY registry = nullptr;
-    const LSTATUS opened = RegCreateKeyExW(HKEY_CURRENT_USER, key, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &registry, nullptr);
+    const LSTATUS opened = RegCreateKeyExW(HKEY_LOCAL_MACHINE, key, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &registry, nullptr);
     if (opened != ERROR_SUCCESS) {
         return HRESULT_FROM_WIN32(opened);
     }
@@ -128,6 +128,6 @@ STDAPI DllRegisterServer() {
 STDAPI DllUnregisterServer() {
     wchar_t key[128] = L"Software\\Classes\\CLSID\\";
     wcscat_s(key, vcam::kSourceClsidText);
-    RegDeleteTreeW(HKEY_CURRENT_USER, key);
+    RegDeleteTreeW(HKEY_LOCAL_MACHINE, key);
     return S_OK;
 }

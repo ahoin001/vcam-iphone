@@ -155,6 +155,13 @@ actor DroidCamServer {
             return DroidCamHTTP.jsonReply(await presetsProvider?() ?? "{\"presets\":[]}")
         case .panel:
             return DroidCamHTTP.htmlReply(ControlPanelPage.html)
+        case .guidePhoto(let name):
+            if !name.isEmpty,
+               let url = Bundle.main.url(forResource: "guide-\(name)", withExtension: "jpg"),
+               let data = try? Data(contentsOf: url) {
+                return DroidCamHTTP.reply(status: 200, body: data, contentType: "image/jpeg", cacheable: true)
+            }
+            return DroidCamHTTP.reply(status: 404, body: Data(), contentType: nil)
         case .preview:
             if let jpeg = await previewProvider?() {
                 return DroidCamHTTP.reply(status: 200, body: jpeg, contentType: "image/jpeg")

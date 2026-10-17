@@ -3,10 +3,12 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <shellapi.h>
 #include <dwmapi.h>
 #include <wrl.h>
 #include <WebView2.h>
 
+#include "guide_photos.h"
 #include "mdns_browse.h"
 #include "panel_shell.h"
 #include "usbmux.h"
@@ -31,6 +33,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "shell32.lib")
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
@@ -45,6 +48,8 @@ constexpr UINT kScanIntervalMs = 4000;
 constexpr UINT kDeskRetryMs = 2500;
 constexpr UINT kScanDoneMessage = WM_APP + 1;
 constexpr UINT kPollDoneMessage = WM_APP + 2;
+constexpr UINT kInstallDoneMessage = WM_APP + 3;
+constexpr wchar_t kInstallSwitch[] = L"--install-camera";
 constexpr int kToolbarHeight = 60;
 constexpr int kPaneRadius = 14;
 constexpr int kSplitterHit = 10;
@@ -118,6 +123,7 @@ struct Check {
     bool pc = false;
     std::wstring title;
     std::wstring detail;
+    const char* action = nullptr;
 };
 
 HWND g_window = nullptr;
@@ -148,6 +154,9 @@ std::thread g_scanThread;
 std::atomic<bool> g_scanning{false};
 std::thread g_pollThread;
 std::atomic<bool> g_polling{false};
+std::thread g_installThread;
+bool g_installing = false;
+std::wstring g_installNote;
 bool g_firstScan = true;
 
 bool g_usbConnected = false;
@@ -644,7 +653,13 @@ std::vector<Check> BuildChecks() {
     Check camera;
     camera.pc = true;
     camera.title = L"Camera listed as VCamdroid";
-    if (setup.listed) {
+    if (g_installing) {
+        camera.detail = L"Approve the Windows prompt to install the camera.";
+    } else if (setup.needsInstall) {
+        camera.state = CheckState::Blocked;
+        camera.detail = g_installNote.empty() ? setup.detail : g_installNote;
+        camera.action = "install";
+    } else if (setup.listed) {
         camera.state = CheckState::Ready;
         camera.detail = L"Other apps can select VCamdroid.";
     } else if (!setup.windows11) {
@@ -754,6 +769,11 @@ std::string BuildState() {
         AppendJsonString(json, checks[index].title);
         json += ",\"detail\":";
         AppendJsonString(json, checks[index].detail);
+        if (checks[index].action != nullptr) {
+            json += ",\"action\":\"";
+            json += checks[index].action;
+            json += '"';
+        }
         json += '}';
     }
     json += "]}";
@@ -981,6 +1001,68 @@ void StartPoll() {
             delete poll;
         }
     });
+}
+
+// Runs this exe again elevated with --install-camera, then reports its exit code.
+void StartCameraInstall() {
+    if (!g_window || g_installing) {
+        return;
+    }
+    if (g_installThread.joinable()) {
+        g_installThread.join();
+    }
+    wchar_t exe[MAX_PATH] = {};
+    const DWORD length = GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) {
+        g_installNote = L"VCamPanel could not find its own folder. Move it to a shorter path and try again.";
+        PushState();
+        return;
+    }
+    g_installing = true;
+    g_installNote.clear();
+    PushState();
+    const HWND target = g_window;
+    const std::wstring path(exe);
+    g_installThread = std::thread([target, path] {
+        const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        SHELLEXECUTEINFOW info{};
+        info.cbSize = sizeof(info);
+        info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+        info.hwnd = target;
+        info.lpVerb = L"runas";
+        info.lpFile = path.c_str();
+        info.lpParameters = kInstallSwitch;
+        info.nShow = SW_HIDE;
+        HRESULT result = S_OK;
+        if (!ShellExecuteExW(&info) || info.hProcess == nullptr) {
+            result = HRESULT_FROM_WIN32(GetLastError());
+        } else {
+            WaitForSingleObject(info.hProcess, INFINITE);
+            DWORD code = 0;
+            result = GetExitCodeProcess(info.hProcess, &code) ? static_cast<HRESULT>(code) : HRESULT_FROM_WIN32(GetLastError());
+            CloseHandle(info.hProcess);
+        }
+        if (SUCCEEDED(com)) {
+            CoUninitialize();
+        }
+        PostMessageW(target, kInstallDoneMessage, static_cast<WPARAM>(static_cast<DWORD>(result)), 0);
+    });
+}
+
+void FinishCameraInstall(HRESULT result) {
+    g_installing = false;
+    if (SUCCEEDED(result)) {
+        g_installNote.clear();
+        vcam::Pipeline::Shared().Refresh();
+    } else if (result == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+        g_installNote = L"The Windows prompt was declined. Click Install camera to try again.";
+    } else {
+        wchar_t code[16] = {};
+        swprintf_s(code, L"%08X", static_cast<unsigned>(result));
+        g_installNote = std::wstring(L"The camera install did not finish (error ") + code +
+            L"). Click Install camera to try again, and approve the Windows prompt.";
+    }
+    PushState();
 }
 
 void ConnectTo(const Listed& target) {
@@ -1216,7 +1298,12 @@ void ApplySession(const SessionPoll& poll) {
 
     std::wstring detail;
     const std::wstring warning = vcam::Pipeline::Shared().Warning();
-    if (!vcam::Pipeline::Shared().Available() && !warning.empty()) {
+    if (vcam::Pipeline::Shared().Setup().needsInstall) {
+        detail = L"Open Setup and click Install camera so other apps can select VCamdroid.";
+        if (tone == Tone::Live) {
+            tone = Tone::Warn;
+        }
+    } else if (!vcam::Pipeline::Shared().Available() && !warning.empty()) {
         detail = warning;
         if (tone == Tone::Live) {
             tone = Tone::Warn;
@@ -1297,6 +1384,8 @@ void HandleShellMessage(const std::string& json) {
         SetSheet(JsonBool(json, "open"));
     } else if (type == "guide") {
         SetGuide(JsonBool(json, "open"));
+    } else if (type == "installCamera") {
+        StartCameraInstall();
     }
 }
 
@@ -1326,6 +1415,23 @@ void ShowWebViewError() {
     );
 }
 
+// Guide links leave the app only for the video and photo credits. Anything else stays blocked.
+void OpenGuideLink(const std::wstring& uri) {
+    static constexpr const wchar_t* kAllowed[] = {
+        L"https://www.youtube.com/",
+        L"https://youtu.be/",
+        L"https://www.flickr.com/",
+        L"https://commons.wikimedia.org/",
+        L"https://creativecommons.org/",
+    };
+    for (const wchar_t* prefix : kAllowed) {
+        if (uri.rfind(prefix, 0) == 0) {
+            ShellExecuteW(nullptr, L"open", uri.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            return;
+        }
+    }
+}
+
 void ConfigureWebView(ICoreWebView2* webview, ICoreWebView2Controller* controller, const COREWEBVIEW2_COLOR& background) {
     ComPtr<ICoreWebView2Controller> owner(controller);
     ComPtr<ICoreWebView2Controller2> controller2;
@@ -1349,12 +1455,25 @@ void ConfigureWebView(ICoreWebView2* webview, ICoreWebView2Controller* controlle
     webview->add_NewWindowRequested(
         Callback<ICoreWebView2NewWindowRequestedEventHandler>(
             [](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* args) -> HRESULT {
+                LPWSTR uri = nullptr;
+                if (SUCCEEDED(args->get_Uri(&uri)) && uri != nullptr) {
+                    OpenGuideLink(uri);
+                    CoTaskMemFree(uri);
+                }
                 args->put_Handled(TRUE);
                 return S_OK;
             }
         ).Get(),
         &token
     );
+}
+
+std::string GuidePhotoUri(const guide_photos::Photo& photo) {
+    std::string uri = "data:image/jpeg;base64,";
+    for (int index = 0; index < photo.count; ++index) {
+        uri += photo.chunks[index];
+    }
+    return uri;
 }
 
 std::wstring ShellHtml() {
@@ -1366,6 +1485,13 @@ std::wstring ShellHtml() {
     html += panel_shell::kBody;
     html += panel_shell::kGuideBody;
     html += panel_shell::kScript;
+    for (const guide_photos::Photo& photo : guide_photos::kPhotos) {
+        const std::string token = std::string("{{guide:") + photo.name + "}}";
+        const auto at = html.find(token);
+        if (at != std::string::npos) {
+            html.replace(at, token.size(), GuidePhotoUri(photo));
+        }
+    }
     return Wide(html);
 }
 
@@ -1647,6 +1773,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         ApplySession(*poll);
         return 0;
     }
+    case kInstallDoneMessage:
+        FinishCameraInstall(static_cast<HRESULT>(static_cast<DWORD>(wparam)));
+        return 0;
     case WM_TIMER:
         if (wparam == kStatusTimer) {
             StartPoll();
@@ -1725,7 +1854,10 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
 
 }  // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) {
+    if (commandLine != nullptr && wcsstr(commandLine, kInstallSwitch) != nullptr) {
+        return static_cast<int>(vcam::InstallCameraSource());
+    }
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     WSADATA data{};
@@ -1790,6 +1922,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     if (g_pollThread.joinable()) {
         g_pollThread.join();
+    }
+    if (g_installThread.joinable()) {
+        g_installThread.detach();
     }
     if (g_background) {
         DeleteObject(g_background);

@@ -321,8 +321,44 @@ enum ControlPanelPage {
       .guide-card .note strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 13px; }
       .lights { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: center; }
       .lights svg { width: 100%; height: auto; }
+      .lesson {
+        display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 16px; align-items: center;
+        padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+      }
+      .shot { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; background: #000; }
+      .shot.whole { object-fit: contain; }
+      .lesson h3, .group-title { margin: 0; font-size: 15px; font-weight: 650; color: var(--text); }
+      .guide-panel .lesson p { margin-top: 4px; }
+      .ways { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 5px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .ways b { color: var(--text); font-weight: 600; }
+      .callout { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(224, 160, 112, 0.3); background: rgba(224, 160, 112, 0.08); }
+      .callout strong { display: block; margin-bottom: 4px; color: #f0c6a2; font-size: 13px; }
+      .setups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+      .setup {
+        display: grid; gap: 6px; align-content: start;
+        padding: 8px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+      }
+      .setup figure { position: relative; margin: 0; }
+      .setup img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 9px; display: block; background: #000; }
+      .setup strong { margin: 2px 2px 0; font-size: 13px; color: var(--text); }
+      .guide-panel .setup p { margin: 0 2px 2px; font-size: 12px; }
+      .clock {
+        position: absolute; right: 5px; bottom: 5px; width: 50px; height: 50px;
+        border-radius: 50%; background: rgba(10, 12, 14, 0.8);
+      }
+      .clock .dial { fill: none; stroke: rgba(255, 255, 255, 0.2); stroke-width: 1; }
+      .clock .you { fill: #f2efe8; }
+      .clock .cam { fill: #a39e95; }
+      .clock .beam { stroke-width: 1.5; opacity: 0.65; }
+      .clock .key { fill: var(--accent); stroke: var(--accent); }
+      .clock .second { fill: #8aa0b4; stroke: #8aa0b4; }
+      .clock .lamp { stroke: none; }
+      .guide-panel p.credits { font-size: 11.5px; line-height: 1.6; }
+      .credits a, .source { color: var(--accent); text-decoration: none; }
+      .credits a:hover, .source:hover { text-decoration: underline; }
+      @media (max-width: 820px) { .setups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       @media (max-width: 700px) {
-        .guide-grid, .lights { grid-template-columns: 1fr; }
+        .guide-grid, .lights, .lesson { grid-template-columns: 1fr; }
       }
       [hidden] { display: none !important; }
       :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -538,27 +574,69 @@ enum ControlPanelPage {
           <button type="button" data-guide="situations">Situations</button>
         </div>
         <section class="guide-panel on" data-guide-panel="light">
-          <div class="lights">
-            <svg viewBox="0 0 220 160" aria-hidden="true">
-              <rect width="220" height="160" rx="16" fill="#101316"/>
-              <circle cx="110" cy="78" r="16" fill="#f2efe8"/>
-              <rect x="96" y="96" width="28" height="34" rx="8" fill="#c8c2b6"/>
-              <circle cx="46" cy="48" r="10" fill="#d9a04a"/>
-              <path d="M54 54 L96 74" stroke="#d9a04a" stroke-width="2"/>
-              <circle cx="176" cy="62" r="7" fill="#8aa0b4"/>
-              <path d="M170 66 L126 80" stroke="#8aa0b4" stroke-width="2"/>
-              <circle cx="110" cy="22" r="6" fill="#e7d7b2"/>
-              <path d="M110 28 L110 60" stroke="#e7d7b2" stroke-width="2"/>
-              <text x="28" y="148" fill="#9a958c" font-size="11" font-family="Segoe UI, sans-serif">Key</text>
-              <text x="150" y="148" fill="#9a958c" font-size="11" font-family="Segoe UI, sans-serif">Fill</text>
-            </svg>
-            <div class="guide-grid">
-              <div class="note"><strong>Key</strong><p>The main light, slightly off camera and a little above the eyes. Soften it. A bare LED speckles on camera.</p></div>
-              <div class="note"><strong>Fill</strong><p>The other side, dimmer than the key, so one side of the face stays a little darker.</p></div>
-              <div class="note"><strong>Back</strong><p>A light behind you on the hair or shoulders separates you from the wall.</p></div>
-              <div class="note"><strong>Window</strong><p>A window behind you silhouettes the face unless the key in front is brighter than the window.</p></div>
+          <p>Lighting does more for the picture than the camera. These are the setups from Senpai’s lighting MasterClass, each with a real photo of the look. <a class="source" href="https://www.youtube.com/watch?v=mCxWTtDH-f4" target="_blank" rel="noopener">Watch the video</a></p>
+          <div class="lesson">
+            <img class="shot whole" data-src="/guide/diffusion.jpg" alt="The same model under harsh sun on the left and a softbox on the right">
+            <div>
+              <h3>Make the key light big and soft</h3>
+              <p>The key is the light on your face. A bigger light, or one closer to you, wraps around your face and looks softer, and it can run dimmer. Left: a small, hard source. Right: the same scene with a softbox.</p>
+              <ul class="ways">
+                <li><b>A bigger panel.</b> The simplest fix, and the most expensive.</li>
+                <li><b>A diffuser.</b> Cheap and huge, but you need somewhere to hang it in front of the light.</li>
+                <li><b>Bounce it.</b> Turn a small key light toward a white wall or a hung white sheet. It needs more power, and the wall tints the light: on a tan wall, set the light cooler.</li>
+              </ul>
             </div>
           </div>
+          <div class="callout">
+            <strong>Don’t light both sides the same</strong>
+            <p>Two equal lights, one on each side, is the setup most streaming ads show. It erases every shadow and flattens your face. Shadows at the nose, eyes, and mouth give it depth, so keep one side a little darker.</p>
+          </div>
+          <h3 class="group-title">Four two-light setups</h3>
+          <p>Picture a clock around you with 12 at the camera. The dial on each photo shows where the lights go.</p>
+          <div class="setups">
+            <div class="setup">
+              <figure><img data-src="/guide/key-fill.jpg" style="object-position: 50% 22%" alt="A man lit from the front left, with the right side of his face in soft shadow"><svg class="clock" data-lights="10.5 key,9 second"></svg></figure>
+              <strong>Key and fill</strong>
+              <p>Key at 10 to 11 o’clock. Second light at 9, turned down, so the shadow side stays darker. The everyday default, and a help in a dark room.</p>
+            </div>
+            <div class="setup">
+              <figure><img data-src="/guide/edge.jpg" style="object-position: 40% 30%" alt="A profile outlined by a bright rim of light against a dark background"><svg class="clock" data-lights="10.5 key,4.5 second"></svg></figure>
+              <strong>Key and edge</strong>
+              <p>Second light behind you, opposite the key, high and out of shot. It draws a rim on hair and shoulders so you don’t melt into a dark room. The photo shows the edge light alone.</p>
+            </div>
+            <div class="setup">
+              <figure><img data-src="/guide/butterfly.jpg" style="object-position: 50% 14%" alt="A portrait lit from above and in front, with a soft shadow under the chin"><svg class="clock" data-lights="12 key,6 second"></svg></figure>
+              <strong>Butterfly</strong>
+              <p>Key straight above the camera, aimed down. Second light behind you fills what a straight-on key leaves and adds separation. A beauty look that brings out cheekbones.</p>
+            </div>
+            <div class="setup">
+              <figure><img data-src="/guide/short.jpg" style="object-position: 45% 40%" alt="A man looking down, lit on the side of his face turned away from the camera"><svg class="clock" data-lights="3.5 key"></svg></figure>
+              <strong>Short lighting</strong>
+              <p>While you look at your game screen, light the side of your face turned away from the camera, at 3 or 4 o’clock. Moody, and the light in front of your eyes can stay low.</p>
+            </div>
+          </div>
+          <div class="lesson">
+            <img class="shot" data-src="/guide/window.jpg" style="object-position: 40% 50%" alt="A person in silhouette against a bright window">
+            <div>
+              <h3>Light yourself more than the room</h3>
+              <p>When the window or the room behind you is brighter than your face, the camera exposes for the background and you turn into a silhouette.</p>
+              <ul class="ways">
+                <li><b>Avoid a black void.</b> The phone turns very dark areas into grain. Lift them a little, or add practical lights: lamps and LED strips you can see in the shot.</li>
+                <li><b>Interesting, not distracting.</b> The background should say something about you without pulling eyes off your face.</li>
+                <li><b>Then set the camera.</b> Lock white balance to the key in Color, and keep the shutter at 1/60 in Exposure.</li>
+              </ul>
+            </div>
+          </div>
+          <p class="credits">
+            Advice adapted from <a href="https://www.youtube.com/watch?v=mCxWTtDH-f4" target="_blank" rel="noopener">Senpai, “The Secret to Lighting Your Videos and Live Streams” (Streaming MasterClass Ep. 9)</a>.
+            Photos, resized:
+            <a href="https://commons.wikimedia.org/wiki/File:Portraits_with_and_without_softbox_lighting,_by_MorrowLess.jpg" target="_blank" rel="noopener">MorrowLess</a> (<a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>),
+            <a href="https://commons.wikimedia.org/wiki/File:Rembrandt_Lighting.JPG" target="_blank" rel="noopener">Jacopo188</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>),
+            <a href="https://www.flickr.com/photos/58455346@N00/4724038449" target="_blank" rel="noopener">japrea</a> (<a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>),
+            <a href="https://www.flickr.com/photos/50841206@N02/14962847439" target="_blank" rel="noopener">Jay DeFehr</a> (<a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>),
+            <a href="https://www.flickr.com/photos/71835142@N08/8109583619" target="_blank" rel="noopener">Kieran Clarke</a> (<a href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noopener">CC BY 2.0</a>),
+            <a href="https://www.flickr.com/photos/41346951@N05/15629546536" target="_blank" rel="noopener">Thomas Leuthard</a> (<a href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noopener">CC BY 2.0</a>).
+          </p>
         </section>
         <section class="guide-panel" data-guide-panel="exposure">
           <p>Shutter and ISO brighten the same picture in different ways. Set the shutter for how motion should look, then use ISO only for the light you still need.</p>
@@ -1164,7 +1242,38 @@ enum ControlPanelPage {
       });
 
       const guide = document.getElementById("guide");
-      function openGuide() { guide.hidden = false; closePop(); }
+      function clockTime(hour) {
+        const whole = Math.floor(hour);
+        return (whole === 0 ? 12 : whole) + (hour % 1 ? ":30" : " o'clock");
+      }
+      function drawClocks() {
+        document.querySelectorAll("svg.clock").forEach((svg) => {
+          const lights = svg.dataset.lights.split(",").map((part) => part.trim().split(" "));
+          let beams = "";
+          let lamps = "";
+          for (const [hour, kind] of lights) {
+            const angle = (Number(hour) / 12) * Math.PI * 2;
+            const x = (32 + Math.sin(angle) * 22).toFixed(1);
+            const y = (32 - Math.cos(angle) * 22).toFixed(1);
+            beams += '<line class="beam ' + kind + '" x1="' + x + '" y1="' + y + '" x2="32" y2="32"/>';
+            lamps += '<circle class="lamp ' + kind + '" cx="' + x + '" cy="' + y + '" r="4.5"/>';
+          }
+          svg.setAttribute("viewBox", "0 0 64 64");
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label", lights.map(([hour, kind]) => (kind === "key" ? "Key" : "Second light") + " at " + clockTime(Number(hour))).join(", "));
+          svg.innerHTML = '<circle class="dial" cx="32" cy="32" r="27"/>' + beams + lamps
+            + '<rect class="cam" x="28" y="2.5" width="8" height="5" rx="1.5"/><circle class="you" cx="32" cy="32" r="5"/>';
+        });
+      }
+      drawClocks();
+      // The photos come from the phone, so they load only when someone opens the guide.
+      function loadGuidePhotos() {
+        document.querySelectorAll("#guide img[data-src]").forEach((img) => {
+          img.src = img.dataset.src;
+          img.removeAttribute("data-src");
+        });
+      }
+      function openGuide() { loadGuidePhotos(); guide.hidden = false; closePop(); }
       function closeGuide() { guide.hidden = true; }
       window.openGuide = openGuide;
       document.getElementById("open-guide").addEventListener("click", openGuide);

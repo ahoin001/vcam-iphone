@@ -131,6 +131,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\panel_shell.h" />
+    <ClInclude Include="src\guide_photos.h" />
     <ClInclude Include="src\usbmux.h" />
     <ClInclude Include="src\mdns_browse.h" />
     <ClInclude Include="src\camera\FrameBus.h" />

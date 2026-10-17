@@ -12,6 +12,7 @@ public:
     static Pipeline& Shared();
 
     std::wstring Prepare();
+    std::wstring Refresh();
     bool Available() const { return available_; }
     std::wstring Warning() const { return warning_; }
     CameraSetup Setup() const { return setup_; }

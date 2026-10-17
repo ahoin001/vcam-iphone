@@ -77,9 +77,10 @@ You can unplug the phone from the Mac after this. The Mac is finished unless you
 Do this on the Windows PC.
 
 1. From this repo’s **[latest release](https://github.com/ahoin001/vcam-iphone/releases/latest)**, download **[VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip)**. Unzip it somewhere you will keep, such as `Documents\VCamdroid`.
-2. Confirm `VCamPanel.exe` and `VCamSource.dll` are in that folder. The camera does not register if the DLL is somewhere else.
-3. Run `VCamPanel.exe`. The window stays on top. The pin button at the top right turns that off. The first launch registers the **VCamdroid** camera for your Windows user. That does not need an administrator install, and the camera remains after a reboot.
-4. Read the **This PC** card at the top left. If it says this PC is older than Windows 11, this PC cannot publish VCamdroid. The desk still works. Use section 7 for the picture. A checked **Windows 11** row with a blocked **Camera listed as VCamdroid** row means Windows 11 is installed and the camera registration failed. That row includes the Windows error code.
+2. Confirm `VCamPanel.exe` and `VCamSource.dll` are in that folder. The camera cannot be installed if the DLL is somewhere else.
+3. Run `VCamPanel.exe`. The window stays on top. The pin button at the top right turns that off.
+4. On Windows 11, the **This PC** card shows **Install camera** on the **Camera listed as VCamdroid** row the first time. Click it and approve the Windows prompt. Windows loads cameras from its own system services, and those services cannot read your user folders, so VCamPanel copies the camera component to `C:\Program Files\VCamdroid` and registers it for this PC. You approve this once. A new release that changes the camera asks again. The camera remains after a reboot.
+5. Read the **This PC** card at the top left. If it says this PC is older than Windows 11, this PC cannot publish VCamdroid. The desk still works. Use section 7 for the picture. A checked **Windows 11** row with a blocked **Camera listed as VCamdroid** row means the camera is not in the list yet. That row names the reason and, when a Windows error occurred, its code.
 
 **Check:** VCamPanel shows **Connect your iPhone**. On Windows 11 the card says **This PC is ready** once the camera is listed. On Windows 10 it says this PC is older than Windows 11.
 
@@ -151,7 +152,7 @@ An OBS browser dock of `/panel` is different. It has no companion preview, so **
 
 The desk is an inspector: each section shows its current value on the closed row, so you can skim without scrolling. Lens and Exposure start open. White balance, focus, portrait, and stream stay folded until you need them. Open or close a section and it stays that way. Each tool is a name, its current value, and one line. **?** opens a short note. Exposure’s note is about shutter and ISO together: lock shutter at double the frame rate (1/60 at 30 fps), then raise ISO only if the face is still dark. The desk matches the phone: front or back camera, zoom stops 1× / 2× / 3× / 5× / 10× and a 1.0×–10.0× slider, torch, flip, exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Moving a control on the computer moves it on the phone. Moving it on the phone updates the desk.
 
-**Guide** in the VCamPanel toolbar, next to **Setup**, opens the longer reference: lighting, exposure, color, and starting points for different rooms. The same **Guide** button on the desk opens it beside the picture, including in an OBS browser dock.
+**Guide** in the VCamPanel toolbar, next to **Setup**, opens the longer reference: lighting, exposure, color, and starting points for different rooms. The Lighting tab follows Senpai’s lighting MasterClass (a big, soft key light, not lighting both sides the same, four two-light setups, and lighting yourself more than the room), with a real photo and a light-placement dial for each setup. **Watch the video** opens it in your browser. Photo credits are at the bottom of that tab and in `docs/GUIDE_PHOTOS.md`. The same **Guide** button on the desk opens it beside the picture, including in an OBS browser dock.
 
 **Presets** at the top of the desk saves the current look on the iPhone. Use one for morning window light and another for evening lamps. Choosing a preset applies lens, zoom, exposure, white balance, focus, torch, flip, and portrait. **Delete** removes the selected one.
 
@@ -222,7 +223,8 @@ For a long session, keep the phone plugged in, leave Low Power Mode off, and use
 - VCamPanel must stay running. The picture goes black when it closes, even if **VCamdroid** is still listed.
 - `VCamSource.dll` must sit in the same folder as `VCamPanel.exe`. If it is missing, the **This PC** card and **Setup** say so.
 - Windows 11 is required for the camera to appear in the list. The **This PC** card names that, a missing DLL, or another registration failure. On Windows 10 use section 7.
-- **Windows could not load the camera from VCamSource.dll (error 80004002)** means that DLL is from an older build that Windows cannot use as a camera. Close VCamPanel, replace both `VCamPanel.exe` and `VCamSource.dll` with the files from the latest release, then restart the PC so Windows unloads the old copy. Open VCamPanel again. The **This PC** card should read **This PC is ready**.
+- **The Windows camera services could not load VCamdroid (error 80070003, 80004002, or 80070005)** means the camera component is not installed where those services can read it, or the installed copy is from an older build. Click **Install camera** on that row and approve the Windows prompt. If the error stays, close VCamPanel, replace both `VCamPanel.exe` and `VCamSource.dll` with the latest release, restart the PC, and click **Install camera** again.
+- If the Windows prompt never appears, your account may not be allowed to approve administrator changes. Ask someone with an administrator account to click **Install camera** on this PC once.
 - In the meeting app or OBS, the device name is **VCamdroid**.
 - The phone allows one video connection. A DroidCam OBS source connected at the same time takes the picture. VCamPanel then says the video connection closed. Disconnect the source and click **Connect**.
 - Wi-Fi: the PC and the phone are on the same network, and the IP in VCamPanel is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.

@@ -20,6 +20,11 @@ std::wstring Pipeline::Prepare() {
     return warning_;
 }
 
+std::wstring Pipeline::Refresh() {
+    prepared_ = false;
+    return Prepare();
+}
+
 void Pipeline::Start(const std::string& host, int port) {
     if (host.empty() || port <= 0) {
         return;

@@ -151,6 +151,13 @@ func parsesControlRoutes(_ line: String) {
     #expect(!text.contains("GET /video"))
 }
 
+@Test func guidePhotoRouteAcceptsOnlyPlainNames() {
+    let fallback = VideoMode(width: 1920, height: 1080, fps: 30)
+    #expect(DroidCamHTTP.parse(firstLine: "GET /guide/key-fill.jpg HTTP/1.1", fallback: fallback) == .guidePhoto("key-fill"))
+    #expect(DroidCamHTTP.parse(firstLine: "GET /guide/../Info.plist HTTP/1.1", fallback: fallback) == .guidePhoto(""))
+    #expect(DroidCamHTTP.parse(firstLine: "GET /guide/Edge.jpg HTTP/1.1", fallback: fallback) == .guidePhoto(""))
+}
+
 @Test func previewIsNotAVideoStream() {
     let request = DroidCamHTTP.parse(
         firstLine: "GET /v1/preview.jpg HTTP/1.1",

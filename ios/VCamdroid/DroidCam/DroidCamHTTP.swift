@@ -42,6 +42,9 @@ enum DroidCamHTTP {
         if line.hasPrefix("GET /panel") {
             return .panel
         }
+        if line.hasPrefix("GET /guide/") {
+            return .guidePhoto(guidePhotoName(from: line))
+        }
         if line.hasPrefix("GET /v1/preview.jpg") || line.hasPrefix("GET /preview.jpg") {
             return .preview
         }
@@ -60,12 +63,14 @@ enum DroidCamHTTP {
         return .unknown
     }
 
-    static func reply(status: Int, body: Data, contentType: String?) -> Data {
+    static func reply(status: Int, body: Data, contentType: String?, cacheable: Bool = false) -> Data {
         var header = "HTTP/1.1 \(status) \(reason(status))\r\n"
         if let contentType {
             header += "Content-Type: \(contentType)\r\n"
         }
-        if contentType == "image/jpeg" {
+        if cacheable {
+            header += "Cache-Control: max-age=86400\r\n"
+        } else if contentType == "image/jpeg" {
             header += "Cache-Control: no-store\r\n"
         }
         header += "Content-Length: \(body.count)\r\nConnection: close\r\n\r\n"
@@ -230,6 +235,21 @@ enum DroidCamHTTP {
             return .save(name)
         }
         return nil
+    }
+
+    private static func guidePhotoName(from line: String) -> String {
+        let parts = line.split(separator: " ")
+        let path = parts.count >= 2 ? String(parts[1]) : ""
+        var name = path.replacing("/guide/", with: "")
+        if let query = name.firstIndex(of: "?") {
+            name = String(name[..<query])
+        }
+        if name.hasSuffix(".jpg") {
+            name.removeLast(4)
+        }
+        let allowed = CharacterSet.lowercaseLetters.union(CharacterSet(charactersIn: "-"))
+        guard !name.isEmpty, name.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return "" }
+        return name
     }
 
     private static func tally(from line: String) -> TallyState {
