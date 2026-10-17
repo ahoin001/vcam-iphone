@@ -69,6 +69,11 @@ bool RegisterSource(const std::wstring& dllPath) {
 std::wstring ListingFailure(HRESULT error) {
     wchar_t code[16] = {};
     swprintf_s(code, L"%08X", static_cast<unsigned>(error));
+    if (error == E_NOINTERFACE) {
+        return L"Windows could not load the camera from VCamSource.dll (error "
+            + std::wstring(code)
+            + L"). That file is from an older build. Replace VCamPanel.exe and VCamSource.dll with the latest release, then restart the PC so Windows lets go of the old copy.";
+    }
     return L"Windows 11 is installed, but it did not add VCamdroid to the camera list (error "
         + std::wstring(code)
         + L"). The picture in this window still works. Other apps will not see VCamdroid until Windows lists it.";

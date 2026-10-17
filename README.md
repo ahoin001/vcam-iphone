@@ -157,7 +157,9 @@ The desk is an inspector: each section shows its current value on the closed row
 
 Leave Portrait off for meetings. NVIDIA Broadcast or OBS Background Removal on **VCamdroid** is the cleaner cut. Use the iPhone blur only when you do not have those PC tools.
 
-The stream heading shows the rate actually in use. While VCamPanel is the video client, that is 1080p30 at **12 Mbps** on Wi-Fi and **30 Mbps** on USB. The bitrate slider under it stays on the saved rate for the optional OBS source in section 7 (2500–16000 kbps). Moving that slider does not change the VCamdroid picture.
+The stream heading shows the rate actually in use. While VCamPanel is the video client, that is 1080p30 at **12 Mbps** on Wi-Fi and **30 Mbps** on USB. The bitrate slider under it stays on the saved rate for the optional OBS source in section 7 (2500–16000 kbps). Moving that slider does not change the VCamdroid picture. While VCamPanel is connected, the **Size** and **Frame rate** buttons are dimmed at 1080 and 30, with a note that VCamPanel holds 1080p30.
+
+A desk control only changes when you change it, here or on the phone. A change made on the phone shows up on the desk within about a second.
 
 **On Windows:**
 
@@ -220,6 +222,7 @@ For a long session, keep the phone plugged in, leave Low Power Mode off, and use
 - VCamPanel must stay running. The picture goes black when it closes, even if **VCamdroid** is still listed.
 - `VCamSource.dll` must sit in the same folder as `VCamPanel.exe`. If it is missing, the **This PC** card and **Setup** say so.
 - Windows 11 is required for the camera to appear in the list. The **This PC** card names that, a missing DLL, or another registration failure. On Windows 10 use section 7.
+- **Windows could not load the camera from VCamSource.dll (error 80004002)** means that DLL is from an older build that Windows cannot use as a camera. Close VCamPanel, replace both `VCamPanel.exe` and `VCamSource.dll` with the files from the latest release, then restart the PC so Windows unloads the old copy. Open VCamPanel again. The **This PC** card should read **This PC is ready**.
 - In the meeting app or OBS, the device name is **VCamdroid**.
 - The phone allows one video connection. A DroidCam OBS source connected at the same time takes the picture. VCamPanel then says the video connection closed. Disconnect the source and click **Connect**.
 - Wi-Fi: the PC and the phone are on the same network, and the IP in VCamPanel is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.

@@ -8,6 +8,7 @@ struct SessionSnapshot: Equatable, Sendable {
     var lens: Lens
     var batteryPercent: Int
     var tally: TallyState
+    var panelClient = false
 
     static let waiting = SessionSnapshot(
         status: "waiting",
@@ -34,6 +35,7 @@ struct SessionSnapshot: Equatable, Sendable {
         fields.append("\"lens\":\"\(lens.rawValue)\"")
         fields.append("\"battery\":\(batteryPercent)")
         fields.append("\"tally\":\"\(tally.rawValue)\"")
+        fields.append("\"panelClient\":\(panelClient ? "true" : "false")")
         return "{\(fields.joined(separator: ","))}"
     }
 

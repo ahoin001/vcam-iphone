@@ -1,4 +1,5 @@
 #include "MediaSource.h"
+#include "SourceActivate.h"
 
 #include "camera/CameraIds.h"
 
@@ -43,9 +44,12 @@ public:
         if (outer != nullptr) {
             return CLASS_E_NOAGGREGATION;
         }
-        auto* source = new vcam::MediaSource();
-        const HRESULT hr = source->QueryInterface(riid, object);
-        source->Release();
+        auto* activate = new vcam::SourceActivate();
+        HRESULT hr = activate->QueryInterface(riid, object);
+        if (hr == E_NOINTERFACE) {
+            hr = activate->ActivateObject(riid, object);
+        }
+        activate->Release();
         return hr;
     }
 

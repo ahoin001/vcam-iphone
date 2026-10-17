@@ -36,7 +36,9 @@ final class StudioSession {
     private var careTasks: [Task<Void, Never>] = []
     private var lastPortraitCommand = PortraitCommand.off
     private var encoderActive = false
-    private var panelStream = false
+    private var panelStream = false {
+        didSet { snapshot.panelClient = panelStream }
+    }
     private var activeBitrateKbps: Int
     private var presets: [ShotPreset] = ShotPresetStore.load()
     private var pausedForBackground = false

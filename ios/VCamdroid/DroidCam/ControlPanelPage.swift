@@ -217,6 +217,9 @@ enum ControlPanelPage {
         border-color: var(--accent);
         color: var(--accent-ink);
       }
+      button:disabled { cursor: default; opacity: 0.45; transform: none; }
+      button:disabled:not(.on):hover { background: rgba(255, 255, 255, 0.04); }
+      button.on:disabled { opacity: 0.7; }
       .choices button, .stops button { flex: 1; min-width: 0; text-align: center; }
       .prop > label.toggle, .prop > .choices, .prop > .row { justify-self: start; }
       label.toggle {
@@ -504,6 +507,7 @@ enum ControlPanelPage {
                 <button type="button" id="fps-60" data-fps="60" hidden>60</button>
               </div>
             </div>
+            <p class="line" id="mode-note" hidden>VCamPanel holds 1080p30 while it is connected. Size and frame rate apply to the optional OBS source.</p>
             <div class="prop stack">
               <span>Bitrate <strong id="bitrate-value">4000 kbps</strong></span>
               <div class="choices" id="bitrate-presets">
@@ -588,9 +592,17 @@ enum ControlPanelPage {
     <script>
       const active = new Set();
       const pending = new Map();
+      const confirmed = {};
+      const seen = {};
+      const intents = new Map();
+      const intentMs = 2500;
+      const controlKeys = ["lens", "zoom", "manualExposure", "exposureBias", "iso", "shutter", "whiteBalance",
+        "manualFocus", "focus", "torch", "flip", "portrait", "portraitStrength", "bitrateKbps", "activeBitrateKbps"];
+      const sessionKeys = ["mode", "panelClient"];
+      let epoch = 0;
       let timer = 0;
       let inflight = false;
-      let session = { width: 1920, height: 1080, fps: 30 };
+      let polling = false;
       let previewOn = false;
       let previewTimer = 0;
       let previewBusy = false;
@@ -612,7 +624,7 @@ enum ControlPanelPage {
 
       function text(id, value) {
         const node = document.getElementById(id);
-        if (node) node.textContent = value;
+        if (node && node.textContent !== value) node.textContent = value;
       }
 
       function logFrom(t, min, max) {
@@ -630,6 +642,63 @@ enum ControlPanelPage {
         return "1/" + Math.max(1, Math.round(1 / value));
       }
 
+      function same(a, b) {
+        if (a === undefined || b === undefined || a === null || b === null) return a === b;
+        if (typeof a === "number" || typeof b === "number") {
+          const x = Number(a);
+          const y = Number(b);
+          return Math.abs(x - y) <= Math.max(0.0005, Math.abs(y) * 0.001);
+        }
+        return String(a) === String(b);
+      }
+
+      function desired(key) {
+        const intent = intents.get(key);
+        return intent ? intent.value : confirmed[key];
+      }
+
+      function intend(key, value) {
+        epoch += 1;
+        intents.set(key, { value, at: Date.now() });
+      }
+
+      // A control only changes for the user's own click, the reply to it, or a value two polls agree on.
+      // A response that started before the click is dropped, so a stale poll cannot flip a button back.
+      function ingest(data, keys, trusted) {
+        const now = Date.now();
+        for (const key of keys) {
+          if (!(key in data)) continue;
+          const value = data[key];
+          const intent = intents.get(key);
+          if (intent) {
+            if (same(value, intent.value)) {
+              intents.delete(key);
+              confirmed[key] = value;
+              seen[key] = value;
+              continue;
+            }
+            if (now - intent.at < intentMs) continue;
+            intents.delete(key);
+          }
+          if (trusted || !(key in confirmed) || same(seen[key], value)) confirmed[key] = value;
+          seen[key] = value;
+        }
+        render();
+      }
+
+      function sessionValues(data) {
+        const values = { panelClient: !!data.panelClient };
+        if (data.width && data.height && data.fps) values.mode = data.width + "x" + data.height + "@" + data.fps;
+        return values;
+      }
+
+      function currentMode() {
+        const match = /^(\d+)x(\d+)@(\d+)$/.exec(String(desired("mode") || ""));
+        return match
+          ? { width: Number(match[1]), height: Number(match[2]), fps: Number(match[3]) }
+          : { width: 1920, height: 1080, fps: 30 };
+      }
+
       function queue(key, value) {
         pending.set(key, String(value));
         clearTimeout(timer);
@@ -640,11 +709,16 @@ enum ControlPanelPage {
         if (inflight || pending.size === 0) return;
         inflight = true;
         const params = new URLSearchParams();
+        const sent = [...pending.keys()];
         for (const [key, value] of pending) params.set(key, value);
         pending.clear();
         try {
           const response = await fetch("/v1/controls?" + params.toString(), { method: "PUT", cache: "no-store" });
-          if (response.ok) applyState(await response.json());
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success === false) sent.forEach((key) => intents.delete(key));
+            ingest(data, controlKeys, true);
+          }
         } catch (_) {
         } finally {
           inflight = false;
@@ -663,13 +737,16 @@ enum ControlPanelPage {
         input.addEventListener("pointercancel", () => hold(key, false));
         input.addEventListener("input", () => {
           hold(key, true);
-          const value = read ? read(input.value) : input.value;
+          const value = Number(read ? read(input.value) : input.value);
+          intend(key, value);
           text(label, format(value));
           queue(key, value);
         });
         input.addEventListener("change", () => {
           hold(key, false);
-          const value = read ? read(input.value) : input.value;
+          const value = Number(read ? read(input.value) : input.value);
+          intend(key, value);
+          render();
           queue(key, value);
           flush();
         });
@@ -697,6 +774,8 @@ enum ControlPanelPage {
         group.addEventListener("click", (event) => {
           const button = event.target.closest("button");
           if (!button) return;
+          intend(key, button.dataset.value);
+          render();
           queue(key, button.dataset.value);
           flush();
         });
@@ -707,16 +786,19 @@ enum ControlPanelPage {
       document.getElementById("zoom-stops").addEventListener("click", (event) => {
         const button = event.target.closest("button");
         if (!button) return;
-        queue("zoom", button.dataset.stop);
+        const value = Number(button.dataset.stop);
+        intend("zoom", value);
+        render();
+        queue("zoom", value);
         flush();
       });
 
       function bindFlag(id, key) {
         const input = document.getElementById(id);
         input.addEventListener("change", () => {
-          input.parentElement.classList.toggle("on", input.checked);
+          intend(key, input.checked);
+          render();
           queue(key, input.checked ? "1" : "0");
-          showManual();
           flush();
         });
       }
@@ -728,59 +810,88 @@ enum ControlPanelPage {
 
       document.getElementById("resolution").addEventListener("click", (event) => {
         const button = event.target.closest("button");
-        if (!button) return;
-        putSession({ width: Number(button.dataset.width), height: Number(button.dataset.height), fps: session.fps });
+        if (!button || button.disabled) return;
+        putSession(Number(button.dataset.width), Number(button.dataset.height), currentMode().fps);
       });
       document.getElementById("fps").addEventListener("click", (event) => {
         const button = event.target.closest("button");
-        if (!button) return;
-        putSession({ width: session.width, height: session.height, fps: Number(button.dataset.fps) });
+        if (!button || button.disabled) return;
+        const mode = currentMode();
+        putSession(mode.width, mode.height, Number(button.dataset.fps));
       });
       document.getElementById("bitrate-presets").addEventListener("click", (event) => {
         const button = event.target.closest("button");
         if (!button) return;
-        queue("bitrateKbps", button.dataset.rate);
+        const value = Number(button.dataset.rate);
+        intend("bitrateKbps", value);
+        render();
+        queue("bitrateKbps", value);
         flush();
       });
 
-      function setRange(input, label, value, format, key) {
-        if (active.has(key) || pending.has(key)) return;
-        if (input._write) input.value = input._write(value);
-        else input.value = value;
-        text(label, (input._format || format)(value));
+      function setRange(input, key) {
+        const value = desired(key);
+        if (value === undefined) return;
+        if (!active.has(key)) {
+          const next = input._write ? input._write(value) : value;
+          if (!same(Number(input.value), Number(next))) input.value = next;
+        }
+        text(input._label, input._format(value));
       }
 
-      function mark(group, value) {
+      function markButtons(group, isOn) {
         for (const button of group.querySelectorAll("button")) {
-          const selected = button.dataset.value === value
-            || button.dataset.stop === String(value)
-            || (button.dataset.width && Number(button.dataset.width) === Number(value));
-          if (button.classList.contains("on") === selected) continue;
-          button.classList.toggle("on", selected);
+          const on = !!isOn(button);
+          if (button.classList.contains("on") !== on) button.classList.toggle("on", on);
+          if (button.getAttribute("aria-pressed") !== String(on)) button.setAttribute("aria-pressed", String(on));
         }
       }
 
-      function markMode() {
-        for (const button of document.getElementById("resolution").querySelectorAll("button")) {
-          const selected = Number(button.dataset.width) === session.width && Number(button.dataset.height) === session.height;
-          if (button.classList.contains("on") === selected) continue;
-          button.classList.toggle("on", selected);
-        }
-        for (const button of document.getElementById("fps").querySelectorAll("button")) {
-          const selected = Number(button.dataset.fps) === session.fps;
-          if (button.classList.contains("on") === selected) continue;
-          button.classList.toggle("on", selected);
-        }
-        updateSummaries();
-      }
-
-      function setFlag(id, checked, key) {
-        if (pending.has(key)) return;
+      function setFlag(id, key) {
+        const value = desired(key);
+        if (value === undefined) return;
         const input = document.getElementById(id);
-        const next = !!checked;
-        if (input.checked === next && input.parentElement.classList.contains("on") === next) return;
-        input.checked = next;
-        input.parentElement.classList.toggle("on", next);
+        const next = !!value;
+        if (input.checked !== next) input.checked = next;
+        if (input.parentElement.classList.contains("on") !== next) input.parentElement.classList.toggle("on", next);
+      }
+
+      function render() {
+        markButtons(document.getElementById("lens"), (button) => button.dataset.value === desired("lens"));
+        markButtons(document.getElementById("wb"), (button) => button.dataset.value === desired("whiteBalance"));
+        setRange(zoom, "zoom");
+        const zoomValue = desired("zoom");
+        markButtons(document.getElementById("zoom-stops"),
+          (button) => zoomValue !== undefined && Math.abs(Number(button.dataset.stop) - Number(zoomValue)) < 0.05);
+        setRange(ev, "exposureBias");
+        setRange(iso, "iso");
+        setRange(shutter, "shutter");
+        setRange(focus, "focus");
+        setRange(portraitStrength, "portraitStrength");
+        setFlag("torch", "torch");
+        setFlag("flip", "flip");
+        setFlag("manual-exposure", "manualExposure");
+        setFlag("manual-focus", "manualFocus");
+        setFlag("portrait", "portrait");
+        const rate = desired("bitrateKbps");
+        if (rate !== undefined) {
+          setRange(bitrate, "bitrateKbps");
+          const activeRate = confirmed.activeBitrateKbps !== undefined ? confirmed.activeBitrateKbps : rate;
+          text("bitrate-value", Math.round(Number(activeRate)) + " kbps");
+          markButtons(document.getElementById("bitrate-presets"),
+            (button) => Number(button.dataset.rate) === Math.round(Number(rate)));
+        }
+        const mode = currentMode();
+        const locked = !!confirmed.panelClient;
+        markButtons(document.getElementById("resolution"),
+          (button) => Number(button.dataset.width) === mode.width && Number(button.dataset.height) === mode.height);
+        markButtons(document.getElementById("fps"), (button) => Number(button.dataset.fps) === mode.fps);
+        for (const button of document.querySelectorAll("#resolution button, #fps button")) {
+          if (button.disabled !== locked) button.disabled = locked;
+        }
+        const note = document.getElementById("mode-note");
+        if (note && note.hidden === locked) note.hidden = !locked;
+        showManual();
       }
 
       function showManual() {
@@ -820,53 +931,32 @@ enum ControlPanelPage {
         text("focus-sum", focusManual ? document.getElementById("focus-value").textContent : "Auto");
         const portraitOn = document.getElementById("portrait").checked;
         text("portrait-sum", portraitOn ? document.getElementById("portrait-value").textContent : "Off");
-        const size = (session.height >= 1080 ? "1080p" : "720p") + session.fps;
+        const mode = currentMode();
+        const size = (mode.height >= 1080 ? "1080p" : "720p") + mode.fps;
         text("stream-sum", size + " · " + document.getElementById("bitrate-value").textContent);
       }
 
-      function applyState(data) {
-        mark(document.getElementById("lens"), data.lens);
-        mark(document.getElementById("wb"), data.whiteBalance);
-        setRange(zoom, "zoom-value", data.zoom, (value) => Number(value).toFixed(1) + "×", "zoom");
-        for (const button of document.getElementById("zoom-stops").querySelectorAll("button")) {
-          const selected = Math.abs(Number(button.dataset.stop) - Number(data.zoom)) < 0.05;
-          if (button.classList.contains("on") === selected) continue;
-          button.classList.toggle("on", selected);
+      async function putSession(width, height, fps) {
+        if (confirmed.panelClient) return;
+        intend("mode", width + "x" + height + "@" + fps);
+        render();
+        const issued = epoch;
+        const params = new URLSearchParams({ width: String(width), height: String(height), fps: String(fps) });
+        try {
+          const response = await fetch("/v1/session?" + params.toString(), { method: "PUT", cache: "no-store" });
+          if (!response.ok) return;
+          const data = await response.json();
+          if (data.success === false) intents.delete("mode");
+          if (issued === epoch) ingest(sessionValues(data), sessionKeys, true);
+        } catch (_) {
         }
-        setRange(ev, "ev-value", data.exposureBias, (value) => Number(value).toFixed(1), "exposureBias");
-        setRange(iso, "iso-value", data.iso, (value) => String(Math.round(Number(value))), "iso");
-        setRange(shutter, "shutter-value", data.shutter, shutterLabel, "shutter");
-        updateShutterWarn();
-        setRange(focus, "focus-value", data.focus, (value) => Number(value).toFixed(2), "focus");
-        setFlag("torch", data.torch, "torch");
-        setFlag("flip", data.flip, "flip");
-        setFlag("manual-exposure", data.manualExposure, "manualExposure");
-        setFlag("manual-focus", data.manualFocus, "manualFocus");
-        setFlag("portrait", data.portrait, "portrait");
-        setRange(portraitStrength, "portrait-value", data.portraitStrength, (value) => Math.round(Number(value) * 100) + "%", "portraitStrength");
-        if (data.bitrateKbps != null) {
-          const activeRate = data.activeBitrateKbps != null ? data.activeBitrateKbps : data.bitrateKbps;
-          text("bitrate-value", Math.round(Number(activeRate)) + " kbps");
-          setRange(bitrate, "bitrate-saved", data.bitrateKbps, (value) => Math.round(Number(value)) + " kbps", "bitrateKbps");
-          for (const button of document.getElementById("bitrate-presets").querySelectorAll("button")) {
-            const selected = Number(button.dataset.rate) === Math.round(Number(data.bitrateKbps));
-            if (button.classList.contains("on") === selected) continue;
-            button.classList.toggle("on", selected);
-          }
-        }
-        showManual();
       }
 
-      async function putSession(next) {
-        session = next;
-        markMode();
-        const params = new URLSearchParams({
-          width: String(next.width),
-          height: String(next.height),
-          fps: String(next.fps)
-        });
+      async function refreshControls() {
+        const started = epoch;
         try {
-          await fetch("/v1/session?" + params.toString(), { method: "PUT", cache: "no-store" });
+          const response = await fetch("/v1/controls", { cache: "no-store" });
+          if (response.ok && started === epoch) ingest(await response.json(), controlKeys, true);
         } catch (_) {
         }
       }
@@ -989,37 +1079,44 @@ enum ControlPanelPage {
       }
 
       async function poll() {
-        if (inflight || pending.size) return;
+        if (polling || inflight || pending.size) return;
+        polling = true;
+        const started = epoch;
+        const fresh = () => started === epoch && !inflight && pending.size === 0;
         try {
           const [controls, snapshot, catalog] = await Promise.all([
             fetch("/v1/controls", { cache: "no-store" }),
             fetch("/v1/session", { cache: "no-store" }),
             fetch("/v1/resolutions", { cache: "no-store" })
           ]);
-          if (controls.ok) applyState(await controls.json());
+          if (controls.ok) {
+            const data = await controls.json();
+            if (fresh()) ingest(data, controlKeys, false);
+          }
           if (snapshot.ok) {
             const data = await snapshot.json();
-            session.width = data.width || session.width;
-            session.height = data.height || session.height;
-            session.fps = data.fps || session.fps;
-            markMode();
+            if (fresh()) ingest(sessionValues(data), sessionKeys, false);
             const live = data.streaming || data.status === "streaming";
             const battery = data.battery != null ? data.battery + "%" : "";
-            const size = session.width + "×" + session.height + " @" + session.fps;
-            document.getElementById("status-line").textContent = [
+            const size = data.width && data.height ? data.width + "×" + data.height + " @" + data.fps : "";
+            text("status-line", [
               live ? "Streaming" : "Waiting for the computer",
               battery,
               size
-            ].filter(Boolean).join(" · ");
-            document.getElementById("hint-line").textContent = live
+            ].filter(Boolean).join(" · "));
+            text("hint-line", live
               ? (companion ? "Next frame updates this window and VCamdroid apps." : "Changes apply live")
-              : "The picture is opening.";
+              : "The picture is opening.");
           }
           if (catalog.ok) {
             const body = await catalog.text();
-            document.getElementById("fps-60").hidden = body.indexOf("@60fps") === -1;
+            const sixty = /"fps"\s*:\s*60\b|@60fps/.test(body);
+            const button = document.getElementById("fps-60");
+            if (button.hidden === sixty) button.hidden = !sixty;
           }
         } catch (_) {
+        } finally {
+          polling = false;
         }
       }
 
@@ -1118,13 +1215,18 @@ enum ControlPanelPage {
       }
 
       async function sendPreset(query) {
+        const applying = query.indexOf("apply=") === 0;
+        if (applying) {
+          intents.clear();
+          epoch += 1;
+        }
         const response = await fetch("/v1/presets?" + query, { method: "PUT", cache: "no-store" });
         if (!response.ok) return;
         const data = await response.json();
         presets = data.presets || [];
         if (query.indexOf("name=") === 0 && presets.length) presetChoice = presets[presets.length - 1].id;
         renderPresets();
-        poll();
+        if (applying) refreshControls();
       }
 
       document.getElementById("preset-save").addEventListener("click", () => {

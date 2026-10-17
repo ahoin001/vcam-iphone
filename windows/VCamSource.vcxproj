@@ -81,11 +81,13 @@
     <ClCompile Include="src\camera\FrameBus.cpp" />
     <ClCompile Include="src\source\dllmain.cpp" />
     <ClCompile Include="src\source\MediaSource.cpp" />
+    <ClCompile Include="src\source\SourceActivate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera\CameraIds.h" />
     <ClInclude Include="src\camera\FrameBus.h" />
     <ClInclude Include="src\source\MediaSource.h" />
+    <ClInclude Include="src\source\SourceActivate.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\source\VCamSource.def" />

@@ -13,13 +13,25 @@
 namespace vcam {
 
 long ObjectCount();
+void TrackObject(long delta);
+
+// The Windows camera frame server routes camera controls through IKsControl.
+// Declared here so the source does not pull in the DirectShow-era ksproxy.h.
+struct __declspec(uuid("28F54685-06FD-11D2-B27A-00A0C9223196")) KsControl : public IUnknown {
+    STDMETHOD(KsProperty)(void* property, ULONG propertyLength, void* data, ULONG dataLength, ULONG* bytesReturned) = 0;
+    STDMETHOD(KsMethod)(void* method, ULONG methodLength, void* data, ULONG dataLength, ULONG* bytesReturned) = 0;
+    STDMETHOD(KsEvent)(void* event, ULONG eventLength, void* data, ULONG dataLength, ULONG* bytesReturned) = 0;
+};
 
 class MediaStream;
 
-class MediaSource : public IMFMediaSource {
+class MediaSource : public IMFMediaSourceEx, public IMFGetService, public KsControl {
 public:
     MediaSource();
     virtual ~MediaSource();
+
+    // Copies the attributes the frame server set on the activator.
+    HRESULT Initialize(IMFAttributes* activateAttributes);
 
     STDMETHODIMP QueryInterface(REFIID riid, void** object) override;
     STDMETHODIMP_(ULONG) AddRef() override;
@@ -37,19 +49,30 @@ public:
     STDMETHODIMP Pause() override;
     STDMETHODIMP Shutdown() override;
 
+    STDMETHODIMP GetSourceAttributes(IMFAttributes** attributes) override;
+    STDMETHODIMP GetStreamAttributes(DWORD streamId, IMFAttributes** attributes) override;
+    STDMETHODIMP SetD3DManager(IUnknown* manager) override;
+
+    STDMETHODIMP GetService(REFGUID service, REFIID riid, LPVOID* object) override;
+
+    STDMETHODIMP KsProperty(void* property, ULONG propertyLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+    STDMETHODIMP KsMethod(void* method, ULONG methodLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+    STDMETHODIMP KsEvent(void* event, ULONG eventLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+
 private:
     HRESULT CreateDescriptor(IMFPresentationDescriptor** descriptor);
 
     long refCount_ = 1;
     std::mutex mutex_;
     IMFMediaEventQueue* queue_ = nullptr;
+    IMFAttributes* attributes_ = nullptr;
     MediaStream* stream_ = nullptr;
     bool started_ = false;
     bool shutdown_ = false;
     bool sentStream_ = false;
 };
 
-class MediaStream : public IMFMediaStream {
+class MediaStream : public IMFMediaStream2, public KsControl {
 public:
     explicit MediaStream(MediaSource* source);
     virtual ~MediaStream();
@@ -67,14 +90,23 @@ public:
     STDMETHODIMP GetStreamDescriptor(IMFStreamDescriptor** descriptor) override;
     STDMETHODIMP RequestSample(IUnknown* token) override;
 
+    STDMETHODIMP SetStreamState(MF_STREAM_STATE state) override;
+    STDMETHODIMP GetStreamState(MF_STREAM_STATE* state) override;
+
+    STDMETHODIMP KsProperty(void* property, ULONG propertyLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+    STDMETHODIMP KsMethod(void* method, ULONG methodLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+    STDMETHODIMP KsEvent(void* event, ULONG eventLength, void* data, ULONG dataLength, ULONG* bytesReturned) override;
+
     HRESULT Start(const PROPVARIANT* startPosition);
     HRESULT Stop();
+    void Shutdown();
     IMFStreamDescriptor* Descriptor() const { return descriptor_; }
 
 private:
     void Run();
     HRESULT Deliver(IUnknown* token);
     bool AttachBus();
+    void ClearRequests();
 
     long refCount_ = 1;
     std::mutex mutex_;
@@ -84,9 +116,8 @@ private:
     std::queue<IUnknown*> requests_;
     std::thread thread_;
     HANDLE wake_ = nullptr;
-    bool started_ = false;
+    MF_STREAM_STATE state_ = MF_STREAM_STATE_STOPPED;
     bool stop_ = false;
-    LONGLONG frameIndex_ = 0;
     FrameBus bus_;
 };
 
