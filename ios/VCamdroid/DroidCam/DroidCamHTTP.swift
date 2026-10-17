@@ -30,6 +30,15 @@ enum DroidCamHTTP {
         if line.hasPrefix("PUT /v1/controls") || line.hasPrefix("POST /v1/controls") {
             return .applyControls(controlUpdate(from: line))
         }
+        if line.hasPrefix("GET /v1/presets") {
+            return .presets
+        }
+        if line.hasPrefix("PUT /v1/presets") || line.hasPrefix("POST /v1/presets") {
+            if let command = presetCommand(from: line) {
+                return .presetCommand(command)
+            }
+            return .presets
+        }
         if line.hasPrefix("GET /panel") {
             return .panel
         }
@@ -204,6 +213,23 @@ enum DroidCamHTTP {
         default:
             nil
         }
+    }
+
+    private static func presetCommand(from line: String) -> PresetCommand? {
+        let query = queryItems(from: line)
+        if let id = query["delete"], !id.isEmpty {
+            return .delete(id)
+        }
+        if let id = query["apply"], !id.isEmpty {
+            return .apply(id)
+        }
+        if let id = query["rename"], !id.isEmpty, let name = ShotPresetStore.cleanedName(query["name"] ?? "") {
+            return .rename(id, name)
+        }
+        if let name = ShotPresetStore.cleanedName(query["name"] ?? "") {
+            return .save(name)
+        }
+        return nil
     }
 
     private static func tally(from line: String) -> TallyState {

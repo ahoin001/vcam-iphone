@@ -47,6 +47,15 @@ constexpr UINT kScanDoneMessage = WM_APP + 1;
 constexpr UINT kPollDoneMessage = WM_APP + 2;
 constexpr int kToolbarHeight = 60;
 constexpr int kPaneRadius = 14;
+constexpr int kSplitterHit = 10;
+constexpr int kMinPreview = 240;
+constexpr int kMinDesk = 280;
+constexpr double kDefaultSideRatio = 0.30;
+constexpr double kDefaultStackRatio = 0.55;
+constexpr double kMinDeskRatio = 0.18;
+constexpr double kMaxSideRatio = 0.55;
+constexpr double kMaxStackRatio = 0.75;
+constexpr size_t kMaxDeskLayoutBytes = 1024;
 constexpr int kWifiGraceScans = 3;
 constexpr int kConnectTimeoutMs = 800;
 
@@ -81,6 +90,7 @@ struct Listed {
     int port = 4747;
     std::wstring name;
     std::wstring detail;
+    std::string serial;
     int missed = 0;
 };
 
@@ -113,6 +123,7 @@ struct Check {
 HWND g_window = nullptr;
 HWND g_preview = nullptr;
 HWND g_deskHost = nullptr;
+HWND g_splitter = nullptr;
 HBRUSH g_background = nullptr;
 vcam::PreviewSurface g_previewSurface;
 
@@ -126,8 +137,11 @@ bool g_webViewErrorShown = false;
 bool g_mica = false;
 bool g_onTop = true;
 bool g_sheetOpen = false;
+bool g_guideOpen = false;
 
 std::vector<Listed> g_devices;
+std::string g_selectedKey;
+bool g_userClearedSelection = false;
 std::wstring g_usbError;
 std::wstring g_connectError;
 std::thread g_scanThread;
@@ -146,6 +160,15 @@ bool g_haveLastTarget = false;
 std::wstring g_address;
 std::wstring g_obsAddress = L"127.0.0.1:4747";
 StatusView g_status;
+double g_sideRatio = kDefaultSideRatio;
+double g_stackRatio = kDefaultStackRatio;
+std::wstring g_deskLayout;
+bool g_stacked = false;
+bool g_splitting = false;
+int g_splitOrigin = 0;
+double g_splitRatioOrigin = kDefaultSideRatio;
+int g_innerW = 0;
+int g_innerH = 0;
 
 int Scale(HWND window, int pixels) {
     const UINT dpi = GetDpiForWindow(window);
@@ -241,8 +264,144 @@ void SaveSetting(const wchar_t* file, const std::wstring& text) {
         return;
     }
     const std::string encoded = Narrow(text);
-    std::ofstream output(path.c_str(), std::ios::binary | std::ios::trunc);
-    output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
+    const std::wstring temp = path + L".tmp";
+    {
+        std::ofstream output(temp.c_str(), std::ios::binary | std::ios::trunc);
+        output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
+        if (!output) {
+            return;
+        }
+    }
+    // Replace in one step so a crash mid-write never leaves a half-written setting.
+    if (!MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        DeleteFileW(temp.c_str());
+    }
+}
+
+double& DeskRatio(bool stacked) {
+    return stacked ? g_stackRatio : g_sideRatio;
+}
+
+double ClampDeskRatio(double ratio, int inner, bool stacked) {
+    const double ceiling = stacked ? kMaxStackRatio : kMaxSideRatio;
+    ratio = (std::max)(kMinDeskRatio, (std::min)(ceiling, ratio));
+    const int minPreview = Scale(g_window, stacked ? 140 : kMinPreview);
+    const int minDesk = Scale(g_window, kMinDesk);
+    if (inner <= minPreview + minDesk) {
+        return ratio;
+    }
+    const double lo = (std::max)(kMinDeskRatio, static_cast<double>(minDesk) / inner);
+    const double hi = (std::min)(ceiling, 1.0 - static_cast<double>(minPreview) / inner);
+    if (lo >= hi) {
+        return (lo + hi) * 0.5;
+    }
+    return (std::max)(lo, (std::min)(hi, ratio));
+}
+
+double ParseRatio(const std::wstring& text, double fallback, double ceiling) {
+    wchar_t* end = nullptr;
+    const double value = wcstod(text.c_str(), &end);
+    if (end == text.c_str() || !(value > 0.0)) {
+        return fallback;
+    }
+    return (std::max)(kMinDeskRatio, (std::min)(ceiling, value));
+}
+
+void LoadDeskRatio() {
+    const std::wstring text = LoadSetting(L"panel-split.txt");
+    const auto space = text.find(L' ');
+    g_sideRatio = ParseRatio(text.substr(0, space), kDefaultSideRatio, kMaxSideRatio);
+    g_stackRatio = space == std::wstring::npos
+        ? kDefaultStackRatio
+        : ParseRatio(text.substr(space + 1), kDefaultStackRatio, kMaxStackRatio);
+}
+
+void PersistDeskRatio() {
+    wchar_t buffer[64] = {};
+    swprintf_s(buffer, L"%.3f %.3f", g_sideRatio, g_stackRatio);
+    SaveSetting(L"panel-split.txt", buffer);
+}
+
+void SaveWindowPlacement() {
+    if (!g_window) {
+        return;
+    }
+    WINDOWPLACEMENT placement{sizeof(placement)};
+    if (!GetWindowPlacement(g_window, &placement)) {
+        return;
+    }
+    const RECT& r = placement.rcNormalPosition;
+    if (r.right - r.left <= 0 || r.bottom - r.top <= 0) {
+        return;
+    }
+    const bool maximized = placement.showCmd == SW_SHOWMAXIMIZED
+        || (placement.showCmd == SW_SHOWMINIMIZED && (placement.flags & WPF_RESTORETOMAXIMIZED) != 0);
+    wchar_t buffer[96] = {};
+    swprintf_s(buffer, L"%ld %ld %ld %ld %d", r.left, r.top, r.right, r.bottom, maximized ? 1 : 0);
+    SaveSetting(L"panel-window.txt", buffer);
+}
+
+bool RestoreWindowPlacement(int show) {
+    const std::wstring text = LoadSetting(L"panel-window.txt");
+    long left = 0, top = 0, right = 0, bottom = 0;
+    int maximized = 0;
+    if (swscanf_s(text.c_str(), L"%ld %ld %ld %ld %d", &left, &top, &right, &bottom, &maximized) != 5) {
+        return false;
+    }
+    RECT bounds{left, top, right, bottom};
+    if (right - left < 200 || bottom - top < 150) {
+        return false;
+    }
+    // A monitor that was unplugged since last run would put the window off screen.
+    if (MonitorFromRect(&bounds, MONITOR_DEFAULTTONULL) == nullptr) {
+        return false;
+    }
+    WINDOWPLACEMENT placement{sizeof(placement)};
+    const bool launchedMinimized = show == SW_SHOWMINIMIZED || show == SW_MINIMIZE || show == SW_SHOWMINNOACTIVE;
+    placement.showCmd = launchedMinimized ? SW_SHOWMINNOACTIVE : (maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL);
+    if (maximized) {
+        placement.flags = WPF_RESTORETOMAXIMIZED;
+    }
+    placement.rcNormalPosition = bounds;
+    return SetWindowPlacement(g_window, &placement) != FALSE;
+}
+
+bool ValidDeskLayout(const std::wstring& text) {
+    if (text.empty() || text.size() > kMaxDeskLayoutBytes) {
+        return false;
+    }
+    for (const wchar_t c : text) {
+        const bool allowed = (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9')
+            || c == L'{' || c == L'}' || c == L'"' || c == L':' || c == L',' || c == L'.';
+        if (!allowed) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::wstring PercentEncode(const std::wstring& text) {
+    static const wchar_t* hex = L"0123456789ABCDEF";
+    std::wstring out;
+    for (const char c : Narrow(text)) {
+        const auto byte = static_cast<unsigned char>(c);
+        if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || byte == '.') {
+            out += static_cast<wchar_t>(byte);
+        } else {
+            out += L'%';
+            out += hex[byte >> 4];
+            out += hex[byte & 0xF];
+        }
+    }
+    return out;
+}
+
+// The layout rides in the fragment so it never reaches the phone and survives a new IP or USB/Wi-Fi switch.
+std::wstring DeskTarget() {
+    if (g_deskUrl.empty() || g_deskLayout.empty()) {
+        return g_deskUrl;
+    }
+    return g_deskUrl + L"#layout=" + PercentEncode(g_deskLayout);
 }
 
 bool ParseHostPort(const std::wstring& text, std::string& host, int& port) {
@@ -411,9 +570,15 @@ void CopyText(const std::wstring& text) {
     CloseClipboard();
 }
 
+constexpr wchar_t kPhoneCue[] =
+    L"On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front. The picture appears here once the phone starts sending it.";
+
 std::string DeviceKey(const Listed& device) {
     if (device.kind == Kind::Usb) {
-        return "usb:" + std::to_string(device.usbId);
+        if (!device.serial.empty()) {
+            return "usb:" + device.serial;
+        }
+        return "usb-id:" + std::to_string(device.usbId);
     }
     return "wifi:" + device.ipv4 + ":" + std::to_string(device.port);
 }
@@ -457,10 +622,10 @@ std::vector<Check> BuildChecks() {
     windows.title = L"Windows 11";
     if (setup.windows11) {
         windows.state = CheckState::Ready;
-        windows.detail = L"This PC can list a camera named VCamdroid.";
+        windows.detail = L"This PC is running Windows 11.";
     } else {
         windows.state = CheckState::Blocked;
-        windows.detail = L"VCamdroid appears in the camera list on Windows 11. The desk still connects, and OBS can use a DroidCam source.";
+        windows.detail = L"Other apps can select VCamdroid on Windows 11. This PC is older, so the camera stays out of the list. The desk still connects, and OBS can use a DroidCam source.";
     }
     checks.push_back(std::move(windows));
 
@@ -506,9 +671,7 @@ std::vector<Check> BuildChecks() {
         phone.state = CheckState::Blocked;
         phone.detail = L"The video connection closed. Click Connect to try again.";
     } else if (Connected()) {
-        phone.detail = g_usbConnected
-            ? L"USB is on. Unlock the iPhone and keep VCamdroid in front."
-            : L"Waiting for the phone. Keep VCamdroid in front.";
+        phone.detail = kPhoneCue;
     } else {
         phone.detail = L"Pick your iPhone, then Connect.";
     }
@@ -535,7 +698,10 @@ std::string BuildState() {
     AppendJsonBool(json, "mica", g_mica);
     AppendJsonBool(json, "onTop", g_onTop);
     AppendJsonBool(json, "sheet", g_sheetOpen);
+    AppendJsonBool(json, "guide", g_guideOpen);
     AppendJsonBool(json, "scanning", g_scanning.load());
+    json += ",\"selected\":";
+    AppendJsonString(json, Wide(g_selectedKey));
     json += ",\"address\":";
     AppendJsonString(json, g_address);
     json += ",\"obs\":";
@@ -605,6 +771,9 @@ void SetStatus(Tone tone, std::wstring title, std::wstring detail, std::vector<s
     g_status.title = std::move(title);
     g_status.detail = std::move(detail);
     g_status.chips = std::move(chips);
+    if (tone != Tone::Live && !g_status.detail.empty()) {
+        g_previewSurface.SetPlaceholder(g_status.detail);
+    }
     PushState();
 }
 
@@ -673,7 +842,7 @@ void Layout() {
     const int width = client.right - client.left;
     const int height = client.bottom - client.top;
     const int bar = (std::min)(Scale(g_window, kToolbarHeight), height);
-    const bool session = Connected() && !g_sheetOpen;
+    const bool session = Connected() && !g_sheetOpen && !g_guideOpen;
 
     if (g_shellController) {
         RECT shell = client;
@@ -689,12 +858,16 @@ void Layout() {
     const int innerW = content.right - content.left;
     const int innerH = content.bottom - content.top;
     if (!session || innerW <= 0 || innerH <= 0) {
-        if (g_preview && IsWindowVisible(g_preview)) {
-            ShowWindow(g_preview, SW_HIDE);
-        }
-        if (g_deskHost && IsWindowVisible(g_deskHost)) {
-            ShowWindow(g_deskHost, SW_HIDE);
-        }
+        auto hide = [](HWND pane) {
+            if (pane == nullptr) {
+                return;
+            }
+            ShowWindow(pane, SW_HIDE);
+            MoveWindow(pane, 0, 0, 0, 0, FALSE);
+        };
+        hide(g_preview);
+        hide(g_splitter);
+        hide(g_deskHost);
         if (g_deskController) {
             g_deskController->put_IsVisible(FALSE);
         }
@@ -703,18 +876,35 @@ void Layout() {
 
     RECT preview = content;
     RECT desk = content;
-    if (width >= Scale(g_window, 900)) {
-        const int deskW = (std::min)(Scale(g_window, 400), innerW / 2);
-        preview.right = content.right - deskW - margin;
-        desk.left = preview.right + margin;
+    RECT split = content;
+    g_stacked = width < Scale(g_window, 900);
+    g_innerW = innerW;
+    g_innerH = innerH;
+    const int hit = Scale(g_window, kSplitterHit);
+    // Clamp only for this frame so a small window does not overwrite the saved preference.
+    const double ratio = ClampDeskRatio(DeskRatio(g_stacked), g_stacked ? innerH : innerW, g_stacked);
+    if (!g_stacked) {
+        const int deskW = (std::max)(1, static_cast<int>(innerW * ratio));
+        preview.right = content.right - deskW - hit;
+        split.left = preview.right;
+        split.right = preview.right + hit;
+        desk.left = split.right;
     } else {
-        int previewH = (std::max)(innerH * 42 / 100, Scale(g_window, 140));
-        previewH = (std::min)(previewH, (std::max)(Scale(g_window, 80), innerH - Scale(g_window, 200)));
-        preview.bottom = content.top + previewH;
-        desk.top = preview.bottom + margin;
+        const int deskH = (std::max)(1, static_cast<int>(innerH * ratio));
+        preview.bottom = content.bottom - deskH - hit;
+        split.top = preview.bottom;
+        split.bottom = preview.bottom + hit;
+        desk.top = split.bottom;
     }
     if (g_preview) {
         PlacePane(g_preview, preview);
+    }
+    if (g_splitter) {
+        MoveWindow(g_splitter, split.left, split.top, split.right - split.left, split.bottom - split.top, TRUE);
+        if (!IsWindowVisible(g_splitter)) {
+            ShowWindow(g_splitter, SW_SHOWNA);
+        }
+        InvalidateRect(g_splitter, nullptr, TRUE);
     }
     if (g_deskHost) {
         PlacePane(g_deskHost, desk);
@@ -730,7 +920,7 @@ void NavigateDesk(const std::wstring& url) {
     g_deskUrl = url;
     KillTimer(g_window, kDeskRetryTimer);
     if (g_desk) {
-        g_desk->Navigate(url.c_str());
+        g_desk->Navigate(DeskTarget().c_str());
     }
 }
 
@@ -749,6 +939,7 @@ void StartScan() {
             Listed row;
             row.kind = Kind::Usb;
             row.usbId = device.id;
+            row.serial = device.serial;
             row.name = device.name.empty() ? L"iPhone" : Wide(device.name);
             const std::string suffix = device.serial.size() > 4 ? device.serial.substr(device.serial.size() - 4) : device.serial;
             row.detail = suffix.empty() ? L"USB" : L"USB \u00b7 \u2026" + Wide(suffix);
@@ -835,9 +1026,7 @@ void ConnectTo(const Listed& target) {
     SetStatus(
         Tone::Busy,
         g_usbConnected ? L"Connected over USB" : L"Connected over Wi-Fi",
-        vcam::Pipeline::Shared().Available() || warning.empty()
-            ? L"Opening the picture. Choose VCamdroid as the camera in your app."
-            : warning,
+        vcam::Pipeline::Shared().Available() || warning.empty() ? std::wstring(kPhoneCue) : warning,
         SessionChips(-1, 0, 0, 0));
     SetTimer(g_window, kStatusTimer, kStatusIntervalMs, nullptr);
     StartPoll();
@@ -920,6 +1109,7 @@ void Disconnect() {
     g_connectError.clear();
     g_deskUrl.clear();
     g_sheetOpen = false;
+    g_guideOpen = false;
     if (g_desk) {
         g_desk->Navigate(L"about:blank");
     }
@@ -953,6 +1143,28 @@ void ApplyScan(std::unique_ptr<ScanResult> result) {
     }
     g_devices = std::move(merged);
     g_usbError = std::move(result->usbError);
+    if (FindDevice(g_selectedKey) == nullptr) {
+        const bool lost = !g_selectedKey.empty();
+        g_selectedKey.clear();
+        if (lost) {
+            g_userClearedSelection = false;
+        }
+        if (!g_userClearedSelection) {
+            const Listed* onlyUsb = nullptr;
+            int usbCount = 0;
+            for (const Listed& device : g_devices) {
+                if (device.kind == Kind::Usb) {
+                    onlyUsb = &device;
+                    ++usbCount;
+                }
+            }
+            if (usbCount == 1) {
+                g_selectedKey = DeviceKey(*onlyUsb);
+            } else if (g_devices.size() == 1) {
+                g_selectedKey = DeviceKey(g_devices.front());
+            }
+        }
+    }
 
     if (Connected()) {
         PushState();
@@ -985,11 +1197,7 @@ void ApplySession(const SessionPoll& poll) {
         return;
     }
     if (!poll.ok) {
-        SetStatus(Tone::Busy, L"Waiting for the phone",
-            g_usbConnected
-                ? L"USB is on. Unlock the iPhone and keep VCamdroid in front."
-                : L"Keep VCamdroid open on the studio screen, on the same Wi-Fi as this PC.",
-            SessionChips(-1, 0, 0, 0));
+        SetStatus(Tone::Busy, L"Waiting for the iPhone", kPhoneCue, SessionChips(-1, 0, 0, 0));
         return;
     }
     const int battery = JsonInt(poll.body, "battery", -1);
@@ -1016,7 +1224,7 @@ void ApplySession(const SessionPoll& poll) {
     } else if (link == vcam::LinkState::Live) {
         detail = L"Choose VCamdroid as the camera in NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord.";
     } else {
-        detail = L"Keep VCamdroid open on the studio screen.";
+        detail = kPhoneCue;
     }
     SetStatus(tone, std::move(title), std::move(detail), SessionChips(battery, width, height, fps));
 }
@@ -1030,6 +1238,18 @@ void SetOnTop(bool onTop) {
 
 void SetSheet(bool open) {
     g_sheetOpen = open;
+    if (open) {
+        g_guideOpen = false;
+    }
+    Layout();
+    PushState();
+}
+
+void SetGuide(bool open) {
+    g_guideOpen = open;
+    if (open) {
+        g_sheetOpen = false;
+    }
     Layout();
     PushState();
 }
@@ -1044,8 +1264,25 @@ void HandleShellMessage(const std::string& json) {
         g_connectError.clear();
         StartScan();
         ShowIdleStatus();
+    } else if (type == "select") {
+        const std::string key = JsonString(json, "key");
+        if (key.empty() || FindDevice(key) == nullptr) {
+            g_selectedKey.clear();
+            g_userClearedSelection = true;
+        } else {
+            g_selectedKey = key;
+            g_userClearedSelection = false;
+        }
+        PushState();
     } else if (type == "connect") {
-        ConnectFromShell(JsonString(json, "key"), Wide(JsonString(json, "address")));
+        const std::string key = JsonString(json, "key");
+        if (key.empty()) {
+            g_selectedKey.clear();
+        } else if (FindDevice(key) != nullptr) {
+            g_selectedKey = key;
+            g_userClearedSelection = false;
+        }
+        ConnectFromShell(g_selectedKey, Wide(JsonString(json, "address")));
     } else if (type == "reconnect") {
         if (g_haveLastTarget) {
             ConnectTo(g_lastTarget);
@@ -1058,6 +1295,8 @@ void HandleShellMessage(const std::string& json) {
         SetOnTop(JsonBool(json, "value"));
     } else if (type == "sheet") {
         SetSheet(JsonBool(json, "open"));
+    } else if (type == "guide") {
+        SetGuide(JsonBool(json, "open"));
     }
 }
 
@@ -1123,7 +1362,9 @@ std::wstring ShellHtml() {
     html += panel_shell::kHead;
     html += panel_shell::kStyleBase;
     html += panel_shell::kStyleViews;
+    html += panel_shell::kGuideStyle;
     html += panel_shell::kBody;
+    html += panel_shell::kGuideBody;
     html += panel_shell::kScript;
     return Wide(html);
 }
@@ -1222,9 +1463,33 @@ void CreateDesk(ICoreWebView2Environment* environment) {
                     ).Get(),
                     &token
                 );
+                g_desk->add_WebMessageReceived(
+                    Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                        [](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                            LPWSTR text = nullptr;
+                            if (FAILED(args->TryGetWebMessageAsString(&text)) || text == nullptr) {
+                                return S_OK;
+                            }
+                            const std::wstring message = text;
+                            CoTaskMemFree(text);
+                            constexpr wchar_t kPrefix[] = L"desk-layout:";
+                            if (message.rfind(kPrefix, 0) != 0) {
+                                return S_OK;
+                            }
+                            const std::wstring layout = message.substr(wcslen(kPrefix));
+                            if (!ValidDeskLayout(layout) || layout == g_deskLayout) {
+                                return S_OK;
+                            }
+                            g_deskLayout = layout;
+                            SaveSetting(L"desk-layout.json", layout);
+                            return S_OK;
+                        }
+                    ).Get(),
+                    &token
+                );
                 Layout();
                 if (Connected() && !g_deskUrl.empty()) {
-                    g_desk->Navigate(g_deskUrl.c_str());
+                    g_desk->Navigate(DeskTarget().c_str());
                 }
                 return S_OK;
             }
@@ -1253,6 +1518,85 @@ void StartWebView() {
     if (FAILED(requested)) {
         ShowWebViewError();
     }
+}
+
+LRESULT CALLBACK SplitterProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+    case WM_SETCURSOR:
+        SetCursor(LoadCursorW(nullptr, g_stacked ? IDC_SIZENS : IDC_SIZEWE));
+        return TRUE;
+    case WM_LBUTTONDOWN: {
+        POINT cursor{};
+        GetCursorPos(&cursor);
+        g_splitting = true;
+        g_splitOrigin = g_stacked ? cursor.y : cursor.x;
+        g_splitRatioOrigin = ClampDeskRatio(DeskRatio(g_stacked), g_stacked ? g_innerH : g_innerW, g_stacked);
+        SetCapture(window);
+        return 0;
+    }
+    case WM_MOUSEMOVE:
+        if (!g_splitting || (wparam & MK_LBUTTON) == 0) {
+            return 0;
+        }
+        {
+            POINT cursor{};
+            GetCursorPos(&cursor);
+            const int inner = g_stacked ? g_innerH : g_innerW;
+            if (inner > 0) {
+                const int delta = g_stacked ? (cursor.y - g_splitOrigin) : (cursor.x - g_splitOrigin);
+                DeskRatio(g_stacked) = ClampDeskRatio(g_splitRatioOrigin - static_cast<double>(delta) / inner, inner, g_stacked);
+                Layout();
+            }
+        }
+        return 0;
+    case WM_LBUTTONUP:
+    case WM_CAPTURECHANGED:
+        if (g_splitting) {
+            g_splitting = false;
+            if (GetCapture() == window) {
+                ReleaseCapture();
+            }
+            PersistDeskRatio();
+        }
+        return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        HDC dc = BeginPaint(window, &paint);
+        RECT client{};
+        GetClientRect(window, &client);
+        FillRect(dc, &client, g_background);
+        const int midX = (client.left + client.right) / 2;
+        const int midY = (client.top + client.bottom) / 2;
+        const int thick = (std::max)(2, Scale(g_window, 3));
+        const int length = Scale(g_window, 28);
+        RECT handle{};
+        if (g_stacked) {
+            handle = {midX - length / 2, midY - thick / 2, midX + length / 2, midY + (thick + 1) / 2};
+        } else {
+            handle = {midX - thick / 2, midY - length / 2, midX + (thick + 1) / 2, midY + length / 2};
+        }
+        HBRUSH brush = CreateSolidBrush(g_splitting ? RGB(217, 160, 74) : RGB(92, 96, 102));
+        FillRect(dc, &handle, brush);
+        DeleteObject(brush);
+        EndPaint(window, &paint);
+        return 0;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    default:
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
+}
+
+HWND CreateSplitter(HWND parent, HINSTANCE instance) {
+    WNDCLASSW windowClass{};
+    windowClass.lpfnWndProc = SplitterProc;
+    windowClass.hInstance = instance;
+    windowClass.hCursor = LoadCursorW(nullptr, IDC_SIZEWE);
+    windowClass.lpszClassName = L"VCamdroidSplitter";
+    RegisterClassW(&windowClass);
+    return CreateWindowExW(0, windowClass.lpszClassName, L"", WS_CHILD | WS_CLIPSIBLINGS,
+        0, 0, 0, 0, parent, nullptr, instance, nullptr);
 }
 
 LRESULT CALLBACK DeskHostProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -1290,6 +1634,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_CREATE: {
         const auto* created = reinterpret_cast<CREATESTRUCTW*>(lparam);
         g_preview = g_previewSurface.Create(window);
+        g_splitter = CreateSplitter(window, created->hInstance);
         g_deskHost = CreateDeskHost(window, created->hInstance);
         return 0;
     }
@@ -1310,7 +1655,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         } else if (wparam == kDeskRetryTimer) {
             KillTimer(window, kDeskRetryTimer);
             if (Connected() && g_desk && !g_deskUrl.empty()) {
-                g_desk->Navigate(g_deskUrl.c_str());
+                g_desk->Navigate(DeskTarget().c_str());
             }
         }
         return 0;
@@ -1336,6 +1681,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_MOVE:
         NotifyMoved();
         return 0;
+    case WM_EXITSIZEMOVE:
+        SaveWindowPlacement();
+        return 0;
     case WM_SETFOCUS:
         if (g_shellController) {
             g_shellController->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
@@ -1356,6 +1704,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         return 0;
     }
     case WM_DESTROY:
+        SaveWindowPlacement();
         KillTimer(window, kStatusTimer);
         KillTimer(window, kScanTimer);
         KillTimer(window, kDeskRetryTimer);
@@ -1391,6 +1740,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     g_background = CreateSolidBrush(kBg);
     g_address = LoadSetting(L"panel-address.txt");
     g_onTop = LoadSetting(L"panel-on-top.txt") != L"0";
+    LoadDeskRatio();
+    g_deskLayout = LoadSetting(L"desk-layout.json");
+    if (!ValidDeskLayout(g_deskLayout)) {
+        g_deskLayout.clear();
+    }
 
     WNDCLASSW windowClass{};
     windowClass.lpfnWndProc = WindowProc;
@@ -1414,7 +1768,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         nullptr
     );
     g_mica = ApplyWindowMaterial(g_window);
-    ShowWindow(g_window, show);
+    if (!RestoreWindowPlacement(show)) {
+        ShowWindow(g_window, show);
+    }
     UpdateWindow(g_window);
     StartWebView();
     vcam::Pipeline::Shared().Prepare();

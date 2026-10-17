@@ -4,7 +4,7 @@ Use an iPhone as a Windows camera named **VCamdroid**. NVIDIA Broadcast, OBS, Zo
 
 The phone app is named **VCamdroid**. It previews the shot, encodes H.264, and listens on port **4747**. The Windows program is **VCamPanel**. It connects over Wi-Fi or USB, decodes the picture once, and publishes the camera. Leave VCamPanel running while you use the picture. Shot controls (zoom, exposure, white balance, focus, torch, flip, portrait) live in that same window. OBS is optional.
 
-Windows 11 is required for **VCamdroid** to appear in the camera list. On Windows 10, VCamPanel still finds the phone and opens the desk, and its **This PC** card says the camera list needs Windows 11. The optional DroidCam OBS source is the picture path on Windows 10.
+Windows 11 is required for **VCamdroid** to appear in the camera list. On Windows 10, VCamPanel still finds the phone and opens the desk, and its **This PC** card says this PC is older than Windows 11, so other apps cannot select VCamdroid. The optional DroidCam OBS source is the picture path on Windows 10.
 
 Do the sections in order. Each one ends with a check so you know it worked before you continue.
 
@@ -79,9 +79,9 @@ Do this on the Windows PC.
 1. From this repo’s **[latest release](https://github.com/ahoin001/vcam-iphone/releases/latest)**, download **[VCamdroid-Windows-x64.zip](https://github.com/ahoin001/vcam-iphone/releases/latest/download/VCamdroid-Windows-x64.zip)**. Unzip it somewhere you will keep, such as `Documents\VCamdroid`.
 2. Confirm `VCamPanel.exe` and `VCamSource.dll` are in that folder. The camera does not register if the DLL is somewhere else.
 3. Run `VCamPanel.exe`. The window stays on top. The pin button at the top right turns that off. The first launch registers the **VCamdroid** camera for your Windows user. That does not need an administrator install, and the camera remains after a reboot.
-4. Read the **This PC** card at the top left. If it says the camera list needs Windows 11, this PC cannot publish VCamdroid. The desk still works. Use section 7 for the picture.
+4. Read the **This PC** card at the top left. If it says this PC is older than Windows 11, this PC cannot publish VCamdroid. The desk still works. Use section 7 for the picture. A checked **Windows 11** row with a blocked **Camera listed as VCamdroid** row means Windows 11 is installed and the camera registration failed. That row includes the Windows error code.
 
-**Check:** VCamPanel shows **Connect your iPhone**. On Windows 11 the card says **This PC is ready**. On Windows 10 it says the camera list needs Windows 11.
+**Check:** VCamPanel shows **Connect your iPhone**. On Windows 11 the card says **This PC is ready** once the camera is listed. On Windows 10 it says this PC is older than Windows 11.
 
 To build the companion yourself instead of downloading it, open `windows/VCamdroid.sln` in Visual Studio 2022 (**Desktop development with C++**), set **Release | x64**, and build **VCamSource** and **VCamPanel**. Copy `VCamSource.dll` next to `VCamPanel.exe`.
 
@@ -100,7 +100,7 @@ Use this when the phone and the PC are on the same Wi-Fi and you do not want the
    - The number after the colon is the port. The default is **4747**.
 8. On the PC, in **VCamPanel**, the phone appears under **Phones** within a few seconds. Click **Refresh** to look again right away. Pick the Wi-Fi phone, or type the IP from the phone under **Wi-Fi address**, then click **Connect**.
 
-**Check:** On Windows 11, the phone changes from **Waiting for the computer** to **Streaming**, the badge reads **Wi-Fi**, and the VCamPanel toolbar says **Streaming over Wi-Fi** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says the camera list needs Windows 11.
+**Check:** On Windows 11, the phone changes from **Waiting for the computer** to **Streaming**, the badge reads **Wi-Fi**, and the VCamPanel toolbar says **Streaming over Wi-Fi** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says this PC is older than Windows 11.
 
 Keep the phone on that studio screen. The side button and the app switcher stop the camera.
 
@@ -112,10 +112,10 @@ Use this when you want the cable instead of Wi-Fi. VCamPanel finds the iPhone an
 2. Run `VCamPanel.exe` from the folder in section 2 if it is not already open.
 3. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer** if it asks.
 4. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The status can say **Waiting for the computer**.
-5. **VCamPanel** connects to a USB iPhone by itself when it starts, and again when you plug one in. If it does not, click **Refresh**, select the phone marked **USB** under **Phones**, and click **Connect**. When USB cannot connect, the toolbar says **Couldn’t connect** and names the usual cause: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or VCamdroid is not in front.
+5. **VCamPanel** shows one **USB** row per iPhone. It connects to that phone by itself when it starts, and again when you plug one in. If more than one phone is listed, click the one you want, then **Connect**. A second copy of the same phone is not listed. If it does not connect, click **Refresh**, select the **USB** phone, and click **Connect**. When USB cannot connect, the toolbar says **Couldn’t connect** and names the usual cause: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or VCamdroid is not in front.
 6. Leave the companion open while you use the camera.
 
-**Check:** On Windows 11, the phone says **Streaming**, the badge reads **USB**, and the VCamPanel toolbar says **Streaming over USB** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says the camera list needs Windows 11.
+**Check:** On Windows 11, the phone says **Streaming**, the badge reads **USB**, and the VCamPanel toolbar says **Streaming over USB** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says this PC is older than Windows 11.
 
 If you changed **Port** in the phone’s Settings, type that port in the companion’s **Wi-Fi address** field (for example `127.0.0.1:4748`), then select the USB phone again and click **Connect**.
 
@@ -133,7 +133,7 @@ Finish section 3 or section 4 first. VCamPanel has to stay running. The phone st
    - **Microsoft Teams:** Settings → Devices → Camera → **VCamdroid**.
    - **Google Meet:** in the meeting, open the camera menu (the arrow next to the camera button) and choose **VCamdroid**. You can also set it under Settings → Video before you join.
    - **Discord:** User Settings → Voice & Video → Camera → **VCamdroid**.
-3. If the camera is missing, click **Setup** in the VCamPanel toolbar, or read the **This PC** card before you connect. A missing `VCamSource.dll`, or Windows 10, is the usual cause. The card opens by itself while something is missing and folds to **This PC is ready** once Windows 11, the DLL, and the camera name are in place. Click it to show or hide the list. **Setup** also shows whether the picture is live.
+3. If the camera is missing, click **Setup** in the VCamPanel toolbar, or read the **This PC** card before you connect. A missing `VCamSource.dll`, or Windows 10, is the usual cause. The card opens by itself while something is missing and folds to **This PC is ready** once Windows 11, the DLL, and the camera name are in place. Click it to show or hide the list. **Setup** also shows whether the picture is live. **Guide**, next to Setup, is the lighting and camera-settings reference.
 
 For a clean background, leave **Portrait** off on the phone. Do the cut on the PC: in **NVIDIA Broadcast**, set Camera to **VCamdroid**, then pick NVIDIA Broadcast in OBS or the meeting app. In **OBS**, add the **VCamdroid** Video Capture Device, then add a Background Removal (or similar) filter on that source. Phone Portrait is a light blur if you need it without those apps, and it warms the iPhone. Do not run phone Portrait and a PC background filter together, or the edges stack.
 
@@ -145,19 +145,25 @@ Closing VCamPanel, or leaving the phone app, stops the live picture. The camera 
 
 After Connect, VCamPanel shows the camera desk under its toolbar. Finish section 3 or section 4 first, then leave `VCamPanel.exe` connected. The toolbar keeps the connection, the phone’s battery, and the resolution in view.
 
-On a wide window the preview fills the left side and the shot controls sit on the right. A narrow window stacks the preview above the controls. That preview is the same picture NVIDIA Broadcast, OBS, and the other apps receive: VCamPanel decodes the phone once and shows those frames at the stream rate. Moving a control updates the next frame here and in those apps.
+On a wide window the preview fills the left side and the shot controls sit on the right. Drag the thin grabber between them to grow the picture or the desk. A narrow window stacks the preview above the controls; the same grabber then resizes the split up and down. That preview is the same picture NVIDIA Broadcast, OBS, and the other apps receive: VCamPanel decodes the phone once and shows those frames at the stream rate. Moving a control updates the next frame here and in those apps.
 
-An OBS browser dock of `/panel` is different. It has no companion preview, so **Show preview** there is a lighter glance from the phone. Leave it off if the phone is warming up. The app you selected in section 5, and the preview inside VCamPanel, are the live picture.
+An OBS browser dock of `/panel` is different. It has no companion preview, so **Show preview** there is a lighter glance from the phone. Leave it off if the phone is warming up. On a wide dock, drag the grabber beside the preview to resize the inspector. The dock remembers that width and the open sections for the address it was opened with. A new phone IP starts the dock at its defaults. The app you selected in section 5, and the preview inside VCamPanel, are the live picture.
 
-The desk matches the phone: front or back camera, zoom stops 1× / 2× / 3× / 5× / 10× and a 1.0×–10.0× slider, torch, flip, then one tool at a time for exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Moving a control on the computer moves it on the phone. Moving it on the phone updates the desk.
+The desk is an inspector: each section shows its current value on the closed row, so you can skim without scrolling. Lens and Exposure start open. White balance, focus, portrait, and stream stay folded until you need them. Open or close a section and it stays that way. Each tool is a name, its current value, and one line. **?** opens a short note. Exposure’s note is about shutter and ISO together: lock shutter at double the frame rate (1/60 at 30 fps), then raise ISO only if the face is still dark. The desk matches the phone: front or back camera, zoom stops 1× / 2× / 3× / 5× / 10× and a 1.0×–10.0× slider, torch, flip, exposure (auto EV, or manual ISO and shutter), white balance, focus, and portrait. Moving a control on the computer moves it on the phone. Moving it on the phone updates the desk.
 
-The Portrait tool on the desk says to leave Portrait off for meetings. NVIDIA Broadcast or OBS Background Removal on **VCamdroid** is the cleaner cut. Use the iPhone blur only when you do not have those PC tools.
+**Guide** in the VCamPanel toolbar, next to **Setup**, opens the longer reference: lighting, exposure, color, and starting points for different rooms. The same **Guide** button on the desk opens it beside the picture, including in an OBS browser dock.
+
+**Presets** at the top of the desk saves the current look on the iPhone. Use one for morning window light and another for evening lamps. Choosing a preset applies lens, zoom, exposure, white balance, focus, torch, flip, and portrait. **Delete** removes the selected one.
+
+Leave Portrait off for meetings. NVIDIA Broadcast or OBS Background Removal on **VCamdroid** is the cleaner cut. Use the iPhone blur only when you do not have those PC tools.
 
 The stream heading shows the rate actually in use. While VCamPanel is the video client, that is 1080p30 at **12 Mbps** on Wi-Fi and **30 Mbps** on USB. The bitrate slider under it stays on the saved rate for the optional OBS source in section 7 (2500–16000 kbps). Moving that slider does not change the VCamdroid picture.
 
 **On Windows:**
 
-1. Run `VCamPanel.exe` if it is not already open. Before Connect, the window shows **Connect your iPhone** with the phones it found, and the **This PC** card for anything still missing. After Connect, the live preview opens beside the controls, or above them in a narrow window.
+1. Run `VCamPanel.exe` if it is not already open. Before Connect, the window shows **Connect your iPhone** with the phones it found, and the **This PC** card for anything still missing. After Connect, the live preview opens beside the controls, or above them in a narrow window. Drag the grabber between preview and desk to resize the split. The window itself also resizes from any edge.
+
+VCamPanel remembers your layout between launches: window size and position (and whether it was maximized), the split for wide and for stacked windows separately, which desk sections are open, the pin, and the last phone address. That survives a new phone IP and switching between USB and Wi-Fi. The files live in `%APPDATA%\VCamdroid`. Close VCamPanel and delete the `panel-window.txt`, `panel-split.txt`, and `desk-layout.json` files there to return to the default layout. If a saved window position is on a monitor that is no longer connected, VCamPanel opens on the main screen instead.
 2. Pick the USB iPhone or a Wi-Fi phone under **Phones**, then click **Connect**. If Wi-Fi discovery misses it, type the IP from the phone under **Wi-Fi address** and click **Connect**.
 3. The window stays on top while you shoot. The pin button in the toolbar turns that off and on. **Copy** next to the OBS address in the toolbar puts that address on the clipboard.
 
@@ -168,7 +174,7 @@ The stream heading shows the rate actually in use. While VCamPanel is the video 
 3. Set the URL to `http://` plus the address from the companion or the phone, plus `/panel`. USB: `http://127.0.0.1:4747/panel`. Wi-Fi example: `http://192.168.1.20:4747/panel`.
 4. Click **Apply**. Leave the dock open while you shoot.
 
-**Check:** moving Zoom in the companion changes the picture in the app that selected **VCamdroid**, and the zoom control on the phone moves with it.
+**Check:** moving Zoom in the companion changes the picture in the app that selected **VCamdroid**, and the zoom control on the phone moves with it. Saving a preset and choosing it again restores that look.
 
 ## 7. Optional: a DroidCam OBS source
 
@@ -223,4 +229,4 @@ For a long session, keep the phone plugged in, leave Low Power Mode off, and use
 - **Camera access is off** means the iPhone blocked the camera. Turn it on in **Settings → Privacy & Security → Camera → VCamdroid**.
 - Before Connect, **VCamPanel** should show **Connect your iPhone**. If the window stays empty, the WebView2 Runtime is missing, and VCamPanel shows a message that says so. Install it, then reopen the companion.
 - After Connect, the desk column says **Opening the camera desk** until it can load the phone’s `/panel` page. It retries by itself. Keep the phone on the studio screen, and check the Wi-Fi notes above if it never opens.
-- The VCamPanel preview stays dark, with “Waiting for a frame from the iPhone.”, until the phone is on the studio screen and sending frames. That preview matches the camera. In an OBS browser dock, **Show preview** is a lighter glance and can stay off; the app that selected **VCamdroid** still shows the picture.
+- After Connect, the preview and the toolbar tell you to open **VCamdroid** on the iPhone and tap **OBS Studio**. The picture replaces that message once frames arrive. That preview matches the camera. In an OBS browser dock, **Show preview** is a lighter glance and can stay off; the app that selected **VCamdroid** still shows the picture.

@@ -38,6 +38,7 @@ final class StudioSession {
     private var encoderActive = false
     private var panelStream = false
     private var activeBitrateKbps: Int
+    private var presets: [ShotPreset] = ShotPresetStore.load()
     private var pausedForBackground = false
     private var listenFailed = false
     private var lastCurtainArm = Date.distantPast
@@ -109,6 +110,8 @@ final class StudioSession {
             onUpdate: { update in await self.apply(update: update) },
             controls: { await self.currentControls() },
             onControls: { update in await self.apply(controls: update) },
+            presets: { await self.presetListJSON() },
+            onPreset: { command in await self.perform(command) },
             onTally: { tally in await self.setTally(tally) },
             onClient: { address, usb in await self.setClient(address, usb: usb) },
             onListenFailed: { await self.noteListenFailed() }
@@ -344,6 +347,31 @@ final class StudioSession {
             }
         }
         return true
+    }
+
+    func presetListJSON() -> String {
+        ShotPresetStore.json(presets)
+    }
+
+    func perform(_ command: PresetCommand) -> String {
+        switch command {
+        case .save(let name):
+            presets.append(ShotPreset(name: name, settings: settings))
+            ShotPresetStore.save(presets)
+        case .apply(let id):
+            if let preset = presets.first(where: { $0.id == id }) {
+                _ = apply(controls: preset.asControlUpdate())
+            }
+        case .delete(let id):
+            presets.removeAll { $0.id == id }
+            ShotPresetStore.save(presets)
+        case .rename(let id, let name):
+            if let index = presets.firstIndex(where: { $0.id == id }) {
+                presets[index].name = name
+                ShotPresetStore.save(presets)
+            }
+        }
+        return presetListJSON()
     }
 
     func apply(controls update: ControlUpdate) -> Bool {

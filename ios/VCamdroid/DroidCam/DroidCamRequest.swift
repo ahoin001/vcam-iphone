@@ -128,6 +128,8 @@ enum DroidCamRequest: Equatable, Sendable {
     case update(SessionUpdate)
     case controls
     case applyControls(ControlUpdate)
+    case presets
+    case presetCommand(PresetCommand)
     case panel
     case preview
     case battery

@@ -124,6 +124,16 @@ func parsesControlRoutes(_ line: String) {
     #expect(request == .applyControls(ControlUpdate()))
 }
 
+@Test func presetCommands() {
+    let fallback = VideoMode(width: 1920, height: 1080, fps: 30)
+    let save = DroidCamHTTP.parse(firstLine: "PUT /v1/presets?name=Evening%20lamps HTTP/1.1", fallback: fallback)
+    #expect(save == .presetCommand(.save("Evening lamps")))
+    let apply = DroidCamHTTP.parse(firstLine: "PUT /v1/presets?apply=abc HTTP/1.1", fallback: fallback)
+    #expect(apply == .presetCommand(.apply("abc")))
+    let list = DroidCamHTTP.parse(firstLine: "GET /v1/presets HTTP/1.1", fallback: fallback)
+    #expect(list == .presets)
+}
+
 @Test func panelIsNotAVideoStream() {
     let request = DroidCamHTTP.parse(
         firstLine: "GET /panel HTTP/1.1",

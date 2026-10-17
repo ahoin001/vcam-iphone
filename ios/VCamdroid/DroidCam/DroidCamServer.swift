@@ -11,6 +11,8 @@ actor DroidCamServer {
     private var onUpdate: (@Sendable (SessionUpdate) async -> Bool)?
     private var controlsProvider: (@Sendable () async -> ControlState)?
     private var onControls: (@Sendable (ControlUpdate) async -> Bool)?
+    private var presetsProvider: (@Sendable () async -> String)?
+    private var onPreset: (@Sendable (PresetCommand) async -> String)?
     private var onTally: (@Sendable (TallyState) async -> Void)?
     private var onClient: (@Sendable (String?, Bool) async -> Void)?
     private var catalogProvider: (@Sendable () async -> ResolutionCatalog)?
@@ -26,6 +28,8 @@ actor DroidCamServer {
         onUpdate: @escaping @Sendable (SessionUpdate) async -> Bool,
         controls: @escaping @Sendable () async -> ControlState,
         onControls: @escaping @Sendable (ControlUpdate) async -> Bool,
+        presets: @escaping @Sendable () async -> String,
+        onPreset: @escaping @Sendable (PresetCommand) async -> String,
         onTally: @escaping @Sendable (TallyState) async -> Void,
         onClient: @escaping @Sendable (String?, Bool) async -> Void,
         onListenFailed: @escaping @Sendable () async -> Void
@@ -38,6 +42,8 @@ actor DroidCamServer {
         self.onUpdate = onUpdate
         controlsProvider = controls
         self.onControls = onControls
+        presetsProvider = presets
+        self.onPreset = onPreset
         self.onTally = onTally
         self.onClient = onClient
         self.onListenFailed = onListenFailed
@@ -112,6 +118,10 @@ actor DroidCamServer {
             let state = await controlsProvider?() ?? ControlState(settings: StudioSettings())
             await send(DroidCamHTTP.jsonReply(state.json(success: success)), on: connection)
             connection.cancel()
+        case .presetCommand(let command):
+            let body = await onPreset?(command) ?? "{\"presets\":[]}"
+            await send(DroidCamHTTP.jsonReply(body), on: connection)
+            connection.cancel()
         case .tally(let tally):
             await onTally?(tally)
             await send(DroidCamHTTP.reply(status: 200, body: Data(), contentType: nil), on: connection)
@@ -141,6 +151,8 @@ actor DroidCamServer {
         case .controls:
             let state = await controlsProvider?() ?? ControlState(settings: StudioSettings())
             return DroidCamHTTP.jsonReply(state.json())
+        case .presets:
+            return DroidCamHTTP.jsonReply(await presetsProvider?() ?? "{\"presets\":[]}")
         case .panel:
             return DroidCamHTTP.htmlReply(ControlPanelPage.html)
         case .preview:

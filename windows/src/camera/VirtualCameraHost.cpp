@@ -66,6 +66,14 @@ bool RegisterSource(const std::wstring& dllPath) {
     return pathWritten == ERROR_SUCCESS && modelWritten == ERROR_SUCCESS;
 }
 
+std::wstring ListingFailure(HRESULT error) {
+    wchar_t code[16] = {};
+    swprintf_s(code, L"%08X", static_cast<unsigned>(error));
+    return L"Windows 11 is installed, but it did not add VCamdroid to the camera list (error "
+        + std::wstring(code)
+        + L"). The picture in this window still works. Other apps will not see VCamdroid until Windows lists it.";
+}
+
 bool CameraIsListed() {
     IMFAttributes* attributes = nullptr;
     if (FAILED(MFCreateAttributes(&attributes, 1)) || attributes == nullptr) {
@@ -139,13 +147,13 @@ CameraSetup PrepareVirtualCamera() {
             setup.listed = true;
             return setup;
         }
-        setup.detail = L"Windows did not list the VCamdroid camera. The system camera needs Windows 11.";
+        setup.detail = ListingFailure(created);
         return setup;
     }
     const HRESULT started = camera->Start(nullptr);
     camera->Release();
     if (FAILED(started) && !CameraIsListed()) {
-        setup.detail = L"Windows did not list the VCamdroid camera. The system camera needs Windows 11.";
+        setup.detail = ListingFailure(started);
         return setup;
     }
     setup.listed = true;

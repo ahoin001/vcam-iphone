@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <string>
 
 namespace vcam {
 
@@ -13,6 +14,7 @@ class PreviewSurface {
 public:
     HWND Create(HWND parent);
     HWND Handle() const { return hwnd_; }
+    void SetPlaceholder(std::wstring text);
 
 private:
     static LRESULT CALLBACK Proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
@@ -24,6 +26,7 @@ private:
 
     HWND hwnd_ = nullptr;
     HFONT font_ = nullptr;
+    std::wstring placeholder_ = L"On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front.";
     bool haveFrame_ = false;
     uint32_t drawnSequence_ = 0;
     void* bus_ = nullptr;

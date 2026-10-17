@@ -1,4 +1,4 @@
-enum WhiteBalancePreset: String, Equatable, Sendable, CaseIterable, Identifiable {
+enum WhiteBalancePreset: String, Codable, Equatable, Sendable, CaseIterable, Identifiable {
     case auto
     case daylight
     case cloudy

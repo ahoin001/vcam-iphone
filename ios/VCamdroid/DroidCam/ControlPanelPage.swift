@@ -12,88 +12,89 @@ enum ControlPanelPage {
       :root {
         color-scheme: dark;
         --bg: #121416;
-        --bg-soft: #171a1d;
-        --card: #1a1e22;
-        --card-lift: #20252a;
-        --line: #2a3036;
-        --line-soft: #24292e;
+        --panel: #16191c;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --hover: rgba(255, 255, 255, 0.05);
         --text: #f2efe8;
         --muted: #9a958c;
         --accent: #d9a04a;
-        --accent-soft: rgba(217, 160, 74, 0.18);
         --accent-ink: #1a1408;
         --stage: #0c0e10;
-        --radius: 16px;
-        --radius-sm: 12px;
+        --warn: #e0a070;
+        --desk: 320px;
+        --grab: 6px;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1);
       }
       * { box-sizing: border-box; }
       html, body { height: 100%; }
       body {
         margin: 0;
-        min-height: 100%;
-        background:
-          radial-gradient(120% 80% at 50% -10%, rgba(217, 160, 74, 0.07), transparent 55%),
-          linear-gradient(180deg, var(--bg-soft), var(--bg));
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
         color: var(--text);
-        font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+        font: 12.5px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
         font-variant-numeric: tabular-nums;
         -webkit-font-smoothing: antialiased;
       }
       main {
-        min-height: 100%;
-        margin: 0 auto;
-        padding: 16px 16px 28px;
+        height: 100%;
+        min-height: 0;
         display: grid;
-        gap: 12px;
-        align-content: start;
-      }
-      .controls {
-        display: grid;
-        gap: 12px;
-        align-content: start;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto minmax(0, 1fr);
       }
       header {
-        display: grid;
-        gap: 4px;
-        padding: 2px 2px 4px;
+        grid-column: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 36px;
+        padding: 8px 12px 7px;
+        border-bottom: 1px solid var(--line);
       }
-      h1 {
-        margin: 0;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
+      .header-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
       #status-line {
         margin: 0;
-        font-size: 15px;
+        font-size: 12.5px;
         font-weight: 600;
-        color: var(--text);
+        letter-spacing: -0.01em;
+        text-wrap: pretty;
       }
       #hint-line {
         margin: 0;
         color: var(--muted);
-        font-size: 12px;
+        font-size: 11.5px;
+        text-align: right;
+        text-wrap: pretty;
       }
-      section, .shot, .preview {
-        background: color-mix(in srgb, var(--card) 92%, transparent);
-        border: 1px solid var(--line-soft);
-        border-radius: var(--radius);
-        padding: 14px;
+      .preview {
+        grid-column: 1;
         display: grid;
-        gap: 10px;
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+        gap: 8px;
+        padding: 10px 12px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
       }
-      .preview { gap: 10px; }
+      .preview-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .preview-bar strong { color: var(--text); font-weight: 600; }
       .stage {
         position: relative;
         width: 100%;
         aspect-ratio: 16 / 9;
-        border-radius: var(--radius-sm);
-        background:
-          linear-gradient(180deg, #14181c, var(--stage));
-        border: 1px solid var(--line-soft);
+        max-height: 160px;
+        border-radius: 8px;
+        background: var(--stage);
+        border: 1px solid var(--line);
         overflow: hidden;
         display: grid;
         place-items: center;
@@ -104,6 +105,8 @@ enum ControlPanelPage {
         object-fit: contain;
         display: none;
         background: #000;
+        outline: 1px solid oklch(1 0 0 / 0.1);
+        outline-offset: -1px;
       }
       .stage.live img { display: block; }
       .stage-empty {
@@ -111,402 +114,486 @@ enum ControlPanelPage {
         inset: 0;
         display: grid;
         place-items: center;
-        padding: 16px;
+        padding: 12px;
         text-align: center;
         color: var(--muted);
-        font-size: 12px;
-        line-height: 1.4;
+        font-size: 11.5px;
         pointer-events: none;
       }
       .stage.live .stage-empty { display: none; }
-      .row, .choices, .tools { display: flex; gap: 8px; flex-wrap: wrap; }
-      .tools { gap: 6px; }
+      .grabber {
+        display: none;
+        touch-action: none;
+        cursor: col-resize;
+        position: relative;
+      }
+      .grabber::before {
+        content: "";
+        position: absolute;
+        inset: 20% 2px;
+        border-radius: 99px;
+        background: var(--line-strong);
+      }
+      .grabber:hover::before, .grabber.drag::before { background: var(--accent); }
+      .controls {
+        min-height: 0;
+        overflow: auto;
+        background: var(--panel);
+      }
+      details.folder {
+        border-bottom: 1px solid var(--line);
+      }
+      details.folder > summary {
+        list-style: none;
+        display: grid;
+        grid-template-columns: 12px auto minmax(0, 1fr) 22px;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 0 8px 0 12px;
+        cursor: pointer;
+        user-select: none;
+      }
+      details.folder > summary::-webkit-details-marker { display: none; }
+      details.folder > summary:hover { background: var(--hover); }
+      .chev {
+        width: 8px;
+        height: 8px;
+        border-right: 1.5px solid var(--muted);
+        border-bottom: 1.5px solid var(--muted);
+        transform: rotate(-45deg);
+        justify-self: center;
+        transition: transform 160ms var(--ease);
+      }
+      details[open] > summary .chev { transform: rotate(45deg); }
+      summary .name { font-weight: 600; font-size: 12px; white-space: nowrap; }
+      summary .sum {
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 500;
+        text-align: right;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .body {
+        display: grid;
+        gap: 8px;
+        padding: 0 12px 12px 32px;
+      }
+      .prop {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        min-height: 28px;
+      }
+      .prop > span {
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .prop.stack {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+      .row, .choices { display: flex; gap: 4px; flex-wrap: wrap; }
       button, label.toggle {
         appearance: none;
-        border: 1px solid var(--line);
-        background: var(--card-lift);
+        border: 1px solid var(--line-strong);
+        background: rgba(255, 255, 255, 0.04);
         color: var(--text);
-        border-radius: 999px;
-        padding: 8px 13px;
+        border-radius: 6px;
+        padding: 5px 9px;
         font: inherit;
+        font-size: 11.5px;
         cursor: pointer;
-        transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+        transition: background-color 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease), transform 140ms var(--ease);
       }
-      button:hover, label.toggle:hover {
-        border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-      }
-      button:active, label.toggle:active { transform: scale(0.98); }
+      button:hover, label.toggle:hover { background: var(--hover); }
+      button:active, label.toggle:active { transform: scale(0.96); }
       button.on, label.toggle.on {
         background: var(--accent);
         border-color: var(--accent);
         color: var(--accent-ink);
       }
-      /* Keep unselected choice buttons visually stable — no pulse/opacity flicker */
-      .choices button:not(.on) {
-        background: var(--card-lift);
-        color: var(--text);
-        opacity: 1;
-      }
-      .tools button { flex: 1; text-align: center; min-width: 64px; }
-      .stops button { flex: 1; min-width: 0; padding: 8px 0; }
+      .choices button, .stops button { flex: 1; min-width: 0; text-align: center; }
+      .prop > label.toggle, .prop > .choices, .prop > .row { justify-self: start; }
       label.toggle {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 6px;
         user-select: none;
+        width: max-content;
       }
       label.toggle input { position: absolute; opacity: 0; pointer-events: none; }
-      .slider { display: grid; gap: 5px; }
-      .slider span, .heading {
+      .slider { display: grid; gap: 2px; }
+      .slider span {
         display: flex;
         justify-content: space-between;
-        align-items: center;
         color: var(--muted);
-        font-size: 12px;
+        font-size: 11px;
       }
-      .slider strong, .heading strong { color: var(--text); font-weight: 600; }
+      .slider strong { color: var(--text); font-weight: 600; }
       input[type="range"] {
         width: 100%;
         accent-color: var(--accent);
-        height: 1.4rem;
+        height: 1.25rem;
       }
-      .preview-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-      }
-      .preview-bar .heading { flex: 1; }
-      .guide {
-        display: grid;
-        gap: 8px;
-        padding: 11px 12px;
-        border-radius: var(--radius-sm);
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--line-soft);
-      }
-      .guide-lead {
+      .hint {
         margin: 0;
-        font-size: 12.5px;
-        line-height: 1.45;
-        color: var(--text);
-      }
-      .guide-lead b {
-        color: var(--accent);
-        font-weight: 650;
-      }
-      .guide-uses {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 6px;
-      }
-      .guide-uses.three { grid-template-columns: 1fr; }
-      @media (min-width: 380px) {
-        .guide-uses.three { grid-template-columns: 1fr 1fr 1fr; }
-      }
-      .guide-use {
-        padding: 8px 9px;
-        border-radius: 10px;
-        background: var(--card-lift);
-        border: 1px solid var(--line-soft);
-        min-width: 0;
-      }
-      .guide-use span {
-        display: block;
-        font-size: 10px;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--accent);
-        font-weight: 650;
-        margin-bottom: 3px;
-      }
-      .guide-use p {
-        margin: 0;
+        color: var(--muted);
         font-size: 11.5px;
         line-height: 1.4;
-        color: var(--muted);
+        text-wrap: pretty;
       }
-      .guide-use.warn span { color: #e0a070; }
-      .guide-use.warn {
-        border-color: color-mix(in srgb, #e0a070 35%, var(--line-soft));
-        background: color-mix(in srgb, #e0a070 8%, var(--card-lift));
+      .hint.warn {
+        color: var(--warn);
+        padding: 6px 8px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--warn) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warn) 28%, transparent);
       }
-      .field-tip {
-        margin: -2px 0 2px;
-        font-size: 11.5px;
-        line-height: 1.4;
-        color: var(--muted);
+      .line { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+      .info {
+        width: 22px; height: 22px; padding: 0;
+        border-radius: 999px; color: var(--muted); font-weight: 650;
       }
-      .field-tip b { color: var(--text); font-weight: 600; }
-      p.quiet {
-        margin: 0;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
+      .presets {
+        display: flex; align-items: center; gap: 6px;
+        min-height: 40px; padding: 6px 12px;
+        border-bottom: 1px solid var(--line);
       }
-      p.quiet.warn {
-        color: #e0a070;
-        padding: 8px 10px;
-        border-radius: 10px;
-        background: color-mix(in srgb, #e0a070 10%, transparent);
-        border: 1px solid color-mix(in srgb, #e0a070 30%, var(--line-soft));
+      .presets .name { font-weight: 600; font-size: 12px; }
+      .presets select, .preset-form input {
+        min-width: 0; height: 28px; flex: 1;
+        border-radius: 6px; border: 1px solid var(--line-strong);
+        background: rgba(255, 255, 255, 0.04); color: var(--text);
+        padding: 0 8px; font: inherit; font-size: 11.5px;
+      }
+      .preset-form { display: flex; gap: 6px; padding: 0 12px 8px; }
+      .popover {
+        position: fixed; z-index: 30;
+        width: min(300px, calc(100vw - 24px));
+        padding: 12px 14px; display: grid; gap: 8px;
+        border-radius: 12px; border: 1px solid var(--line-strong);
+        background: #1c2126; color: var(--text);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      }
+      .popover[hidden] { display: none !important; }
+      .popover strong { font-size: 12.5px; }
+      .popover p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+      .popover .pair { color: var(--warn); }
+      .guide-layer {
+        position: fixed; inset: 0; z-index: 40;
+        display: grid; place-items: center;
+        padding: 18px;
+        background: rgba(8, 9, 10, 0.72);
+      }
+      .guide-card {
+        width: min(860px, 100%);
+        max-height: min(720px, 100%);
+        overflow: auto;
+        display: grid; gap: 14px;
+        padding: 18px 18px 22px;
+        border-radius: 16px;
+        border: 1px solid var(--line-strong);
+        background:
+          radial-gradient(80% 50% at 100% 0%, rgba(217, 160, 74, 0.12), transparent 50%),
+          #16191c;
+      }
+      .guide-head, .guide-tabs { display: flex; align-items: center; gap: 8px; }
+      .guide-head { justify-content: space-between; }
+      .guide-head h2 { margin: 0; font-size: 18px; font-weight: 650; }
+      .guide-tabs { flex-wrap: wrap; }
+      .guide-tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      .guide-panel { display: none; gap: 12px; }
+      .guide-panel.on { display: grid; }
+      .guide-panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .guide-card .note {
+        padding: 12px 14px; border-radius: 12px;
+        border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+      }
+      .guide-card .note strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 13px; }
+      .lights { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: center; }
+      .lights svg { width: 100%; height: auto; }
+      @media (max-width: 700px) {
+        .guide-grid, .lights { grid-template-columns: 1fr; }
       }
       [hidden] { display: none !important; }
-      @media (min-width: 900px) {
-        body { overflow: hidden; }
-        main {
-          height: 100%;
-          min-height: 0;
-          max-width: none;
-          margin: 0;
-          padding: 16px 18px 18px;
-          grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      @media (min-width: 720px) {
+        body:not(.companion) main {
+          grid-template-columns: minmax(0, 1fr) var(--grab) var(--desk);
           grid-template-rows: auto minmax(0, 1fr);
-          overflow: hidden;
         }
-        header { grid-column: 1 / -1; }
-        .preview {
+        body:not(.companion) header { grid-column: 1 / -1; }
+        body:not(.companion) .preview {
           grid-column: 1;
           grid-row: 2;
           min-height: 0;
-          display: flex;
-          flex-direction: column;
+          border-bottom: 0;
+          border-right: 1px solid var(--line);
+          align-content: start;
         }
-        .stage {
-          flex: 1 1 auto;
-          aspect-ratio: auto;
-          min-height: 0;
-          height: auto;
-        }
-        .controls {
-          grid-column: 2;
-          grid-row: 2;
-          min-height: 0;
-          overflow: auto;
-          padding-right: 4px;
-        }
+        body:not(.companion) .stage { max-height: none; aspect-ratio: auto; height: min(100%, 100%); min-height: 140px; }
+        body:not(.companion) .grabber { display: block; grid-column: 2; grid-row: 2; }
+        body:not(.companion) .controls { grid-column: 3; grid-row: 2; }
       }
-      body.companion .preview { display: none !important; }
+      body.companion .preview,
+      body.companion .grabber { display: none !important; }
       body.companion main {
-        display: block;
-        height: auto;
-        min-height: 100%;
-        overflow: visible;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr);
       }
-      body.companion .controls {
-        display: grid;
-        overflow: visible;
-      }
-      @media (min-width: 900px) {
-        body.companion { overflow: auto; }
-        body.companion main {
-          display: block;
-          height: auto;
-          overflow: visible;
-        }
-        body.companion header,
-        body.companion .controls {
-          grid-column: auto;
-          grid-row: auto;
-        }
-        body.companion .controls {
-          min-height: 0;
-          overflow: visible;
-          padding-right: 0;
-        }
-      }
+      body.companion .controls { grid-row: 2; }
     </style>
     </head>
     <body>
     <main>
       <header>
-        <h1>Camera desk</h1>
         <p id="status-line">Waiting for the computer</p>
-        <p id="hint-line">1080p30 · Connect opens the picture</p>
-      </header>
-      <section class="preview">
-        <div class="preview-bar">
-          <div class="heading"><span>Preview</span><strong id="preview-label">Off</strong></div>
-          <label class="toggle"><input id="show-preview" type="checkbox">Show preview</label>
+        <div class="header-actions">
+          <p id="hint-line">1080p30</p>
+          <button id="open-guide" type="button">Guide</button>
         </div>
-        <div class="guide">
-          <p class="guide-lead">This is a <b>glance feed</b> only (~12 fps). Judge smoothness in OBS or your call app.</p>
-          <div class="guide-uses">
-            <div class="guide-use"><span>Use for</span><p>Framing checks while you tweak controls at the desk.</p></div>
-            <div class="guide-use warn"><span>Not for</span><p>Judging chop, blur quality, or final look — that lives on the computer.</p></div>
-          </div>
+      </header>
+      <section class="preview" id="preview-pane">
+        <div class="preview-bar">
+          <span>Preview <strong id="preview-label">Off</strong></span>
+          <label class="toggle"><input id="show-preview" type="checkbox">Show</label>
         </div>
         <div class="stage" id="stage">
           <img id="preview-image" alt="Desk preview" decoding="async">
           <div class="stage-empty" id="stage-empty">Waiting for a frame from the iPhone.</div>
         </div>
       </section>
-      <div class="controls">
-      <section class="shot">
-        <div class="heading"><span>Lens &amp; framing</span></div>
-        <div class="guide">
-          <p class="guide-lead">Pick the camera that matches the shot, then frame with zoom. Keep torch off unless the room is very dark.</p>
-          <div class="guide-uses three">
-            <div class="guide-use"><span>Streams</span><p>Back camera + 1–2× for talking-head. Front for face-to-camera.</p></div>
-            <div class="guide-use"><span>Recording</span><p>Stay near optical stops (1× / 2×). Heavy digital zoom softens detail.</p></div>
-            <div class="guide-use"><span>Flip / torch</span><p>Flip if the phone is upside-down on a mount. Torch eats battery and looks harsh on face cams.</p></div>
+      <div class="grabber" id="grabber" role="separator" aria-orientation="vertical" aria-label="Resize desk"></div>
+      <div class="controls" id="desk">
+        <div class="presets">
+          <span class="name">Presets</span>
+          <select id="preset-list" aria-label="Saved looks"><option value="">No saved looks</option></select>
+          <button id="preset-save" type="button">Save</button>
+          <button id="preset-delete" type="button" hidden>Delete</button>
+          <button class="info" type="button" data-pop="presets" aria-label="About presets">?</button>
+        </div>
+        <form class="preset-form" id="preset-form" hidden>
+          <input id="preset-name" maxlength="40" placeholder="Name this look" autocomplete="off">
+          <button type="submit">Save look</button>
+        </form>
+        <details class="folder" open data-key="lens">
+          <summary><span class="chev"></span><span class="name">Lens</span><span class="sum" id="lens-sum">Back · 1.0×</span><button class="info" type="button" data-pop="lens" aria-label="Lens advice">?</button></summary>
+          <div class="body">
+            <p class="line">Back camera for a talking head. Stay near 1× or 2×.</p>
+            <div class="prop">
+              <span>Camera</span>
+              <div class="choices" id="lens">
+                <button type="button" data-value="back">Back</button>
+                <button type="button" data-value="front">Front</button>
+              </div>
+            </div>
+            <div class="prop stack">
+              <span>Zoom <strong id="zoom-value">1.0×</strong></span>
+              <div class="row stops" id="zoom-stops">
+                <button type="button" data-stop="1">1×</button>
+                <button type="button" data-stop="2">2×</button>
+                <button type="button" data-stop="3">3×</button>
+                <button type="button" data-stop="5">5×</button>
+                <button type="button" data-stop="10">10×</button>
+              </div>
+              <label class="slider">
+                <span></span>
+                <input id="zoom" type="range" min="1" max="10" step="0.1" value="1">
+              </label>
+            </div>
+            <div class="prop">
+              <span>Shot</span>
+              <div class="row">
+                <label class="toggle"><input id="torch" type="checkbox">Torch</label>
+                <label class="toggle"><input id="flip" type="checkbox">Flip 180°</label>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="choices" id="lens">
-          <button type="button" data-value="back">Back</button>
-          <button type="button" data-value="front">Front</button>
-        </div>
-        <div class="heading"><span>Zoom <strong id="zoom-value">1.0×</strong></span></div>
-        <div class="row stops" id="zoom-stops">
-          <button type="button" data-stop="1">1×</button>
-          <button type="button" data-stop="2">2×</button>
-          <button type="button" data-stop="3">3×</button>
-          <button type="button" data-stop="5">5×</button>
-          <button type="button" data-stop="10">10×</button>
-        </div>
-        <label class="slider">
-          <span></span>
-          <input id="zoom" type="range" min="1" max="10" step="0.1" value="1">
-        </label>
-        <div class="row">
-          <label class="toggle"><input id="torch" type="checkbox">Torch</label>
-          <label class="toggle"><input id="flip" type="checkbox">Flip 180°</label>
-        </div>
-      </section>
-      <div class="tools" id="tools">
-        <button type="button" class="on" data-tool="exposure">Exposure</button>
-        <button type="button" data-tool="whiteBalance">WB</button>
-        <button type="button" data-tool="focus">Focus</button>
-        <button type="button" data-tool="portrait">Portrait</button>
-      </div>
-      <section id="tool-exposure">
-        <div class="heading"><span>Exposure</span><label class="toggle"><input id="manual-exposure" type="checkbox">Manual</label></div>
-        <div class="guide" id="exposure-auto-note">
-          <p class="guide-lead">Leave <b>Auto</b> on for most streams and videos. Use EV to brighten or darken without locking shutter.</p>
-          <div class="guide-uses">
-            <div class="guide-use"><span>Streams / calls</span><p>Auto + a little EV. The phone tracks lights as you move.</p></div>
-            <div class="guide-use"><span>Recording</span><p>Still start on Auto. Switch to Manual only if the room light is fixed and Auto hunts.</p></div>
+        </details>
+        <details class="folder" open data-key="exposure">
+          <summary><span class="chev"></span><span class="name">Exposure</span><span class="sum" id="exposure-sum">Auto · EV 0.0</span><button class="info" type="button" data-pop="exposure" aria-label="Exposure advice">?</button></summary>
+          <div class="body">
+            <p class="line">Set shutter for motion, then ISO for brightness.</p>
+            <div class="prop">
+              <span>Mode</span>
+              <label class="toggle"><input id="manual-exposure" type="checkbox">Manual</label>
+            </div>
+            <p class="line" id="ev-tip">EV brightens or darkens. Auto still picks shutter and ISO.</p>
+            <label class="slider" id="ev-row">
+              <span>EV <strong id="ev-value">0.0</strong></span>
+              <input id="ev" type="range" min="-3" max="3" step="0.1" value="0">
+            </label>
+            <div id="manual-exposure-fields" hidden>
+              <label class="slider">
+                <span>ISO <strong id="iso-value">100</strong></span>
+                <input id="iso" type="range" min="0" max="1" step="0.001" value="0.2">
+              </label>
+              <label class="slider">
+                <span>Shutter <strong id="shutter-value">1/60</strong></span>
+                <input id="shutter" type="range" min="0" max="1" step="0.001" value="0.5">
+              </label>
+              <p class="hint warn" id="shutter-warn" hidden>Slower than 1/60 smears motion. Raise ISO instead.</p>
+            </div>
           </div>
-        </div>
-        <div class="guide" id="exposure-manual-note" hidden>
-          <p class="guide-lead"><b>ISO</b> brightens (and adds grain). <b>Shutter</b> freezes motion — keep it fast at 30 fps.</p>
-          <div class="guide-uses three">
-            <div class="guide-use"><span>ISO</span><p>Raise ISO to get brighter when shutter is already at 1/60+. Prefer the lowest ISO that still looks bright enough.</p></div>
-            <div class="guide-use"><span>Shutter</span><p>At 30 fps use <b>1/60 or faster</b>. 1/30 or slower smears motion and feels choppy — that is not lag.</p></div>
-            <div class="guide-use"><span>Recording tip</span><p>Lock ISO + shutter once the look is right so brightness does not drift mid-take.</p></div>
+        </details>
+        <details class="folder" data-key="whiteBalance">
+          <summary><span class="chev"></span><span class="name">White balance</span><span class="sum" id="wb-sum">Auto</span><button class="info" type="button" data-pop="whiteBalance" aria-label="White balance advice">?</button></summary>
+          <div class="body">
+            <p class="line">Lock this to the key light so skin color stays put.</p>
+            <div class="choices" id="wb">
+              <button type="button" data-value="auto">Auto</button>
+              <button type="button" data-value="daylight">Daylight</button>
+              <button type="button" data-value="cloudy">Cloudy</button>
+              <button type="button" data-value="fluorescent">Fluorescent</button>
+              <button type="button" data-value="incandescent">Incandescent</button>
+            </div>
           </div>
-        </div>
-        <label class="slider" id="ev-row">
-          <span>EV <strong id="ev-value">0.0</strong></span>
-          <input id="ev" type="range" min="-3" max="3" step="0.1" value="0">
-        </label>
-        <p class="field-tip" id="ev-tip">EV is overall brightness while Auto still picks shutter and ISO.</p>
-        <div id="manual-exposure-fields" hidden>
-          <label class="slider">
-            <span>ISO <strong id="iso-value">100</strong></span>
-            <input id="iso" type="range" min="0" max="1" step="0.001" value="0.2">
-          </label>
-          <p class="field-tip">Sensor sensitivity. Higher = brighter + more noise. Use this before slowing shutter.</p>
-          <label class="slider">
-            <span>Shutter <strong id="shutter-value">1/60</strong></span>
-            <input id="shutter" type="range" min="0" max="1" step="0.001" value="0.5">
-          </label>
-          <p class="field-tip">How long each frame is open. Fast = crisp motion. Slow = smear that looks like stutter.</p>
-          <p class="quiet warn" id="shutter-warn" hidden>Shutter is slower than 1/60. Expect motion smear at 30 fps — raise ISO instead.</p>
-        </div>
-      </section>
-      <section id="tool-whiteBalance" hidden>
-        <div class="heading"><span>White balance</span></div>
-        <div class="guide">
-          <p class="guide-lead">Sets how warm or cool skin and walls look. Match the light you are under.</p>
-          <div class="guide-uses three">
-            <div class="guide-use"><span>Streams</span><p>Auto is fine under mixed desk lights. Pick a preset if skin looks green or orange.</p></div>
-            <div class="guide-use"><span>Recording</span><p>Lock a preset so color does not shift when someone walks by with a lamp.</p></div>
-            <div class="guide-use"><span>Quick map</span><p>Daylight = window. Incandescent = warm bulbs. Fluorescent = office tubes. Cloudy = soft overcast.</p></div>
+        </details>
+        <details class="folder" data-key="focus">
+          <summary><span class="chev"></span><span class="name">Focus</span><span class="sum" id="focus-sum">Auto</span><button class="info" type="button" data-pop="focus" aria-label="Focus advice">?</button></summary>
+          <div class="body">
+            <p class="line">Manual once you are sitting still.</p>
+            <div class="prop">
+              <span>Mode</span>
+              <label class="toggle"><input id="manual-focus" type="checkbox">Manual</label>
+            </div>
+            <label class="slider" id="focus-row" hidden>
+              <span>Position <strong id="focus-value">1.00</strong></span>
+              <input id="focus" type="range" min="0" max="1" step="0.01" value="1">
+            </label>
+            <p class="line" id="focus-tip" hidden>Near is closer. Far is the background. Set it, then leave it.</p>
           </div>
-        </div>
-        <div class="choices" id="wb">
-          <button type="button" data-value="auto">Auto</button>
-          <button type="button" data-value="daylight">Daylight</button>
-          <button type="button" data-value="cloudy">Cloudy</button>
-          <button type="button" data-value="fluorescent">Fluorescent</button>
-          <button type="button" data-value="incandescent">Incandescent</button>
-        </div>
-      </section>
-      <section id="tool-focus" hidden>
-        <div class="heading"><span>Focus</span><label class="toggle"><input id="manual-focus" type="checkbox">Manual</label></div>
-        <div class="guide">
-          <p class="guide-lead">Keep <b>Auto</b> for talking-head streams. Use Manual when you want the focus plane locked.</p>
-          <div class="guide-uses">
-            <div class="guide-use"><span>Streams / calls</span><p>Auto. Tap the phone preview if you need a quick re-focus on your face.</p></div>
-            <div class="guide-use"><span>Recording</span><p>Manual after you set distance — stops hunting when you gesture toward the lens.</p></div>
+        </details>
+        <details class="folder" data-key="portrait">
+          <summary><span class="chev"></span><span class="name">Portrait</span><span class="sum" id="portrait-sum">Off</span><button class="info" type="button" data-pop="portrait" aria-label="Portrait advice">?</button></summary>
+          <div class="body">
+            <p class="line">Leave Portrait off if the PC already cuts the background.</p>
+            <div class="prop">
+              <span>Phone blur</span>
+              <label class="toggle"><input id="portrait" type="checkbox">On</label>
+            </div>
+            <p class="hint warn" id="portrait-on-hint" hidden>Portrait is on. Turn it off if NVIDIA Broadcast or OBS is already cutting the background.</p>
+            <label class="slider" id="portrait-row" hidden>
+              <span>Strength <strong id="portrait-value">65%</strong></span>
+              <input id="portrait-strength" type="range" min="0" max="1" step="0.01" value="0.65">
+            </label>
           </div>
-        </div>
-        <label class="slider" id="focus-row" hidden>
-          <span>Position <strong id="focus-value">1.00</strong></span>
-          <input id="focus" type="range" min="0" max="1" step="0.01" value="1">
-        </label>
-        <p class="field-tip" id="focus-tip" hidden>Near = closer subjects. Far = distance / background. Set it, then leave it alone.</p>
-      </section>
-      <section id="tool-portrait" hidden>
-        <div class="heading"><span>Portrait</span><label class="toggle"><input id="portrait" type="checkbox">On</label></div>
-        <div class="guide">
-          <p class="guide-lead">Phone blur is a light backup. Prefer <b>NVIDIA Broadcast</b> or <b>OBS Background Removal</b> on the PC for streams and recordings.</p>
-          <div class="guide-uses three">
-            <div class="guide-use"><span>Streams</span><p>Do blur on the PC so the phone stays cool and the feed stays smooth.</p></div>
-            <div class="guide-use"><span>Recording</span><p>Same — PC removal usually looks cleaner and keeps 1080p30 stable.</p></div>
-            <div class="guide-use warn"><span>If you use this</span><p>Do not stack with PC background tools. It warms the iPhone and can drop frames.</p></div>
+        </details>
+        <details class="folder" data-key="stream">
+          <summary><span class="chev"></span><span class="name">Stream</span><span class="sum" id="stream-sum">1080p30 · 4 Mbps</span><button class="info" type="button" data-pop="stream" aria-label="Stream advice">?</button></summary>
+          <div class="body">
+            <p class="line">The heading is the rate in use. The slider is the saved OBS rate.</p>
+            <div class="prop">
+              <span>Size</span>
+              <div class="choices" id="resolution">
+                <button type="button" data-width="1280" data-height="720">720</button>
+                <button type="button" data-width="1920" data-height="1080">1080</button>
+              </div>
+            </div>
+            <div class="prop">
+              <span>Frame rate</span>
+              <div class="choices" id="fps">
+                <button type="button" data-fps="30">30</button>
+                <button type="button" id="fps-60" data-fps="60" hidden>60</button>
+              </div>
+            </div>
+            <div class="prop stack">
+              <span>Bitrate <strong id="bitrate-value">4000 kbps</strong></span>
+              <div class="choices" id="bitrate-presets">
+                <button type="button" data-rate="4000">4 Mbps</button>
+                <button type="button" data-rate="6000">6 Mbps</button>
+                <button type="button" data-rate="8000">8 Mbps</button>
+              </div>
+              <label class="slider">
+                <span><strong id="bitrate-saved">4000 kbps</strong></span>
+                <input id="bitrate" type="range" min="2500" max="16000" step="100" value="4000">
+              </label>
+            </div>
           </div>
-        </div>
-        <p class="quiet" id="portrait-on-hint" hidden>Portrait is on this iPhone. Turn it off if NVIDIA Broadcast or OBS is already cutting the background.</p>
-        <label class="slider" id="portrait-row" hidden>
-          <span>Strength <strong id="portrait-value">65%</strong></span>
-          <input id="portrait-strength" type="range" min="0" max="1" step="0.01" value="0.65">
-        </label>
-        <p class="field-tip" id="portrait-strength-tip" hidden>Start around 50–70%. Higher softens the background more and costs more heat.</p>
-      </section>
-      <section>
-        <div class="heading"><span>Stream</span><strong id="bitrate-value">4000 kbps</strong></div>
-        <div class="guide">
-          <p class="guide-lead">Resolution, frame rate, and bitrate set how heavy the phone works and how sharp OBS gets.</p>
-          <div class="guide-uses three">
-            <div class="guide-use"><span>Live / calls</span><p><b>1080p30</b> · about <b>4 Mbps</b>. Smooth and kind to heat and upload.</p></div>
-            <div class="guide-use"><span>Recording in OBS</span><p>Still 1080p30; raise bitrate to <b>6–8 Mbps</b> for cleaner files.</p></div>
-            <div class="guide-use warn"><span>Avoid first</span><p>60 fps and very high bitrate until you know the phone stays cool on a long take.</p></div>
-          </div>
-        </div>
-        <div class="choices" id="resolution">
-          <button type="button" data-width="1280" data-height="720">1280×720</button>
-          <button type="button" data-width="1920" data-height="1080">1920×1080</button>
-        </div>
-        <div class="choices" id="fps">
-          <button type="button" data-fps="30">30 fps</button>
-          <button type="button" id="fps-60" data-fps="60" hidden>60 fps</button>
-        </div>
-        <div class="choices" id="bitrate-presets">
-          <button type="button" data-rate="4000">4 Mbps</button>
-          <button type="button" data-rate="6000">6 Mbps</button>
-          <button type="button" data-rate="8000">8 Mbps</button>
-        </div>
-        <label class="slider">
-          <span>Bitrate <strong id="bitrate-saved">4000 kbps</strong></span>
-          <input id="bitrate" type="range" min="2500" max="16000" step="100" value="4000">
-        </label>
-        <p class="field-tip">Bitrate is how many bits per second leave the phone. Higher = sharper, more heat and bandwidth.</p>
-      </section>
+        </details>
       </div>
     </main>
+    <div class="popover" id="popover" hidden role="dialog"></div>
+    <div class="guide-layer" id="guide" hidden>
+      <div class="guide-card" role="dialog" aria-labelledby="guide-title">
+        <div class="guide-head">
+          <h2 id="guide-title">Guide</h2>
+          <button id="guide-close" type="button">Done</button>
+        </div>
+        <div class="guide-tabs" role="tablist">
+          <button type="button" class="on" data-guide="light">Lighting</button>
+          <button type="button" data-guide="exposure">Exposure</button>
+          <button type="button" data-guide="color">Color</button>
+          <button type="button" data-guide="situations">Situations</button>
+        </div>
+        <section class="guide-panel on" data-guide-panel="light">
+          <div class="lights">
+            <svg viewBox="0 0 220 160" aria-hidden="true">
+              <rect width="220" height="160" rx="16" fill="#101316"/>
+              <circle cx="110" cy="78" r="16" fill="#f2efe8"/>
+              <rect x="96" y="96" width="28" height="34" rx="8" fill="#c8c2b6"/>
+              <circle cx="46" cy="48" r="10" fill="#d9a04a"/>
+              <path d="M54 54 L96 74" stroke="#d9a04a" stroke-width="2"/>
+              <circle cx="176" cy="62" r="7" fill="#8aa0b4"/>
+              <path d="M170 66 L126 80" stroke="#8aa0b4" stroke-width="2"/>
+              <circle cx="110" cy="22" r="6" fill="#e7d7b2"/>
+              <path d="M110 28 L110 60" stroke="#e7d7b2" stroke-width="2"/>
+              <text x="28" y="148" fill="#9a958c" font-size="11" font-family="Segoe UI, sans-serif">Key</text>
+              <text x="150" y="148" fill="#9a958c" font-size="11" font-family="Segoe UI, sans-serif">Fill</text>
+            </svg>
+            <div class="guide-grid">
+              <div class="note"><strong>Key</strong><p>The main light, slightly off camera and a little above the eyes. Soften it. A bare LED speckles on camera.</p></div>
+              <div class="note"><strong>Fill</strong><p>The other side, dimmer than the key, so one side of the face stays a little darker.</p></div>
+              <div class="note"><strong>Back</strong><p>A light behind you on the hair or shoulders separates you from the wall.</p></div>
+              <div class="note"><strong>Window</strong><p>A window behind you silhouettes the face unless the key in front is brighter than the window.</p></div>
+            </div>
+          </div>
+        </section>
+        <section class="guide-panel" data-guide-panel="exposure">
+          <p>Shutter and ISO brighten the same picture in different ways. Set the shutter for how motion should look, then use ISO only for the light you still need.</p>
+          <div class="guide-grid">
+            <div class="note"><strong>Shutter first</strong><p>At 30 fps use 1/60. That is double the frame rate. Faster looks stuttery. Slower than 1/60 smears a head turn or a hand.</p></div>
+            <div class="note"><strong>ISO second</strong><p>Start near 100. Raise it if the face is still dark. Grain usually shows past roughly 800. Do not slow the shutter to avoid raising ISO.</p></div>
+            <div class="note"><strong>Auto</strong><p>Auto plus a little EV when you move between rooms. The phone keeps the 1/60-style motion and changes ISO for you.</p></div>
+            <div class="note"><strong>Manual</strong><p>Use manual when the lights stay on for the whole session. Lock 1/60, then ride ISO.</p></div>
+          </div>
+        </section>
+        <section class="guide-panel" data-guide-panel="color">
+          <p>Auto white balance hunts when a monitor or a colored lamp enters the frame. Lock it to the key light once that light is on.</p>
+          <div class="guide-grid">
+            <div class="note"><strong>Daylight, 5200K</strong><p>Window light and neutral LEDs. The usual starting point for a talking head.</p></div>
+            <div class="note"><strong>Incandescent, 3200K</strong><p>Warm desk lamps. Lower numbers make skin warmer. If the face goes orange, the lock is warmer than the lamp.</p></div>
+            <div class="note"><strong>Fluorescent, 4000K</strong><p>Office tubes and a lot of cheap panels.</p></div>
+            <div class="note"><strong>Mixed light</strong><p>Window plus a warm lamp paints the face two colors. Turn one of them off, then lock white balance.</p></div>
+          </div>
+        </section>
+        <section class="guide-panel" data-guide-panel="situations">
+          <p>Dial the look, then save it as a preset. Switch presets when the time of day or the lamps change. Leave Portrait off if NVIDIA Broadcast or OBS is already cutting the background.</p>
+          <div class="guide-grid">
+            <div class="note"><strong>Day, window beside you</strong><p>Back camera, 1× or 2×, Auto exposure, white balance Daylight.</p></div>
+            <div class="note"><strong>Evening lamps</strong><p>Manual, shutter 1/60, ISO 200 to 800 until the face is right, white balance Incandescent.</p></div>
+            <div class="note"><strong>Overhead light only</strong><p>Eyes fall into shadow. Add a key in front before you raise ISO. Torch is a last resort: it is harsh and it drains the battery.</p></div>
+            <div class="note"><strong>Stream or recording</strong><p>Use the same exposure either way. The bitrate slider is the saved rate for an optional OBS source. It does not change the VCamdroid picture while VCamPanel is connected.</p></div>
+          </div>
+        </section>
+      </div>
+    </div>
     <script>
       const active = new Set();
       const pending = new Map();
       let timer = 0;
       let inflight = false;
-      let tool = "exposure";
       let session = { width: 1920, height: 1080, fps: 30 };
       let previewOn = false;
       let previewTimer = 0;
       let previewBusy = false;
-
       const zoom = document.getElementById("zoom");
       const ev = document.getElementById("ev");
       const iso = document.getElementById("iso");
@@ -517,12 +604,15 @@ enum ControlPanelPage {
       const stage = document.getElementById("stage");
       const previewImage = document.getElementById("preview-image");
       const showPreview = document.getElementById("show-preview");
+      const grabber = document.getElementById("grabber");
       const companion = new URLSearchParams(location.search).get("companion") === "1";
       const isoMin = 50, isoMax = 6400;
       const shutterMin = 0.0001, shutterMax = 0.5;
+      const wbNames = { auto: "Auto", daylight: "Daylight", cloudy: "Cloudy", fluorescent: "Fluorescent", incandescent: "Incandescent" };
 
       function text(id, value) {
-        document.getElementById(id).textContent = value;
+        const node = document.getElementById(id);
+        if (node) node.textContent = value;
       }
 
       function logFrom(t, min, max) {
@@ -636,13 +726,6 @@ enum ControlPanelPage {
       bindFlag("manual-focus", "manualFocus");
       bindFlag("portrait", "portrait");
 
-      document.getElementById("tools").addEventListener("click", (event) => {
-        const button = event.target.closest("button");
-        if (!button) return;
-        tool = button.dataset.tool;
-        showTool();
-      });
-
       document.getElementById("resolution").addEventListener("click", (event) => {
         const button = event.target.closest("button");
         if (!button) return;
@@ -688,6 +771,7 @@ enum ControlPanelPage {
           if (button.classList.contains("on") === selected) continue;
           button.classList.toggle("on", selected);
         }
+        updateSummaries();
       }
 
       function setFlag(id, checked, key) {
@@ -705,15 +789,13 @@ enum ControlPanelPage {
         document.getElementById("ev-row").hidden = exposure;
         document.getElementById("ev-tip").hidden = exposure;
         document.getElementById("manual-exposure-fields").hidden = !exposure;
-        document.getElementById("exposure-auto-note").hidden = exposure;
-        document.getElementById("exposure-manual-note").hidden = !exposure;
         document.getElementById("focus-row").hidden = !focusManual;
         document.getElementById("focus-tip").hidden = !focusManual;
         const portraitOn = document.getElementById("portrait").checked;
         document.getElementById("portrait-row").hidden = !portraitOn;
-        document.getElementById("portrait-strength-tip").hidden = !portraitOn;
         document.getElementById("portrait-on-hint").hidden = !portraitOn;
         updateShutterWarn();
+        updateSummaries();
       }
 
       function updateShutterWarn() {
@@ -724,15 +806,22 @@ enum ControlPanelPage {
         warn.hidden = !(manual && seconds > (1 / 60) + 0.0005);
       }
 
-      function showTool() {
-        for (const button of document.getElementById("tools").querySelectorAll("button")) {
-          const selected = button.dataset.tool === tool;
-          if (button.classList.contains("on") === selected) continue;
-          button.classList.toggle("on", selected);
-        }
-        for (const name of ["exposure", "whiteBalance", "focus", "portrait"]) {
-          document.getElementById("tool-" + name).hidden = name !== tool;
-        }
+      function updateSummaries() {
+        const lens = document.querySelector("#lens button.on");
+        const zoomLabel = document.getElementById("zoom-value").textContent;
+        text("lens-sum", (lens ? lens.textContent : "Back") + " · " + zoomLabel);
+        const manual = document.getElementById("manual-exposure").checked;
+        text("exposure-sum", manual
+          ? "ISO " + document.getElementById("iso-value").textContent + " · " + document.getElementById("shutter-value").textContent
+          : "Auto · EV " + document.getElementById("ev-value").textContent);
+        const wb = document.querySelector("#wb button.on");
+        text("wb-sum", wb ? (wbNames[wb.dataset.value] || wb.textContent) : "Auto");
+        const focusManual = document.getElementById("manual-focus").checked;
+        text("focus-sum", focusManual ? document.getElementById("focus-value").textContent : "Auto");
+        const portraitOn = document.getElementById("portrait").checked;
+        text("portrait-sum", portraitOn ? document.getElementById("portrait-value").textContent : "Off");
+        const size = (session.height >= 1080 ? "1080p" : "720p") + session.fps;
+        text("stream-sum", size + " · " + document.getElementById("bitrate-value").textContent);
       }
 
       function applyState(data) {
@@ -812,7 +901,7 @@ enum ControlPanelPage {
         if (empty) {
           empty.textContent = on
             ? "Waiting for a frame from the iPhone."
-            : "Turn on Show preview when you need a desk glance. The live picture stays on the computer.";
+            : "Turn on Show when you need a glance. The live picture stays on the computer.";
         }
         clearInterval(previewTimer);
         if (!on) {
@@ -827,6 +916,77 @@ enum ControlPanelPage {
       }
 
       showPreview.addEventListener("change", () => setPreview(showPreview.checked));
+
+      function loadDeskWidth() {
+        try {
+          const saved = Number(localStorage.getItem("vcam-desk"));
+          if (saved >= 260 && saved <= 520) {
+            document.documentElement.style.setProperty("--desk", saved + "px");
+          }
+        } catch (_) {}
+      }
+
+      function bindGrabber() {
+        if (companion) return;
+        let startX = 0;
+        let startW = 320;
+        grabber.addEventListener("pointerdown", (event) => {
+          grabber.classList.add("drag");
+          grabber.setPointerCapture(event.pointerId);
+          startX = event.clientX;
+          startW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--desk")) || 320;
+        });
+        grabber.addEventListener("pointermove", (event) => {
+          if (!grabber.classList.contains("drag")) return;
+          const next = Math.max(260, Math.min(520, startW - (event.clientX - startX)));
+          document.documentElement.style.setProperty("--desk", next + "px");
+        });
+        function endDrag(event) {
+          if (!grabber.classList.contains("drag")) return;
+          grabber.classList.remove("drag");
+          try {
+            localStorage.setItem("vcam-desk", String(parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--desk")) || 320));
+          } catch (_) {}
+          if (grabber.hasPointerCapture(event.pointerId)) grabber.releasePointerCapture(event.pointerId);
+        }
+        grabber.addEventListener("pointerup", endDrag);
+        grabber.addEventListener("pointercancel", endDrag);
+      }
+
+      // VCamPanel keeps the layout in its own settings file, because this page's origin changes with the phone's IP.
+      const nativeHost = companion && window.chrome && window.chrome.webview ? window.chrome.webview : null;
+
+      function readFolders() {
+        if (nativeHost) {
+          const match = /[#&]layout=([^&]*)/.exec(location.hash);
+          if (match) {
+            try { return JSON.parse(decodeURIComponent(match[1])) || {}; } catch (_) {}
+          }
+        }
+        try { return JSON.parse(localStorage.getItem("vcam-folders") || "{}") || {}; } catch (_) { return {}; }
+      }
+
+      function writeFolders(saved) {
+        const body = JSON.stringify(saved);
+        if (nativeHost) {
+          try { nativeHost.postMessage("desk-layout:" + body); } catch (_) {}
+          history.replaceState(null, "", location.pathname + location.search + "#layout=" + encodeURIComponent(body));
+        }
+        try { localStorage.setItem("vcam-folders", body); } catch (_) {}
+      }
+
+      function restoreFolders() {
+        const saved = readFolders();
+        document.querySelectorAll("details.folder").forEach((el) => {
+          if (Object.prototype.hasOwnProperty.call(saved, el.dataset.key)) el.open = !!saved[el.dataset.key];
+        });
+        document.getElementById("desk").addEventListener("toggle", (event) => {
+          if (!event.target.classList.contains("folder")) return;
+          const next = {};
+          document.querySelectorAll("details.folder").forEach((el) => { next[el.dataset.key] = el.open; });
+          writeFolders(next);
+        }, true);
+      }
 
       async function poll() {
         if (inflight || pending.size) return;
@@ -852,24 +1012,151 @@ enum ControlPanelPage {
               size
             ].filter(Boolean).join(" · ");
             document.getElementById("hint-line").textContent = live
-              ? (companion
-                ? "Changes apply on the next frame in this window and in apps that selected VCamdroid."
-                : (previewOn
-                  ? "Desk preview is a light glance · apps that selected VCamdroid show the live picture"
-                  : "Changes apply live · apps that selected VCamdroid show the picture"))
-              : "The companion is connected. The picture is opening.";
+              ? (companion ? "Next frame updates this window and VCamdroid apps." : "Changes apply live")
+              : "The picture is opening.";
           }
           if (catalog.ok) {
-            const text = await catalog.text();
-            document.getElementById("fps-60").hidden = text.indexOf("@60fps") === -1;
+            const body = await catalog.text();
+            document.getElementById("fps-60").hidden = body.indexOf("@60fps") === -1;
           }
         } catch (_) {
         }
       }
 
+      const advice = {
+        lens: ["Lens", "Use the back camera for a talking head and the front camera when you need to face the screen. Digital zoom past 2× softens detail, so frame with 1× or 2× when you can. Flip if the phone is upside down on a mount. Torch is only for a dark corner: it is harsh and it drains the battery."],
+        exposure: ["ISO and shutter", "These two brighten the same picture in different ways. Shutter decides motion: at 30 fps lock 1/60, which is double the frame rate. Faster looks stuttery. Slower smears movement. ISO decides grain: start near 100 and raise it only if the face is still dark. Do not slow the shutter to avoid a higher ISO. Auto plus EV is enough when the room light changes."],
+        whiteBalance: ["White balance", "Lock this to the key light. Daylight (5200K) for a window or neutral LEDs. Incandescent (3200K) for warm lamps. Fluorescent (4000K) for office tubes. Auto hunts when a monitor or a second color of light enters the frame. If skin goes orange, the lock is warmer than the lamp. If it goes blue, the lock is cooler."],
+        focus: ["Focus", "Auto is right when you lean toward the camera. Manual is right once you are sitting still, so the phone does not hunt the background. Near is closer to the lens. Set it, then leave it."],
+        portrait: ["Portrait", "Leave Portrait off if NVIDIA Broadcast or OBS is already cutting the background. The phone blur is lighter, it warms the phone, and stacking it with a PC cut makes the edges double. Use it only when you do not have those PC tools."],
+        stream: ["Stream", "While VCamPanel is the video client, the picture stays 1080p30 at the Wi-Fi or USB rate. The bitrate slider saves a rate for the optional OBS source. Streams can stay near 4 Mbps. A recording can use 6–8. Moving the slider does not change the VCamdroid picture."],
+        presets: ["Presets", "Save the current look under a name for each setup: morning window, evening lamps, overhead office light. Choosing one applies lens, zoom, exposure, white balance, focus, torch, flip, and portrait. The list stays on this iPhone."]
+      };
+
+      const popover = document.getElementById("popover");
+      function closePop() { popover.hidden = true; }
+      function openPop(button) {
+        const item = advice[button.dataset.pop];
+        if (!item) return;
+        const same = popover.dataset.pop === button.dataset.pop && !popover.hidden;
+        if (same) { closePop(); return; }
+        popover.dataset.pop = button.dataset.pop;
+        popover.innerHTML = "<strong></strong><p></p>";
+        popover.querySelector("strong").textContent = item[0];
+        popover.querySelector("p").textContent = item[1];
+        popover.hidden = false;
+        const rect = button.getBoundingClientRect();
+        const width = popover.offsetWidth;
+        const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+        const top = Math.min(rect.bottom + 8, window.innerHeight - popover.offsetHeight - 8);
+        popover.style.left = left + "px";
+        popover.style.top = Math.max(8, top) + "px";
+      }
+      document.querySelectorAll(".info").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openPop(button);
+        });
+      });
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".popover") && !event.target.closest(".info")) closePop();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") { closePop(); closeGuide(); }
+      });
+
+      const guide = document.getElementById("guide");
+      function openGuide() { guide.hidden = false; closePop(); }
+      function closeGuide() { guide.hidden = true; }
+      window.openGuide = openGuide;
+      document.getElementById("open-guide").addEventListener("click", openGuide);
+      document.getElementById("guide-close").addEventListener("click", closeGuide);
+      guide.addEventListener("click", (event) => { if (event.target === guide) closeGuide(); });
+      document.querySelectorAll(".guide-tabs button").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".guide-tabs button").forEach((item) => item.classList.toggle("on", item === button));
+          document.querySelectorAll(".guide-panel").forEach((panel) => {
+            panel.classList.toggle("on", panel.dataset.guidePanel === button.dataset.guide);
+          });
+        });
+      });
+
+      const presetList = document.getElementById("preset-list");
+      const presetForm = document.getElementById("preset-form");
+      const presetName = document.getElementById("preset-name");
+      const presetDelete = document.getElementById("preset-delete");
+      let presets = [];
+      let presetChoice = "";
+
+      function renderPresets() {
+        const selected = presetList.value;
+        presetList.replaceChildren();
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = presets.length ? "Choose a look" : "No saved looks";
+        presetList.append(empty);
+        for (const preset of presets) {
+          const option = document.createElement("option");
+          option.value = preset.id;
+          option.textContent = preset.name;
+          presetList.append(option);
+        }
+        presetList.value = presets.some((preset) => preset.id === selected) ? selected : presetChoice;
+        if (![...presetList.options].some((option) => option.value === presetList.value)) presetList.value = "";
+        presetDelete.hidden = !presetList.value;
+      }
+
+      async function loadPresets() {
+        try {
+          const response = await fetch("/v1/presets", { cache: "no-store" });
+          if (!response.ok) return;
+          const data = await response.json();
+          presets = data.presets || [];
+          renderPresets();
+        } catch (_) {}
+      }
+
+      async function sendPreset(query) {
+        const response = await fetch("/v1/presets?" + query, { method: "PUT", cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        presets = data.presets || [];
+        if (query.indexOf("name=") === 0 && presets.length) presetChoice = presets[presets.length - 1].id;
+        renderPresets();
+        poll();
+      }
+
+      document.getElementById("preset-save").addEventListener("click", () => {
+        presetForm.hidden = !presetForm.hidden;
+        if (!presetForm.hidden) presetName.focus();
+      });
+      presetForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = presetName.value.trim();
+        if (!name) return;
+        presetForm.hidden = true;
+        presetName.value = "";
+        sendPreset("name=" + encodeURIComponent(name));
+      });
+      presetList.addEventListener("change", () => {
+        presetChoice = presetList.value;
+        presetDelete.hidden = !presetChoice;
+        if (presetChoice) sendPreset("apply=" + encodeURIComponent(presetChoice));
+      });
+      presetDelete.addEventListener("click", () => {
+        if (!presetList.value) return;
+        const id = presetList.value;
+        presetChoice = "";
+        sendPreset("delete=" + encodeURIComponent(id));
+      });
+
       if (companion) document.body.classList.add("companion");
-      showTool();
+      loadDeskWidth();
+      bindGrabber();
+      restoreFolders();
       setPreview(!companion);
+      loadPresets();
       poll();
       setInterval(poll, 500);
     </script>

@@ -10,6 +10,7 @@ namespace usbmux
 		int id = 0;
 		std::string serial;
 		std::string name;
+		std::string connection;
 	};
 
 	struct ListResult

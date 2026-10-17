@@ -378,6 +378,11 @@ namespace usbmux
 						{
 							device.name = dictString(*properties, "DeviceName");
 						}
+						device.connection = dictString(*properties, "ConnectionType");
+					}
+					if (device.connection.empty())
+					{
+						device.connection = dictString(object, "ConnectionType");
 					}
 					if (device.name.empty())
 					{
@@ -460,6 +465,7 @@ namespace usbmux
 					device.id = static_cast<int>(*id);
 					device.serial = xmlString(region, "SerialNumber").value_or("");
 					device.name = xmlString(region, "DeviceName").value_or("iPhone");
+					device.connection = xmlString(region, "ConnectionType").value_or("");
 					if (device.name.empty())
 					{
 						device.name = "iPhone";
@@ -568,6 +574,42 @@ namespace usbmux
 			}
 			closesocket(socket);
 			devices = parseDevices(reply);
+			// One row per phone. ListDevices repeats a phone: the USB record, a Network
+			// record for the same cable, and sometimes a second copy of the same DeviceID.
+			std::vector<Device> unique;
+			for (Device& device : devices)
+			{
+				if (device.connection == "Network")
+				{
+					continue;
+				}
+				bool merged = false;
+				for (Device& existing : unique)
+				{
+					const bool sameId = device.id != 0 && device.id == existing.id;
+					const bool sameSerial = !device.serial.empty() && device.serial == existing.serial;
+					const bool unnamedTwin = device.name == existing.name && device.serial.empty() != existing.serial.empty();
+					if (sameId || sameSerial || unnamedTwin)
+					{
+						if (existing.serial.empty() && !device.serial.empty())
+						{
+							existing.serial = device.serial;
+							existing.id = device.id;
+						}
+						if (existing.connection.empty())
+						{
+							existing.connection = device.connection;
+						}
+						merged = true;
+						break;
+					}
+				}
+				if (!merged)
+				{
+					unique.push_back(std::move(device));
+				}
+			}
+			devices = std::move(unique);
 			if (devices.empty())
 			{
 				failure = "No iPhone found. Use a data cable and tap Trust This Computer.";

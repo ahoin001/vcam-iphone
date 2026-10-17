@@ -3,6 +3,7 @@
 #include "FrameBus.h"
 
 #include <cstdint>
+#include <string>
 #include <cstring>
 #include <vector>
 
@@ -13,8 +14,7 @@ constexpr UINT kPreviewTimer = 1;
 constexpr UINT kPreviewIntervalMs = 33;
 constexpr COLORREF kStage = RGB(12, 14, 16);
 constexpr COLORREF kWaiting = RGB(154, 149, 140);
-constexpr wchar_t kWaitingText[] = L"Waiting for a frame from the iPhone.";
-constexpr int kWaitingPoints = 10;
+constexpr int kWaitingPoints = 13;
 
 uint8_t ClampByte(int value) {
     if (value < 0) {
@@ -54,6 +54,16 @@ void Nv12ToBgra(const uint8_t* nv12, uint8_t* bgra) {
 }
 
 }  // namespace
+
+void PreviewSurface::SetPlaceholder(std::wstring text) {
+    if (text == placeholder_) {
+        return;
+    }
+    placeholder_ = std::move(text);
+    if (hwnd_ != nullptr && !haveFrame_) {
+        InvalidateRect(hwnd_, nullptr, FALSE);
+    }
+}
 
 HWND PreviewSurface::Create(HWND parent) {
     WNDCLASSW windowClass{};
@@ -161,8 +171,12 @@ void PreviewSurface::Paint(HDC dc, const RECT& client) {
         SetBkMode(dc, TRANSPARENT);
         SetTextColor(dc, kWaiting);
         const HGDIOBJ previous = font_ != nullptr ? SelectObject(dc, font_) : nullptr;
-        RECT text = client;
-        DrawTextW(dc, kWaitingText, -1, &text, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        const int pad = width / 10;
+        RECT measure{client.left + pad, client.top, client.right - pad, client.bottom};
+        DrawTextW(dc, placeholder_.c_str(), -1, &measure, DT_CENTER | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
+        const int textH = measure.bottom - measure.top;
+        RECT text{client.left + pad, client.top + (height - textH) / 2, client.right - pad, client.top + (height + textH) / 2};
+        DrawTextW(dc, placeholder_.c_str(), -1, &text, DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
         if (previous != nullptr) {
             SelectObject(dc, previous);
         }

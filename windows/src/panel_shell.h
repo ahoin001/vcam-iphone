@@ -156,7 +156,7 @@ inline constexpr char kStyleViews[] = R"SHELL(
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); gap: 16px;
   padding: 16px;
 }
-body.connected .idle, body.sheet-open .idle { display: none; }
+body.connected .idle, body.sheet-open .idle, body.guide-open .idle { display: none; }
 .left { min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 .stage {
   position: relative; flex: 1; min-height: 160px;
@@ -283,6 +283,7 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <span class="obs-address" id="obs-address">127.0.0.1:4747</span>
       <button class="btn small" id="copy" type="button">Copy</button>
     </div>
+    <button class="btn" id="guide-open" type="button">Guide</button>
     <button class="btn setup" id="setup" type="button" hidden><span class="badge" aria-hidden="true"></span>Setup</button>
     <button class="icon-btn" id="pin" type="button" aria-pressed="true" aria-label="Keep window on top" title="Keep window on top">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h6"/><path d="M10 3.5V9l-3 4h10l-3-4V3.5"/><path d="M12 13v7.5"/></svg>
@@ -458,26 +459,24 @@ inline constexpr char kScript[] = R"SHELL(<script>
     updateConnect();
   }
 
-  function renderDevices(devices) {
+  function renderDevices(devices, selectedKey) {
     const next = JSON.stringify(devices);
     if (next !== signature) {
       signature = next;
       deviceList.replaceChildren(...devices.map(deviceRow));
     }
-    if (selected && !devices.some((device) => device.key === selected)) selected = "";
-    if (!selected && !(typed && addressInput.value.trim())) {
-      const preferred = devices.find((device) => device.kind === "usb") || devices[0];
-      selected = preferred ? preferred.key : "";
-    }
+    selected = devices.some((device) => device.key === selectedKey) ? selectedKey : "";
     deviceList.hidden = devices.length === 0;
     $("searching").hidden = devices.length > 0;
     paintSelection();
   }
 
   function select(key) {
+    if (key === selected) return;
     selected = key;
     typed = false;
     paintSelection();
+    post({ type: "select", key });
   }
 
   function connect() {
@@ -499,6 +498,8 @@ inline constexpr char kScript[] = R"SHELL(<script>
     document.documentElement.classList.toggle("mica", !!state.mica);
     document.body.classList.toggle("connected", connected);
     document.body.classList.toggle("sheet-open", !!state.sheet);
+    document.body.classList.toggle("guide-open", !!state.guide);
+    $("guide").hidden = !state.guide;
 
     $("status").dataset.tone = status.tone || "idle";
     $("status-title").textContent = status.title || "";
@@ -524,7 +525,7 @@ inline constexpr char kScript[] = R"SHELL(<script>
     }
     if (!state.scanning) manualScan = false;
     $("refresh").classList.toggle("spin", manualScan);
-    renderDevices(state.devices || []);
+    renderDevices(state.devices || [], state.selected || "");
   }
 
   deviceList.addEventListener("click", (event) => {
@@ -556,8 +557,13 @@ inline constexpr char kScript[] = R"SHELL(<script>
   });
   addressInput.addEventListener("input", () => {
     typed = true;
-    if (addressInput.value.trim()) selected = "";
-    paintSelection();
+    if (addressInput.value.trim() && selected) {
+      selected = "";
+      paintSelection();
+      post({ type: "select", key: "" });
+    } else {
+      updateConnect();
+    }
   });
   $("address-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -583,6 +589,16 @@ inline constexpr char kScript[] = R"SHELL(<script>
   $("reconnect").addEventListener("click", () => post({ type: "reconnect" }));
   $("setup").addEventListener("click", () => post({ type: "sheet", open: true }));
   $("sheet-done").addEventListener("click", () => post({ type: "sheet", open: false }));
+  $("guide-open").addEventListener("click", () => post({ type: "guide", open: true }));
+  $("guide-done").addEventListener("click", () => post({ type: "guide", open: false }));
+  document.querySelectorAll("#guide .tabs button").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("#guide .tabs button").forEach((item) => item.classList.toggle("on", item === button));
+      document.querySelectorAll("#guide .guide-panel").forEach((panel) => {
+        panel.classList.toggle("on", panel.dataset.panel === button.dataset.tab);
+      });
+    });
+  });
   $("pc-toggle").addEventListener("click", () => {
     pcOpen = $("pc-toggle").getAttribute("aria-expanded") !== "true";
     $("pc-toggle").setAttribute("aria-expanded", String(pcOpen));
@@ -590,6 +606,7 @@ inline constexpr char kScript[] = R"SHELL(<script>
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !$("sheet").hidden) post({ type: "sheet", open: false });
+    if (event.key === "Escape" && !$("guide").hidden) post({ type: "guide", open: false });
   });
   document.addEventListener("contextmenu", (event) => {
     if (!event.target.closest("input")) event.preventDefault();
@@ -602,6 +619,107 @@ inline constexpr char kScript[] = R"SHELL(<script>
 })();
 </script>
 </body></html>
+)SHELL";
+
+inline constexpr char kGuideStyle[] = R"SHELL(
+#guide {
+  position: absolute;
+  top: var(--bar);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
+  padding: 22px 20px 32px;
+}
+.guide-wrap { width: min(880px, 100%); margin: 0 auto; display: grid; gap: 16px; animation: rise 280ms var(--ease); }
+.guide-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.guide-head h1 { font: 600 28px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.guide-head p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button.on { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+.guide-panel { display: none; gap: 12px; }
+.guide-panel.on { display: grid; }
+.guide-copy { color: var(--muted); font-size: 14px; max-width: 62ch; }
+.lights { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: center; }
+.lights svg { width: 100%; height: auto; display: block; }
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.note {
+  padding: 14px 16px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--surface);
+}
+.note strong { display: block; margin-bottom: 4px; font-size: 14px; }
+.note p { color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) { .lights, .notes { grid-template-columns: 1fr; } }
+)SHELL";
+
+inline constexpr char kGuideBody[] = R"SHELL(
+<section id="guide" hidden>
+  <div class="guide-wrap">
+    <div class="guide-head">
+      <div>
+        <h1>Guide</h1>
+        <p>How streamers light a face, and which camera controls to lock.</p>
+      </div>
+      <button class="btn" id="guide-done" type="button">Done</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="btn on" type="button" data-tab="light">Lighting</button>
+      <button class="btn" type="button" data-tab="exposure">Exposure</button>
+      <button class="btn" type="button" data-tab="color">Color</button>
+      <button class="btn" type="button" data-tab="situations">Situations</button>
+    </div>
+    <section class="guide-panel on" data-panel="light">
+      <div class="lights">
+        <svg viewBox="0 0 240 180" aria-hidden="true">
+          <rect width="240" height="180" rx="18" fill="#101316"/>
+          <circle cx="120" cy="86" r="18" fill="#f2efe8"/>
+          <rect x="104" y="106" width="32" height="36" rx="10" fill="#c8c2b6"/>
+          <circle cx="48" cy="52" r="11" fill="#d9a04a"/>
+          <path d="M58 60 L104 82" stroke="#d9a04a" stroke-width="2"/>
+          <circle cx="196" cy="70" r="8" fill="#8aa0b4"/>
+          <path d="M188 76 L138 90" stroke="#8aa0b4" stroke-width="2"/>
+          <circle cx="120" cy="24" r="7" fill="#e7d7b2"/>
+          <path d="M120 31 V68" stroke="#e7d7b2" stroke-width="2"/>
+          <text x="34" y="164" fill="#9a958c" font-size="12" font-family="Segoe UI, sans-serif">Key</text>
+          <text x="176" y="164" fill="#9a958c" font-size="12" font-family="Segoe UI, sans-serif">Fill</text>
+        </svg>
+        <div class="notes">
+          <article class="note"><strong>Key</strong><p>The main light, just off camera and a little above the eyes. Soften it. A bare LED speckles on camera.</p></article>
+          <article class="note"><strong>Fill</strong><p>The other side, dimmer than the key, so one side of the face stays slightly darker.</p></article>
+          <article class="note"><strong>Back</strong><p>A light behind you on the hair or shoulders pulls you off the wall.</p></article>
+          <article class="note"><strong>Window</strong><p>A bright window behind you silhouettes the face unless the key in front is stronger.</p></article>
+        </div>
+      </div>
+    </section>
+    <section class="guide-panel" data-panel="exposure">
+      <p class="guide-copy">Shutter and ISO brighten the same picture in different ways. Lock shutter for motion, then use ISO for whatever light is still missing.</p>
+      <div class="notes">
+        <article class="note"><strong>Shutter first</strong><p>At 30 fps use 1/60, double the frame rate. Faster looks stuttery. Slower than 1/60 smears a head turn or a hand.</p></article>
+        <article class="note"><strong>ISO second</strong><p>Start near 100. Raise it if the face is still dark. Grain usually shows past about 800. Do not slow the shutter to avoid raising ISO.</p></article>
+        <article class="note"><strong>Auto</strong><p>Auto plus a little EV when you move between rooms. The phone keeps natural motion and changes ISO for you.</p></article>
+        <article class="note"><strong>Manual</strong><p>Use manual when the lights stay on for the whole session. Lock 1/60, then ride ISO.</p></article>
+      </div>
+    </section>
+    <section class="guide-panel" data-panel="color">
+      <p class="guide-copy">Auto white balance hunts when a monitor or a second lamp color enters the frame. Lock it to the key light.</p>
+      <div class="notes">
+        <article class="note"><strong>Daylight, 5200K</strong><p>Window light and neutral LEDs. The usual start for a talking head.</p></article>
+        <article class="note"><strong>Incandescent, 3200K</strong><p>Warm desk lamps. If skin goes orange, the lock is warmer than the lamp.</p></article>
+        <article class="note"><strong>Fluorescent, 4000K</strong><p>Office tubes and many cheap panels.</p></article>
+        <article class="note"><strong>Mixed light</strong><p>A window plus a warm lamp paints the face two colors. Turn one off, then lock white balance.</p></article>
+      </div>
+    </section>
+    <section class="guide-panel" data-panel="situations">
+      <p class="guide-copy">Dial the look on the desk, then Save it as a preset for that time of day or those lamps. Leave Portrait off when NVIDIA Broadcast or OBS already cuts the background.</p>
+      <div class="notes">
+        <article class="note"><strong>Day, window beside you</strong><p>Back camera, 1x or 2x, Auto exposure, white balance Daylight.</p></article>
+        <article class="note"><strong>Evening lamps</strong><p>Manual, shutter 1/60, ISO 200 to 800 until the face is right, white balance Incandescent.</p></article>
+        <article class="note"><strong>Overhead only</strong><p>Eyes fall into shadow. Add a key in front before raising ISO. Torch is harsh and it drains the battery.</p></article>
+        <article class="note"><strong>Stream or recording</strong><p>Same exposure either way. The bitrate slider is only the saved rate for an optional OBS source.</p></article>
+      </div>
+    </section>
+  </div>
+</section>
 )SHELL";
 
 }  // namespace panel_shell
