@@ -29,14 +29,14 @@ jobs:
         uses: nuget/setup-nuget@v2
 
       - name: Restore WebView2 package
-        working-directory: VCamdroid-main/windows
+        working-directory: windows
         shell: pwsh
         run: |
           msbuild VCamPanel.vcxproj -t:Restore -p:Configuration=Release -p:Platform=x64 -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build VCamPanel, VCamSource, and usbmux_forward
-        working-directory: VCamdroid-main/windows
+        working-directory: windows
         shell: pwsh
         run: |
           msbuild VCamSource.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
@@ -49,13 +49,13 @@ jobs:
       - name: Package zip
         shell: pwsh
         run: |
-          $out = "VCamdroid-main\windows\x64\Release"
+          $out = "windows\x64\Release"
           $panel = Join-Path $out "VCamPanel.exe"
           $source = Join-Path $out "VCamSource.dll"
           $forward = Join-Path $out "usbmux_forward.exe"
           if (-not (Test-Path $panel)) {
             Write-Error "Missing $panel"
-            Get-ChildItem -Recurse VCamdroid-main\windows -Filter VCamPanel.exe | ForEach-Object { $_.FullName }
+            Get-ChildItem -Recurse windows -Filter VCamPanel.exe | ForEach-Object { $_.FullName }
             exit 1
           }
           if (-not (Test-Path $source)) {

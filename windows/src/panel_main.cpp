@@ -1,0 +1,1446 @@
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <dwmapi.h>
+#include <wrl.h>
+#include <WebView2.h>
+
+#include "mdns_browse.h"
+#include "panel_shell.h"
+#include "usbmux.h"
+#include "camera/Pipeline.h"
+#include "camera/PreviewSurface.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iterator>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "dwmapi.lib")
+
+using Microsoft::WRL::Callback;
+using Microsoft::WRL::ComPtr;
+
+namespace {
+
+constexpr UINT kStatusTimer = 1;
+constexpr UINT kScanTimer = 2;
+constexpr UINT kDeskRetryTimer = 3;
+constexpr UINT kStatusIntervalMs = 1000;
+constexpr UINT kScanIntervalMs = 4000;
+constexpr UINT kDeskRetryMs = 2500;
+constexpr UINT kScanDoneMessage = WM_APP + 1;
+constexpr UINT kPollDoneMessage = WM_APP + 2;
+constexpr int kToolbarHeight = 60;
+constexpr int kPaneRadius = 14;
+constexpr int kWifiGraceScans = 3;
+constexpr int kConnectTimeoutMs = 800;
+
+constexpr COLORREF kBg = RGB(18, 20, 22);
+constexpr COREWEBVIEW2_COLOR kOpaqueBg{255, 18, 20, 22};
+constexpr COREWEBVIEW2_COLOR kClearBg{0, 0, 0, 0};
+
+// Raw DWM values so older SDK headers still build. Windows 10 rejects them and keeps the solid frame.
+constexpr DWORD kDwmDarkMode = 20;
+constexpr DWORD kDwmCornerPreference = 33;
+constexpr DWORD kDwmBackdropType = 38;
+constexpr int kDwmRoundCorners = 2;
+constexpr int kDwmMicaBackdrop = 2;
+
+constexpr wchar_t kDeskWaitingHtml[] =
+    L"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>"
+    L"html,body{height:100%;margin:0}"
+    L"body{display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#121416;color:#9a958c;"
+    L"font:13px/1.5 'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;text-align:center}"
+    L"strong{display:block;margin-bottom:4px;color:#f2efe8;font-size:14px;font-weight:600}"
+    L"</style></head><body><div><strong>Opening the camera desk</strong>"
+    L"Keep VCamdroid open on the studio screen. This retries on its own.</div></body></html>";
+
+enum class Kind { Usb, Wifi };
+enum class Tone { Idle, Ready, Busy, Live, Warn, Error };
+enum class CheckState { Ready, Waiting, Blocked };
+
+struct Listed {
+    Kind kind = Kind::Wifi;
+    int usbId = 0;
+    std::string ipv4;
+    int port = 4747;
+    std::wstring name;
+    std::wstring detail;
+    int missed = 0;
+};
+
+struct ScanResult {
+    std::vector<Listed> devices;
+    std::wstring usbError;
+};
+
+struct SessionPoll {
+    std::string host;
+    int port = 0;
+    bool ok = false;
+    std::string body;
+};
+
+struct StatusView {
+    Tone tone = Tone::Idle;
+    std::wstring title = L"Starting";
+    std::wstring detail;
+    std::vector<std::wstring> chips;
+};
+
+struct Check {
+    CheckState state = CheckState::Waiting;
+    bool pc = false;
+    std::wstring title;
+    std::wstring detail;
+};
+
+HWND g_window = nullptr;
+HWND g_preview = nullptr;
+HWND g_deskHost = nullptr;
+HBRUSH g_background = nullptr;
+vcam::PreviewSurface g_previewSurface;
+
+ComPtr<ICoreWebView2Controller> g_shellController;
+ComPtr<ICoreWebView2> g_shell;
+ComPtr<ICoreWebView2Controller> g_deskController;
+ComPtr<ICoreWebView2> g_desk;
+bool g_shellReady = false;
+bool g_shellNavigationAllowed = false;
+bool g_webViewErrorShown = false;
+bool g_mica = false;
+bool g_onTop = true;
+bool g_sheetOpen = false;
+
+std::vector<Listed> g_devices;
+std::wstring g_usbError;
+std::wstring g_connectError;
+std::thread g_scanThread;
+std::atomic<bool> g_scanning{false};
+std::thread g_pollThread;
+std::atomic<bool> g_polling{false};
+bool g_firstScan = true;
+
+bool g_usbConnected = false;
+std::string g_connectedHost;
+int g_connectedPort = 4747;
+std::wstring g_connectedName;
+std::wstring g_deskUrl;
+Listed g_lastTarget;
+bool g_haveLastTarget = false;
+std::wstring g_address;
+std::wstring g_obsAddress = L"127.0.0.1:4747";
+StatusView g_status;
+
+int Scale(HWND window, int pixels) {
+    const UINT dpi = GetDpiForWindow(window);
+    return MulDiv(pixels, dpi == 0 ? 96 : static_cast<int>(dpi), 96);
+}
+
+bool Connected() {
+    return !g_connectedHost.empty();
+}
+
+std::wstring Trim(std::wstring text) {
+    const auto start = text.find_first_not_of(L" \t\r\n");
+    if (start == std::wstring::npos) {
+        return L"";
+    }
+    const auto end = text.find_last_not_of(L" \t\r\n");
+    return text.substr(start, end - start + 1);
+}
+
+std::wstring Wide(const std::string& text) {
+    if (text.empty()) {
+        return L"";
+    }
+    const int count = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    if (count <= 0) {
+        return L"";
+    }
+    std::wstring wide(static_cast<size_t>(count), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), count);
+    return wide;
+}
+
+std::string Narrow(const std::wstring& text) {
+    if (text.empty()) {
+        return {};
+    }
+    const int count = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+    if (count <= 0) {
+        return {};
+    }
+    std::string bytes(static_cast<size_t>(count), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), bytes.data(), count, nullptr, nullptr);
+    return bytes;
+}
+
+std::wstring EnvFolder(const wchar_t* name) {
+    wchar_t buffer[MAX_PATH] = {};
+    const DWORD length = GetEnvironmentVariableW(name, buffer, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) {
+        return L"";
+    }
+    return buffer;
+}
+
+std::wstring SettingPath(const wchar_t* file) {
+    const std::wstring root = EnvFolder(L"APPDATA");
+    if (root.empty()) {
+        return L"";
+    }
+    const std::wstring folder = root + L"\\VCamdroid";
+    CreateDirectoryW(folder.c_str(), nullptr);
+    return folder + L"\\" + file;
+}
+
+std::wstring WebViewFolder() {
+    const std::wstring root = EnvFolder(L"LOCALAPPDATA");
+    if (root.empty()) {
+        return L"";
+    }
+    const std::wstring folder = root + L"\\VCamdroid";
+    CreateDirectoryW(folder.c_str(), nullptr);
+    const std::wstring webview = folder + L"\\WebView2";
+    CreateDirectoryW(webview.c_str(), nullptr);
+    return webview;
+}
+
+std::wstring LoadSetting(const wchar_t* file) {
+    const std::wstring path = SettingPath(file);
+    if (path.empty()) {
+        return L"";
+    }
+    std::ifstream input(path.c_str(), std::ios::binary);
+    if (!input) {
+        return L"";
+    }
+    std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    return Trim(Wide(bytes));
+}
+
+void SaveSetting(const wchar_t* file, const std::wstring& text) {
+    const std::wstring path = SettingPath(file);
+    if (path.empty()) {
+        return;
+    }
+    const std::string encoded = Narrow(text);
+    std::ofstream output(path.c_str(), std::ios::binary | std::ios::trunc);
+    output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
+}
+
+bool ParseHostPort(const std::wstring& text, std::string& host, int& port) {
+    std::wstring value = Trim(text);
+    if (value.empty()) {
+        return false;
+    }
+    const auto scheme = value.find(L"://");
+    if (scheme != std::wstring::npos) {
+        value = value.substr(scheme + 3);
+    }
+    const auto slash = value.find(L'/');
+    if (slash != std::wstring::npos) {
+        value = value.substr(0, slash);
+    }
+    const auto colon = value.rfind(L':');
+    port = 4747;
+    if (colon != std::wstring::npos) {
+        host = Narrow(value.substr(0, colon));
+        port = _wtoi(value.substr(colon + 1).c_str());
+    } else {
+        host = Narrow(value);
+    }
+    return !host.empty() && port > 0 && port <= 65535;
+}
+
+int JsonInt(const std::string& json, const char* key, int fallback) {
+    const std::string needle = std::string("\"") + key + "\":";
+    const auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return fallback;
+    }
+    return atoi(json.c_str() + at + needle.size());
+}
+
+std::string JsonString(const std::string& json, const char* key) {
+    const std::string needle = std::string("\"") + key + "\":\"";
+    const auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return {};
+    }
+    const auto start = at + needle.size();
+    const auto end = json.find('"', start);
+    if (end == std::string::npos) {
+        return {};
+    }
+    return json.substr(start, end - start);
+}
+
+bool JsonBool(const std::string& json, const char* key) {
+    const std::string needle = std::string("\"") + key + "\":";
+    const auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return false;
+    }
+    return json.compare(at + needle.size(), 4, "true") == 0;
+}
+
+void AppendJsonString(std::string& out, const std::wstring& text) {
+    out += '"';
+    for (const char c : Narrow(text)) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (c == '"') {
+            out += "\\\"";
+        } else if (c == '\\') {
+            out += "\\\\";
+        } else if (byte < 0x20) {
+            char escaped[8];
+            snprintf(escaped, sizeof(escaped), "\\u%04x", byte);
+            out += escaped;
+        } else {
+            out += c;
+        }
+    }
+    out += '"';
+}
+
+void AppendJsonBool(std::string& out, const char* key, bool value) {
+    out += ",\"";
+    out += key;
+    out += "\":";
+    out += value ? "true" : "false";
+}
+
+bool ConnectWithTimeout(SOCKET socket, const sockaddr_in& address, int timeoutMs) {
+    u_long nonBlocking = 1;
+    ioctlsocket(socket, FIONBIO, &nonBlocking);
+    bool connected = connect(socket, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0;
+    if (!connected && WSAGetLastError() == WSAEWOULDBLOCK) {
+        fd_set writable;
+        FD_ZERO(&writable);
+        FD_SET(socket, &writable);
+        fd_set failed;
+        FD_ZERO(&failed);
+        FD_SET(socket, &failed);
+        timeval wait{timeoutMs / 1000, (timeoutMs % 1000) * 1000};
+        connected = select(0, nullptr, &writable, &failed, &wait) > 0 && FD_ISSET(socket, &writable);
+    }
+    u_long blocking = 0;
+    ioctlsocket(socket, FIONBIO, &blocking);
+    return connected;
+}
+
+bool HttpGet(const std::string& host, int port, const char* path, std::string& body) {
+    SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socket == INVALID_SOCKET) {
+        return false;
+    }
+    DWORD timeout = 800;
+    setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+    setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host.c_str(), &address.sin_addr) != 1) {
+        closesocket(socket);
+        return false;
+    }
+    if (!ConnectWithTimeout(socket, address, kConnectTimeoutMs)) {
+        closesocket(socket);
+        return false;
+    }
+    std::ostringstream request;
+    request << "GET " << path << " HTTP/1.1\r\nHost: " << host << ":" << port
+            << "\r\nConnection: close\r\n\r\n";
+    const std::string blob = request.str();
+    if (send(socket, blob.data(), static_cast<int>(blob.size()), 0) <= 0) {
+        closesocket(socket);
+        return false;
+    }
+    std::string response;
+    char buffer[1024];
+    int read = 0;
+    while ((read = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
+        response.append(buffer, static_cast<size_t>(read));
+        if (response.size() > 8192) {
+            break;
+        }
+    }
+    closesocket(socket);
+    const auto split = response.find("\r\n\r\n");
+    if (split == std::string::npos) {
+        return false;
+    }
+    body = response.substr(split + 4);
+    return response.find("200") != std::string::npos;
+}
+
+void CopyText(const std::wstring& text) {
+    if (!OpenClipboard(g_window)) {
+        return;
+    }
+    EmptyClipboard();
+    const size_t bytes = (text.size() + 1) * sizeof(wchar_t);
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (memory) {
+        void* locked = GlobalLock(memory);
+        if (locked) {
+            memcpy(locked, text.c_str(), bytes);
+            GlobalUnlock(memory);
+            SetClipboardData(CF_UNICODETEXT, memory);
+        } else {
+            GlobalFree(memory);
+        }
+    }
+    CloseClipboard();
+}
+
+std::string DeviceKey(const Listed& device) {
+    if (device.kind == Kind::Usb) {
+        return "usb:" + std::to_string(device.usbId);
+    }
+    return "wifi:" + device.ipv4 + ":" + std::to_string(device.port);
+}
+
+const Listed* FindDevice(const std::string& key) {
+    for (const Listed& device : g_devices) {
+        if (DeviceKey(device) == key) {
+            return &device;
+        }
+    }
+    return nullptr;
+}
+
+const char* ToneName(Tone tone) {
+    switch (tone) {
+    case Tone::Ready: return "ready";
+    case Tone::Busy: return "busy";
+    case Tone::Live: return "live";
+    case Tone::Warn: return "warn";
+    case Tone::Error: return "error";
+    default: return "idle";
+    }
+}
+
+const char* CheckName(CheckState state) {
+    switch (state) {
+    case CheckState::Ready: return "ready";
+    case CheckState::Blocked: return "blocked";
+    default: return "waiting";
+    }
+}
+
+std::vector<Check> BuildChecks() {
+    const vcam::CameraSetup setup = vcam::Pipeline::Shared().Setup();
+    const vcam::LinkState link = vcam::Pipeline::Shared().State();
+    std::vector<Check> checks;
+    checks.reserve(5);
+
+    Check windows;
+    windows.pc = true;
+    windows.title = L"Windows 11";
+    if (setup.windows11) {
+        windows.state = CheckState::Ready;
+        windows.detail = L"This PC can list a camera named VCamdroid.";
+    } else {
+        windows.state = CheckState::Blocked;
+        windows.detail = L"VCamdroid appears in the camera list on Windows 11. The desk still connects, and OBS can use a DroidCam source.";
+    }
+    checks.push_back(std::move(windows));
+
+    Check dll;
+    dll.pc = true;
+    dll.title = L"Camera component";
+    if (setup.sourceDll) {
+        dll.state = CheckState::Ready;
+        dll.detail = L"VCamSource.dll is next to VCamPanel.exe.";
+    } else {
+        dll.state = CheckState::Blocked;
+        dll.detail = L"VCamSource.dll is missing next to VCamPanel.exe. Unzip the whole release folder and open VCamPanel from that folder.";
+    }
+    checks.push_back(std::move(dll));
+
+    Check camera;
+    camera.pc = true;
+    camera.title = L"Camera listed as VCamdroid";
+    if (setup.listed) {
+        camera.state = CheckState::Ready;
+        camera.detail = L"Other apps can select VCamdroid.";
+    } else if (!setup.windows11) {
+        camera.state = CheckState::Blocked;
+        camera.detail = L"Listing waits for Windows 11.";
+    } else if (!setup.sourceDll) {
+        camera.state = CheckState::Blocked;
+        camera.detail = L"Registering waits until VCamSource.dll is next to VCamPanel.exe.";
+    } else {
+        camera.state = CheckState::Blocked;
+        camera.detail = setup.detail.empty() ? L"Windows did not list the VCamdroid camera." : setup.detail;
+    }
+    checks.push_back(std::move(camera));
+
+    Check phone;
+    phone.title = L"Picture from the iPhone";
+    if (link == vcam::LinkState::Live) {
+        phone.state = CheckState::Ready;
+        phone.detail = L"Frames are arriving. The preview is the same picture other apps receive.";
+    } else if (!g_connectError.empty()) {
+        phone.state = CheckState::Blocked;
+        phone.detail = g_connectError;
+    } else if (link == vcam::LinkState::Interrupted) {
+        phone.state = CheckState::Blocked;
+        phone.detail = L"The video connection closed. Click Connect to try again.";
+    } else if (Connected()) {
+        phone.detail = g_usbConnected
+            ? L"USB is on. Unlock the iPhone and keep VCamdroid in front."
+            : L"Waiting for the phone. Keep VCamdroid in front.";
+    } else {
+        phone.detail = L"Pick your iPhone, then Connect.";
+    }
+    checks.push_back(std::move(phone));
+
+    Check choose;
+    choose.title = L"Choose VCamdroid";
+    if (link == vcam::LinkState::Live && setup.listed) {
+        choose.state = CheckState::Ready;
+        choose.detail = L"In NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord, choose the camera named VCamdroid. For blur, set NVIDIA Broadcast\u2019s camera to VCamdroid, then select NVIDIA Broadcast in the other app.";
+    } else if (!setup.windows11) {
+        choose.state = CheckState::Blocked;
+        choose.detail = L"This PC cannot list VCamdroid. The desk still works. OBS can use a DroidCam source.";
+    } else {
+        choose.detail = L"Ready once the picture is live and VCamdroid is in the camera list.";
+    }
+    checks.push_back(std::move(choose));
+    return checks;
+}
+
+std::string BuildState() {
+    std::string json = "{\"type\":\"state\"";
+    AppendJsonBool(json, "connected", Connected());
+    AppendJsonBool(json, "mica", g_mica);
+    AppendJsonBool(json, "onTop", g_onTop);
+    AppendJsonBool(json, "sheet", g_sheetOpen);
+    AppendJsonBool(json, "scanning", g_scanning.load());
+    json += ",\"address\":";
+    AppendJsonString(json, g_address);
+    json += ",\"obs\":";
+    AppendJsonString(json, g_obsAddress);
+
+    json += ",\"status\":{\"tone\":\"";
+    json += ToneName(g_status.tone);
+    json += "\",\"title\":";
+    AppendJsonString(json, g_status.title);
+    json += ",\"detail\":";
+    AppendJsonString(json, g_status.detail);
+    json += ",\"chips\":[";
+    for (size_t index = 0; index < g_status.chips.size(); ++index) {
+        if (index > 0) {
+            json += ',';
+        }
+        AppendJsonString(json, g_status.chips[index]);
+    }
+    json += "]}";
+
+    json += ",\"devices\":[";
+    for (size_t index = 0; index < g_devices.size(); ++index) {
+        const Listed& device = g_devices[index];
+        if (index > 0) {
+            json += ',';
+        }
+        json += "{\"key\":";
+        AppendJsonString(json, Wide(DeviceKey(device)));
+        json += ",\"kind\":\"";
+        json += device.kind == Kind::Usb ? "usb" : "wifi";
+        json += "\",\"name\":";
+        AppendJsonString(json, device.name);
+        json += ",\"detail\":";
+        AppendJsonString(json, device.detail);
+        json += '}';
+    }
+    json += ']';
+
+    json += ",\"checks\":[";
+    const std::vector<Check> checks = BuildChecks();
+    for (size_t index = 0; index < checks.size(); ++index) {
+        if (index > 0) {
+            json += ',';
+        }
+        json += "{\"state\":\"";
+        json += CheckName(checks[index].state);
+        json += "\",\"pc\":";
+        json += checks[index].pc ? "true" : "false";
+        json += ",\"title\":";
+        AppendJsonString(json, checks[index].title);
+        json += ",\"detail\":";
+        AppendJsonString(json, checks[index].detail);
+        json += '}';
+    }
+    json += "]}";
+    return json;
+}
+
+void PushState() {
+    if (g_shell && g_shellReady) {
+        g_shell->PostWebMessageAsJson(Wide(BuildState()).c_str());
+    }
+}
+
+void SetStatus(Tone tone, std::wstring title, std::wstring detail, std::vector<std::wstring> chips = {}) {
+    g_status.tone = tone;
+    g_status.title = std::move(title);
+    g_status.detail = std::move(detail);
+    g_status.chips = std::move(chips);
+    PushState();
+}
+
+void ShowIdleStatus() {
+    if (Connected()) {
+        return;
+    }
+    if (!g_connectError.empty()) {
+        SetStatus(Tone::Error, L"Couldn\u2019t connect", g_connectError);
+    } else if (!g_devices.empty()) {
+        SetStatus(Tone::Ready, L"Ready to connect", L"Pick your iPhone, then Connect.");
+    } else if (!g_usbError.empty()) {
+        SetStatus(Tone::Warn, L"No phone found yet", g_usbError);
+    } else {
+        SetStatus(Tone::Idle, L"Looking for your iPhone", L"Plug in a data cable and tap Trust, or open VCamdroid on the same Wi-Fi.");
+    }
+}
+
+std::vector<std::wstring> SessionChips(int battery, int width, int height, int fps) {
+    std::vector<std::wstring> chips;
+    if (!g_connectedName.empty()) {
+        chips.push_back(g_connectedName);
+    }
+    if (battery >= 0) {
+        chips.push_back(std::to_wstring(battery) + L"% battery");
+    }
+    if (width > 0 && height > 0) {
+        std::wstring mode = std::to_wstring(width) + L"\u00d7" + std::to_wstring(height);
+        if (fps > 0) {
+            mode += L" \u00b7 " + std::to_wstring(fps) + L" fps";
+        }
+        chips.push_back(std::move(mode));
+    }
+    return chips;
+}
+
+void RoundCorners(HWND window, int width, int height, int radius) {
+    if (window == nullptr || width <= 0 || height <= 0) {
+        return;
+    }
+    const int diameter = radius * 2;
+    SetWindowRgn(window, CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter), TRUE);
+}
+
+void PlacePane(HWND pane, const RECT& bounds) {
+    const int width = bounds.right - bounds.left;
+    const int height = bounds.bottom - bounds.top;
+    RECT current{};
+    GetWindowRect(pane, &current);
+    const bool resized = current.right - current.left != width || current.bottom - current.top != height;
+    MoveWindow(pane, bounds.left, bounds.top, width, height, TRUE);
+    if (resized) {
+        RoundCorners(pane, width, height, Scale(g_window, kPaneRadius));
+    }
+    if (!IsWindowVisible(pane)) {
+        ShowWindow(pane, SW_SHOWNA);
+    }
+}
+
+void Layout() {
+    if (!g_window || IsIconic(g_window)) {
+        return;
+    }
+    RECT client{};
+    GetClientRect(g_window, &client);
+    const int width = client.right - client.left;
+    const int height = client.bottom - client.top;
+    const int bar = (std::min)(Scale(g_window, kToolbarHeight), height);
+    const bool session = Connected() && !g_sheetOpen;
+
+    if (g_shellController) {
+        RECT shell = client;
+        if (session) {
+            shell.bottom = bar;
+        }
+        g_shellController->put_Bounds(shell);
+        g_shellController->put_IsVisible(TRUE);
+    }
+
+    const int margin = Scale(g_window, 12);
+    const RECT content{margin, bar + margin, width - margin, height - margin};
+    const int innerW = content.right - content.left;
+    const int innerH = content.bottom - content.top;
+    if (!session || innerW <= 0 || innerH <= 0) {
+        if (g_preview && IsWindowVisible(g_preview)) {
+            ShowWindow(g_preview, SW_HIDE);
+        }
+        if (g_deskHost && IsWindowVisible(g_deskHost)) {
+            ShowWindow(g_deskHost, SW_HIDE);
+        }
+        if (g_deskController) {
+            g_deskController->put_IsVisible(FALSE);
+        }
+        return;
+    }
+
+    RECT preview = content;
+    RECT desk = content;
+    if (width >= Scale(g_window, 900)) {
+        const int deskW = (std::min)(Scale(g_window, 400), innerW / 2);
+        preview.right = content.right - deskW - margin;
+        desk.left = preview.right + margin;
+    } else {
+        int previewH = (std::max)(innerH * 42 / 100, Scale(g_window, 140));
+        previewH = (std::min)(previewH, (std::max)(Scale(g_window, 80), innerH - Scale(g_window, 200)));
+        preview.bottom = content.top + previewH;
+        desk.top = preview.bottom + margin;
+    }
+    if (g_preview) {
+        PlacePane(g_preview, preview);
+    }
+    if (g_deskHost) {
+        PlacePane(g_deskHost, desk);
+        if (g_deskController) {
+            const RECT inside{0, 0, desk.right - desk.left, desk.bottom - desk.top};
+            g_deskController->put_Bounds(inside);
+            g_deskController->put_IsVisible(TRUE);
+        }
+    }
+}
+
+void NavigateDesk(const std::wstring& url) {
+    g_deskUrl = url;
+    KillTimer(g_window, kDeskRetryTimer);
+    if (g_desk) {
+        g_desk->Navigate(url.c_str());
+    }
+}
+
+void StartScan() {
+    if (!g_window || g_scanning.exchange(true)) {
+        return;
+    }
+    if (g_scanThread.joinable()) {
+        g_scanThread.join();
+    }
+    const HWND target = g_window;
+    g_scanThread = std::thread([target] {
+        auto* result = new ScanResult();
+        const usbmux::ListResult usb = usbmux::listDevices();
+        for (const usbmux::Device& device : usb.devices) {
+            Listed row;
+            row.kind = Kind::Usb;
+            row.usbId = device.id;
+            row.name = device.name.empty() ? L"iPhone" : Wide(device.name);
+            const std::string suffix = device.serial.size() > 4 ? device.serial.substr(device.serial.size() - 4) : device.serial;
+            row.detail = suffix.empty() ? L"USB" : L"USB \u00b7 \u2026" + Wide(suffix);
+            result->devices.push_back(std::move(row));
+        }
+        result->usbError = Wide(usb.error);
+        for (const mdns::Service& service : mdns::browse(1000)) {
+            Listed row;
+            row.kind = Kind::Wifi;
+            row.ipv4 = service.ipv4;
+            row.port = service.port > 0 ? service.port : 4747;
+            row.name = service.name.empty() ? L"iPhone" : Wide(service.name);
+            row.detail = L"Wi-Fi \u00b7 " + Wide(service.ipv4);
+            result->devices.push_back(std::move(row));
+        }
+        if (!PostMessageW(target, kScanDoneMessage, 0, reinterpret_cast<LPARAM>(result))) {
+            delete result;
+        }
+    });
+    PushState();
+}
+
+void StartPoll() {
+    if (!g_window || !Connected() || g_polling.exchange(true)) {
+        return;
+    }
+    if (g_pollThread.joinable()) {
+        g_pollThread.join();
+    }
+    const HWND target = g_window;
+    const std::string host = g_connectedHost;
+    const int port = g_connectedPort;
+    g_pollThread = std::thread([target, host, port] {
+        auto* poll = new SessionPoll();
+        poll->host = host;
+        poll->port = port;
+        poll->ok = HttpGet(host, port, "/v1/session", poll->body);
+        if (!PostMessageW(target, kPollDoneMessage, 0, reinterpret_cast<LPARAM>(poll))) {
+            delete poll;
+        }
+    });
+}
+
+void ConnectTo(const Listed& target) {
+    KillTimer(g_window, kStatusTimer);
+    vcam::Pipeline::Shared().Stop();
+    usbmux::stop();
+    g_usbConnected = false;
+    g_connectedHost.clear();
+    g_connectError.clear();
+    g_lastTarget = target;
+    g_haveLastTarget = true;
+
+    if (target.kind == Kind::Usb) {
+        std::string error;
+        if (!usbmux::start(target.port, target.usbId, error)) {
+            g_connectError = Wide(error);
+            Layout();
+            ShowIdleStatus();
+            return;
+        }
+        g_usbConnected = true;
+        g_connectedHost = "127.0.0.1";
+    } else {
+        if (target.ipv4.empty()) {
+            g_connectError = L"Type the Wi-Fi address shown on the phone.";
+            Layout();
+            ShowIdleStatus();
+            return;
+        }
+        g_connectedHost = target.ipv4;
+        g_address = Wide(target.ipv4) + L":" + std::to_wstring(target.port);
+        SaveSetting(L"panel-address.txt", g_address);
+    }
+    g_connectedPort = target.port;
+    g_connectedName = target.name;
+    g_obsAddress = Wide(g_connectedHost) + L":" + std::to_wstring(g_connectedPort);
+    KillTimer(g_window, kScanTimer);
+    NavigateDesk(L"http://" + g_obsAddress + L"/panel?companion=1");
+    vcam::Pipeline::Shared().Start(g_connectedHost, g_connectedPort);
+    Layout();
+
+    const std::wstring warning = vcam::Pipeline::Shared().Warning();
+    SetStatus(
+        Tone::Busy,
+        g_usbConnected ? L"Connected over USB" : L"Connected over Wi-Fi",
+        vcam::Pipeline::Shared().Available() || warning.empty()
+            ? L"Opening the picture. Choose VCamdroid as the camera in your app."
+            : warning,
+        SessionChips(-1, 0, 0, 0));
+    SetTimer(g_window, kStatusTimer, kStatusIntervalMs, nullptr);
+    StartPoll();
+}
+
+void ConnectFromShell(const std::string& key, const std::wstring& typed) {
+    std::string host;
+    int port = 4747;
+    const bool haveTyped = ParseHostPort(typed, host, port);
+    if (!key.empty()) {
+        if (const Listed* device = FindDevice(key)) {
+            Listed target = *device;
+            if (target.kind == Kind::Usb) {
+                target.port = haveTyped ? port : 4747;
+            }
+            ConnectTo(target);
+            return;
+        }
+    }
+    if (!haveTyped) {
+        g_connectError = Trim(typed).empty()
+            ? L"Pick a phone in the list, or type the Wi-Fi address shown on the phone."
+            : L"That address doesn\u2019t look right. Use the one shown on the phone, like 192.168.1.20:4747.";
+        ShowIdleStatus();
+        return;
+    }
+    Listed target;
+    target.kind = Kind::Wifi;
+    target.ipv4 = host;
+    target.port = port;
+    target.name = Wide(host);
+    for (const Listed& device : g_devices) {
+        if (device.kind == Kind::Wifi && device.ipv4 == host) {
+            target.name = device.name;
+            break;
+        }
+    }
+    ConnectTo(target);
+}
+
+Listed UsbTarget(const Listed& device) {
+    Listed target = device;
+    std::string host;
+    int port = 4747;
+    target.port = ParseHostPort(g_address, host, port) ? port : 4747;
+    return target;
+}
+
+bool AutoConnect() {
+    for (const Listed& device : g_devices) {
+        if (device.kind == Kind::Usb) {
+            ConnectTo(UsbTarget(device));
+            return true;
+        }
+    }
+    std::string host;
+    int port = 4747;
+    if (!ParseHostPort(g_address, host, port)) {
+        return false;
+    }
+    for (const Listed& device : g_devices) {
+        if (device.kind == Kind::Wifi && device.ipv4 == host) {
+            Listed target = device;
+            target.port = port;
+            ConnectTo(target);
+            return true;
+        }
+    }
+    return false;
+}
+
+void Disconnect() {
+    KillTimer(g_window, kStatusTimer);
+    KillTimer(g_window, kDeskRetryTimer);
+    vcam::Pipeline::Shared().Stop();
+    usbmux::stop();
+    g_usbConnected = false;
+    g_connectedHost.clear();
+    g_connectedName.clear();
+    g_connectError.clear();
+    g_deskUrl.clear();
+    g_sheetOpen = false;
+    if (g_desk) {
+        g_desk->Navigate(L"about:blank");
+    }
+    Layout();
+    SetStatus(Tone::Idle, L"Disconnected", L"Connect again to use the iPhone as a camera.");
+    SetTimer(g_window, kScanTimer, kScanIntervalMs, nullptr);
+    StartScan();
+}
+
+void ApplyScan(std::unique_ptr<ScanResult> result) {
+    g_scanning = false;
+    std::vector<Listed> merged = std::move(result->devices);
+    std::string newUsbKey;
+    for (const Listed& device : merged) {
+        if (device.kind == Kind::Usb && newUsbKey.empty() && FindDevice(DeviceKey(device)) == nullptr) {
+            newUsbKey = DeviceKey(device);
+        }
+    }
+    for (const Listed& old : g_devices) {
+        if (old.kind != Kind::Wifi || old.missed + 1 >= kWifiGraceScans) {
+            continue;
+        }
+        const std::string key = DeviceKey(old);
+        const bool present = std::any_of(merged.begin(), merged.end(),
+            [&key](const Listed& device) { return DeviceKey(device) == key; });
+        if (!present) {
+            Listed kept = old;
+            ++kept.missed;
+            merged.push_back(std::move(kept));
+        }
+    }
+    g_devices = std::move(merged);
+    g_usbError = std::move(result->usbError);
+
+    if (Connected()) {
+        PushState();
+        return;
+    }
+    const bool first = g_firstScan;
+    g_firstScan = false;
+    if (first && AutoConnect()) {
+        return;
+    }
+    if (!first && !newUsbKey.empty()) {
+        if (const Listed* device = FindDevice(newUsbKey)) {
+            ConnectTo(UsbTarget(*device));
+            return;
+        }
+    }
+    ShowIdleStatus();
+}
+
+void ApplySession(const SessionPoll& poll) {
+    if (!Connected() || poll.host != g_connectedHost || poll.port != g_connectedPort) {
+        return;
+    }
+    const vcam::LinkState link = vcam::Pipeline::Shared().State();
+    const std::wstring transport = g_usbConnected ? L"USB" : L"Wi-Fi";
+    if (link == vcam::LinkState::Interrupted) {
+        SetStatus(Tone::Error, L"The video connection closed",
+            L"Another app may have taken the phone\u2019s video. Click Connect to try again.",
+            SessionChips(-1, 0, 0, 0));
+        return;
+    }
+    if (!poll.ok) {
+        SetStatus(Tone::Busy, L"Waiting for the phone",
+            g_usbConnected
+                ? L"USB is on. Unlock the iPhone and keep VCamdroid in front."
+                : L"Keep VCamdroid open on the studio screen, on the same Wi-Fi as this PC.",
+            SessionChips(-1, 0, 0, 0));
+        return;
+    }
+    const int battery = JsonInt(poll.body, "battery", -1);
+    const int width = JsonInt(poll.body, "width", 0);
+    const int height = JsonInt(poll.body, "height", 0);
+    const int fps = JsonInt(poll.body, "fps", 0);
+
+    Tone tone = Tone::Busy;
+    std::wstring title = L"Connected over " + transport;
+    if (link == vcam::LinkState::Live) {
+        tone = Tone::Live;
+        title = L"Streaming over " + transport;
+    } else if (link == vcam::LinkState::Connecting) {
+        title = L"Opening the picture";
+    }
+
+    std::wstring detail;
+    const std::wstring warning = vcam::Pipeline::Shared().Warning();
+    if (!vcam::Pipeline::Shared().Available() && !warning.empty()) {
+        detail = warning;
+        if (tone == Tone::Live) {
+            tone = Tone::Warn;
+        }
+    } else if (link == vcam::LinkState::Live) {
+        detail = L"Choose VCamdroid as the camera in NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord.";
+    } else {
+        detail = L"Keep VCamdroid open on the studio screen.";
+    }
+    SetStatus(tone, std::move(title), std::move(detail), SessionChips(battery, width, height, fps));
+}
+
+void SetOnTop(bool onTop) {
+    g_onTop = onTop;
+    SetWindowPos(g_window, onTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    SaveSetting(L"panel-on-top.txt", onTop ? L"1" : L"0");
+    PushState();
+}
+
+void SetSheet(bool open) {
+    g_sheetOpen = open;
+    Layout();
+    PushState();
+}
+
+void HandleShellMessage(const std::string& json) {
+    const std::string type = JsonString(json, "type");
+    if (type == "ready") {
+        g_shellReady = true;
+        Layout();
+        PushState();
+    } else if (type == "refresh") {
+        g_connectError.clear();
+        StartScan();
+        ShowIdleStatus();
+    } else if (type == "connect") {
+        ConnectFromShell(JsonString(json, "key"), Wide(JsonString(json, "address")));
+    } else if (type == "reconnect") {
+        if (g_haveLastTarget) {
+            ConnectTo(g_lastTarget);
+        }
+    } else if (type == "disconnect") {
+        Disconnect();
+    } else if (type == "copy") {
+        CopyText(g_obsAddress);
+    } else if (type == "onTop") {
+        SetOnTop(JsonBool(json, "value"));
+    } else if (type == "sheet") {
+        SetSheet(JsonBool(json, "open"));
+    }
+}
+
+bool ApplyWindowMaterial(HWND window) {
+    const BOOL dark = TRUE;
+    DwmSetWindowAttribute(window, static_cast<DWMWINDOWATTRIBUTE>(kDwmDarkMode), &dark, sizeof(dark));
+    const int corners = kDwmRoundCorners;
+    DwmSetWindowAttribute(window, static_cast<DWMWINDOWATTRIBUTE>(kDwmCornerPreference), &corners, sizeof(corners));
+    const int backdrop = kDwmMicaBackdrop;
+    if (FAILED(DwmSetWindowAttribute(window, static_cast<DWMWINDOWATTRIBUTE>(kDwmBackdropType), &backdrop, sizeof(backdrop)))) {
+        return false;
+    }
+    const MARGINS extend{-1, -1, -1, -1};
+    return SUCCEEDED(DwmExtendFrameIntoClientArea(window, &extend));
+}
+
+void ShowWebViewError() {
+    if (g_webViewErrorShown) {
+        return;
+    }
+    g_webViewErrorShown = true;
+    MessageBoxW(
+        g_window,
+        L"The WebView2 Runtime is required. Install the Microsoft Edge WebView2 Runtime, then open this window again.",
+        L"VCamdroid",
+        MB_OK | MB_ICONERROR
+    );
+}
+
+void ConfigureWebView(ICoreWebView2* webview, ICoreWebView2Controller* controller, const COREWEBVIEW2_COLOR& background) {
+    ComPtr<ICoreWebView2Controller> owner(controller);
+    ComPtr<ICoreWebView2Controller2> controller2;
+    if (SUCCEEDED(owner.As(&controller2)) && controller2) {
+        controller2->put_DefaultBackgroundColor(background);
+    }
+    ComPtr<ICoreWebView2Settings> settings;
+    if (SUCCEEDED(webview->get_Settings(&settings)) && settings) {
+        settings->put_IsStatusBarEnabled(FALSE);
+        settings->put_IsZoomControlEnabled(FALSE);
+        settings->put_IsBuiltInErrorPageEnabled(FALSE);
+#ifdef NDEBUG
+        settings->put_AreDevToolsEnabled(FALSE);
+#endif
+        ComPtr<ICoreWebView2Settings3> settings3;
+        if (SUCCEEDED(settings.As(&settings3)) && settings3) {
+            settings3->put_AreBrowserAcceleratorKeysEnabled(FALSE);
+        }
+    }
+    EventRegistrationToken token{};
+    webview->add_NewWindowRequested(
+        Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+            [](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* args) -> HRESULT {
+                args->put_Handled(TRUE);
+                return S_OK;
+            }
+        ).Get(),
+        &token
+    );
+}
+
+std::wstring ShellHtml() {
+    std::string html;
+    html += panel_shell::kHead;
+    html += panel_shell::kStyleBase;
+    html += panel_shell::kStyleViews;
+    html += panel_shell::kBody;
+    html += panel_shell::kScript;
+    return Wide(html);
+}
+
+void CreateShell(ICoreWebView2Environment* environment) {
+    environment->CreateCoreWebView2Controller(
+        g_window,
+        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+            [](HRESULT created, ICoreWebView2Controller* controller) -> HRESULT {
+                if (FAILED(created) || controller == nullptr) {
+                    ShowWebViewError();
+                    return S_OK;
+                }
+                g_shellController = controller;
+                if (FAILED(g_shellController->get_CoreWebView2(&g_shell)) || !g_shell) {
+                    ShowWebViewError();
+                    return S_OK;
+                }
+                ConfigureWebView(g_shell.Get(), controller, g_mica ? kClearBg : kOpaqueBg);
+                EventRegistrationToken token{};
+                g_shell->add_WebMessageReceived(
+                    Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                        [](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                            LPWSTR json = nullptr;
+                            if (SUCCEEDED(args->get_WebMessageAsJson(&json)) && json != nullptr) {
+                                const std::string message = Narrow(json);
+                                CoTaskMemFree(json);
+                                HandleShellMessage(message);
+                            }
+                            return S_OK;
+                        }
+                    ).Get(),
+                    &token
+                );
+                g_shell->add_NavigationStarting(
+                    Callback<ICoreWebView2NavigationStartingEventHandler>(
+                        [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* args) -> HRESULT {
+                            LPWSTR uri = nullptr;
+                            std::wstring target;
+                            if (SUCCEEDED(args->get_Uri(&uri)) && uri != nullptr) {
+                                target = uri;
+                                CoTaskMemFree(uri);
+                            }
+                            const bool local = target.rfind(L"about:", 0) == 0 || target.rfind(L"data:", 0) == 0;
+                            if (!g_shellNavigationAllowed && !local) {
+                                args->put_Cancel(TRUE);
+                            }
+                            g_shellNavigationAllowed = false;
+                            return S_OK;
+                        }
+                    ).Get(),
+                    &token
+                );
+                Layout();
+                g_shellNavigationAllowed = true;
+                g_shell->NavigateToString(ShellHtml().c_str());
+                return S_OK;
+            }
+        ).Get()
+    );
+}
+
+void CreateDesk(ICoreWebView2Environment* environment) {
+    environment->CreateCoreWebView2Controller(
+        g_deskHost,
+        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+            [](HRESULT created, ICoreWebView2Controller* controller) -> HRESULT {
+                if (FAILED(created) || controller == nullptr) {
+                    ShowWebViewError();
+                    return S_OK;
+                }
+                g_deskController = controller;
+                if (FAILED(g_deskController->get_CoreWebView2(&g_desk)) || !g_desk) {
+                    ShowWebViewError();
+                    return S_OK;
+                }
+                ConfigureWebView(g_desk.Get(), controller, kOpaqueBg);
+                EventRegistrationToken token{};
+                g_desk->add_NavigationCompleted(
+                    Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                        [](ICoreWebView2*, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
+                            if (!Connected() || g_deskUrl.empty()) {
+                                return S_OK;
+                            }
+                            BOOL ok = FALSE;
+                            args->get_IsSuccess(&ok);
+                            COREWEBVIEW2_WEB_ERROR_STATUS status = COREWEBVIEW2_WEB_ERROR_STATUS_UNKNOWN;
+                            args->get_WebErrorStatus(&status);
+                            if (ok || status == COREWEBVIEW2_WEB_ERROR_STATUS_OPERATION_CANCELED) {
+                                return S_OK;
+                            }
+                            g_desk->NavigateToString(kDeskWaitingHtml);
+                            SetTimer(g_window, kDeskRetryTimer, kDeskRetryMs, nullptr);
+                            return S_OK;
+                        }
+                    ).Get(),
+                    &token
+                );
+                Layout();
+                if (Connected() && !g_deskUrl.empty()) {
+                    g_desk->Navigate(g_deskUrl.c_str());
+                }
+                return S_OK;
+            }
+        ).Get()
+    );
+}
+
+void StartWebView() {
+    const std::wstring folder = WebViewFolder();
+    const HRESULT requested = CreateCoreWebView2EnvironmentWithOptions(
+        nullptr,
+        folder.empty() ? nullptr : folder.c_str(),
+        nullptr,
+        Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+            [](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT {
+                if (FAILED(result) || environment == nullptr) {
+                    ShowWebViewError();
+                    return S_OK;
+                }
+                CreateShell(environment);
+                CreateDesk(environment);
+                return S_OK;
+            }
+        ).Get()
+    );
+    if (FAILED(requested)) {
+        ShowWebViewError();
+    }
+}
+
+LRESULT CALLBACK DeskHostProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    if (message == WM_ERASEBKGND) {
+        RECT client{};
+        GetClientRect(window, &client);
+        FillRect(reinterpret_cast<HDC>(wparam), &client, g_background);
+        return 1;
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+
+HWND CreateDeskHost(HWND parent, HINSTANCE instance) {
+    WNDCLASSW windowClass{};
+    windowClass.lpfnWndProc = DeskHostProc;
+    windowClass.hInstance = instance;
+    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.lpszClassName = L"VCamdroidDeskHost";
+    RegisterClassW(&windowClass);
+    return CreateWindowExW(0, windowClass.lpszClassName, L"", WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+        0, 0, 0, 0, parent, nullptr, instance, nullptr);
+}
+
+void NotifyMoved() {
+    if (g_shellController) {
+        g_shellController->NotifyParentWindowPositionChanged();
+    }
+    if (g_deskController) {
+        g_deskController->NotifyParentWindowPositionChanged();
+    }
+}
+
+LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+    case WM_CREATE: {
+        const auto* created = reinterpret_cast<CREATESTRUCTW*>(lparam);
+        g_preview = g_previewSurface.Create(window);
+        g_deskHost = CreateDeskHost(window, created->hInstance);
+        return 0;
+    }
+    case kScanDoneMessage:
+        ApplyScan(std::unique_ptr<ScanResult>(reinterpret_cast<ScanResult*>(lparam)));
+        return 0;
+    case kPollDoneMessage: {
+        const std::unique_ptr<SessionPoll> poll(reinterpret_cast<SessionPoll*>(lparam));
+        g_polling = false;
+        ApplySession(*poll);
+        return 0;
+    }
+    case WM_TIMER:
+        if (wparam == kStatusTimer) {
+            StartPoll();
+        } else if (wparam == kScanTimer) {
+            StartScan();
+        } else if (wparam == kDeskRetryTimer) {
+            KillTimer(window, kDeskRetryTimer);
+            if (Connected() && g_desk && !g_deskUrl.empty()) {
+                g_desk->Navigate(g_deskUrl.c_str());
+            }
+        }
+        return 0;
+    case WM_ERASEBKGND: {
+        RECT client{};
+        GetClientRect(window, &client);
+        FillRect(reinterpret_cast<HDC>(wparam), &client,
+            g_mica ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : g_background);
+        return 1;
+    }
+    case WM_SIZE:
+        if (wparam == SIZE_MINIMIZED) {
+            if (g_shellController) {
+                g_shellController->put_IsVisible(FALSE);
+            }
+            if (g_deskController) {
+                g_deskController->put_IsVisible(FALSE);
+            }
+        } else {
+            Layout();
+        }
+        return 0;
+    case WM_MOVE:
+        NotifyMoved();
+        return 0;
+    case WM_SETFOCUS:
+        if (g_shellController) {
+            g_shellController->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+        }
+        return 0;
+    case WM_GETMINMAXINFO: {
+        auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+        limits->ptMinTrackSize.x = Scale(window, 960);
+        limits->ptMinTrackSize.y = Scale(window, 640);
+        return 0;
+    }
+    case WM_DPICHANGED: {
+        const auto* suggested = reinterpret_cast<RECT*>(lparam);
+        SetWindowPos(window, nullptr, suggested->left, suggested->top,
+            suggested->right - suggested->left, suggested->bottom - suggested->top,
+            SWP_NOZORDER | SWP_NOACTIVATE);
+        Layout();
+        return 0;
+    }
+    case WM_DESTROY:
+        KillTimer(window, kStatusTimer);
+        KillTimer(window, kScanTimer);
+        KillTimer(window, kDeskRetryTimer);
+        vcam::Pipeline::Shared().Stop();
+        usbmux::stop();
+        if (g_deskController) {
+            g_deskController->Close();
+        }
+        if (g_shellController) {
+            g_shellController->Close();
+        }
+        PostQuitMessage(0);
+        return 0;
+    default:
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    WSADATA data{};
+    WSAStartup(MAKEWORD(2, 2), &data);
+
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(com) && com != RPC_E_CHANGED_MODE) {
+        WSACleanup();
+        return 1;
+    }
+    const bool ownsCom = SUCCEEDED(com);
+    g_background = CreateSolidBrush(kBg);
+    g_address = LoadSetting(L"panel-address.txt");
+    g_onTop = LoadSetting(L"panel-on-top.txt") != L"0";
+
+    WNDCLASSW windowClass{};
+    windowClass.lpfnWndProc = WindowProc;
+    windowClass.hInstance = instance;
+    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.lpszClassName = L"VCamdroidControls";
+    RegisterClassW(&windowClass);
+
+    g_window = CreateWindowExW(
+        (g_onTop ? WS_EX_TOPMOST : 0) | WS_EX_APPWINDOW,
+        windowClass.lpszClassName,
+        L"VCamdroid",
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        1280,
+        800,
+        nullptr,
+        nullptr,
+        instance,
+        nullptr
+    );
+    g_mica = ApplyWindowMaterial(g_window);
+    ShowWindow(g_window, show);
+    UpdateWindow(g_window);
+    StartWebView();
+    vcam::Pipeline::Shared().Prepare();
+    ShowIdleStatus();
+    SetTimer(g_window, kScanTimer, kScanIntervalMs, nullptr);
+    StartScan();
+
+    MSG message{};
+    while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+    vcam::Pipeline::Shared().Stop();
+    usbmux::stop();
+    if (g_scanThread.joinable()) {
+        g_scanThread.join();
+    }
+    if (g_pollThread.joinable()) {
+        g_pollThread.join();
+    }
+    if (g_background) {
+        DeleteObject(g_background);
+    }
+    if (ownsCom) {
+        CoUninitialize();
+    }
+    WSACleanup();
+    return 0;
+}

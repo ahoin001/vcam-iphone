@@ -1,3 +1,0 @@
-[submodule "windows/3rdparty/softcam"]
-	path = windows/3rdparty/softcam
-	url = https://github.com/tshino/softcam.git
