@@ -15,6 +15,7 @@ constexpr UINT kPreviewIntervalMs = 33;
 constexpr COLORREF kStage = RGB(12, 14, 16);
 constexpr COLORREF kWaiting = RGB(154, 149, 140);
 constexpr int kWaitingPoints = 13;
+constexpr unsigned long long kHoldLastFrameMs = 3000;
 
 uint8_t ClampByte(int value) {
     if (value < 0) {
@@ -131,18 +132,11 @@ void PreviewSurface::OnTimer() {
         return;
     }
     if (!bus->IsOpen() && !bus->Open(kLocalFrameBusName) && !bus->Open(kGlobalFrameBusName)) {
-        if (haveFrame_) {
-            haveFrame_ = false;
-            InvalidateRect(hwnd_, nullptr, FALSE);
-        }
+        DropStaleFrame();
         return;
     }
     if (!bus->Alive()) {
-        if (haveFrame_) {
-            haveFrame_ = false;
-            drawnSequence_ = 0;
-            InvalidateRect(hwnd_, nullptr, FALSE);
-        }
+        DropStaleFrame();
         return;
     }
     const uint32_t sequence = bus->Sequence();
@@ -155,15 +149,78 @@ void PreviewSurface::OnTimer() {
     ConvertNv12();
     drawnSequence_ = sequence;
     haveFrame_ = true;
+    lastFrameMs_ = GetTickCount64();
     InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
+// A short network gap should freeze the last picture, not flash the waiting text.
+void PreviewSurface::DropStaleFrame() {
+    if (!haveFrame_ || GetTickCount64() - lastFrameMs_ < kHoldLastFrameMs) {
+        return;
+    }
+    haveFrame_ = false;
+    drawnSequence_ = 0;
+    InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+bool PreviewSurface::EnsureBackBuffer(HDC target, int width, int height) {
+    if (backDc_ != nullptr && backWidth_ == width && backHeight_ == height) {
+        return true;
+    }
+    ReleaseBackBuffer();
+    backDc_ = CreateCompatibleDC(target);
+    if (backDc_ == nullptr) {
+        return false;
+    }
+    backBitmap_ = CreateCompatibleBitmap(target, width, height);
+    if (backBitmap_ == nullptr) {
+        DeleteDC(backDc_);
+        backDc_ = nullptr;
+        return false;
+    }
+    backPrevious_ = SelectObject(backDc_, backBitmap_);
+    backWidth_ = width;
+    backHeight_ = height;
+    return true;
+}
+
+void PreviewSurface::ReleaseBackBuffer() {
+    if (backDc_ != nullptr) {
+        if (backPrevious_ != nullptr) {
+            SelectObject(backDc_, backPrevious_);
+        }
+        DeleteDC(backDc_);
+    }
+    if (backBitmap_ != nullptr) {
+        DeleteObject(backBitmap_);
+    }
+    backDc_ = nullptr;
+    backBitmap_ = nullptr;
+    backPrevious_ = nullptr;
+    backWidth_ = 0;
+    backHeight_ = 0;
+}
+
+// The stage fill and the scaled frame land in one blit; drawing them straight to the
+// window lets the compositor show the dark fill between frames.
 void PreviewSurface::Paint(HDC dc, const RECT& client) {
     const int width = client.right - client.left;
     const int height = client.bottom - client.top;
     if (width <= 0 || height <= 0) {
         return;
     }
+    if (!EnsureBackBuffer(dc, width, height)) {
+        PaintContent(dc, client);
+        return;
+    }
+    const RECT local{0, 0, width, height};
+    PaintContent(backDc_, local);
+    BitBlt(dc, client.left, client.top, width, height, backDc_, 0, 0, SRCCOPY);
+}
+
+void PreviewSurface::PaintContent(HDC dc, const RECT& client) {
+    const int width = client.right - client.left;
+    const int height = client.bottom - client.top;
     HBRUSH stage = CreateSolidBrush(kStage);
     FillRect(dc, &client, stage);
     DeleteObject(stage);
@@ -271,6 +328,7 @@ LRESULT CALLBACK PreviewSurface::Proc(HWND hwnd, UINT message, WPARAM wparam, LP
     }
     case WM_DESTROY:
         KillTimer(hwnd, kPreviewTimer);
+        self->ReleaseBackBuffer();
         delete static_cast<FrameBus*>(self->bus_);
         delete static_cast<std::vector<uint8_t>*>(self->nv12_);
         delete static_cast<std::vector<uint8_t>*>(self->bgra_);

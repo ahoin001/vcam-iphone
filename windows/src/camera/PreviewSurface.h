@@ -21,11 +21,21 @@ private:
     void OnCreate();
     void OnTimer();
     void Paint(HDC dc, const RECT& client);
+    void PaintContent(HDC dc, const RECT& client);
+    bool EnsureBackBuffer(HDC target, int width, int height);
+    void ReleaseBackBuffer();
+    void DropStaleFrame();
     void ConvertNv12();
     void UpdateFont();
 
     HWND hwnd_ = nullptr;
     HFONT font_ = nullptr;
+    HDC backDc_ = nullptr;
+    HBITMAP backBitmap_ = nullptr;
+    HGDIOBJ backPrevious_ = nullptr;
+    int backWidth_ = 0;
+    int backHeight_ = 0;
+    unsigned long long lastFrameMs_ = 0;
     std::wstring placeholder_ = L"On the iPhone, leave VCamdroid open on the camera screen.";
     bool haveFrame_ = false;
     uint32_t drawnSequence_ = 0;
