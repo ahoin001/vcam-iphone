@@ -187,9 +187,9 @@ final class CaptureCore: @unchecked Sendable {
             device.setExposureTargetBias(bias, completionHandler: nil)
         }
 
-        if configuration.manualWhiteBalance, device.isWhiteBalanceModeSupported(.locked) {
+        if configuration.manualWhiteBalance, device.isWhiteBalanceModeSupported(.locked), device.isLockingWhiteBalanceWithCustomDeviceGainsSupported {
             let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(configuration.kelvin), tint: 0)
-            device.setWhiteBalanceModeLocked(with: clampedGains(device.deviceWhiteBalanceGains(for: temperature), on: device), completionHandler: nil)
+            device.setWhiteBalanceModeLocked(whiteBalanceTemperatureAndTintValues: temperature, handler: nil)
         } else if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
             device.whiteBalanceMode = .continuousAutoWhiteBalance
         }
@@ -209,12 +209,6 @@ final class CaptureCore: @unchecked Sendable {
             let rateMatches = format.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= target && target <= $0.maxFrameRate }
             return sizeMatches && rateMatches
         }
-    }
-
-    private func clampedGains(_ gains: AVCaptureDevice.WhiteBalanceGains, on device: AVCaptureDevice) -> AVCaptureDevice.WhiteBalanceGains {
-        let limit = device.maxWhiteBalanceGain
-        func clamp(_ value: Float) -> Float { min(max(value, 1), limit) }
-        return AVCaptureDevice.WhiteBalanceGains(redGain: clamp(gains.redGain), greenGain: clamp(gains.greenGain), blueGain: clamp(gains.blueGain))
     }
 
     private func activeDevice() -> AVCaptureDevice? {
