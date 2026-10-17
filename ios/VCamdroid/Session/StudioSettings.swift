@@ -26,6 +26,7 @@ struct StudioSettings: Equatable, Sendable {
     var portraitEnabled: Bool = false
     var portraitStrength: Double = 0.65
     var portraitPhonePreview: Bool = false
+    var onboardingCompleted: Bool = false
 
     init() {}
 
@@ -60,7 +61,7 @@ extension StudioSettings: Codable {
         case width, height, fps, bitrateKbps, keyframeInterval, port, curtainMode, confirmStop, showTally
         case discoveryEnabled, allowsHighFrameRate, explainedLocalNetwork, lens, zoom, exposureBias
         case manualExposure, iso, shutterSeconds, manualWhiteBalance, kelvin, manualFocus, lensPosition
-        case flip180, torch, portraitEnabled, portraitStrength, portraitPhonePreview
+        case flip180, torch, portraitEnabled, portraitStrength, portraitPhonePreview, onboardingCompleted
     }
 
     init(from decoder: Swift.Decoder) throws {
@@ -93,6 +94,7 @@ extension StudioSettings: Codable {
         portraitEnabled = try container.decodeIfPresent(Bool.self, forKey: .portraitEnabled) ?? portraitEnabled
         portraitStrength = try container.decodeIfPresent(Double.self, forKey: .portraitStrength) ?? portraitStrength
         portraitPhonePreview = try container.decodeIfPresent(Bool.self, forKey: .portraitPhonePreview) ?? portraitPhonePreview
+        onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? onboardingCompleted
     }
 
     func encode(to encoder: Swift.Encoder) throws {
@@ -124,5 +126,18 @@ extension StudioSettings: Codable {
         try container.encode(portraitEnabled, forKey: .portraitEnabled)
         try container.encode(portraitStrength, forKey: .portraitStrength)
         try container.encode(portraitPhonePreview, forKey: .portraitPhonePreview)
+        try container.encode(onboardingCompleted, forKey: .onboardingCompleted)
+    }
+}
+
+extension StudioSettings {
+    /// Panel video is 1080p30 and must not replace the saved DroidCam OBS size.
+    func adopting(_ quality: StreamQuality) -> StudioSettings {
+        guard quality.profile == .baseline else { return self }
+        var copy = self
+        copy.width = quality.width
+        copy.height = quality.height
+        copy.fps = quality.fps
+        return copy
     }
 }

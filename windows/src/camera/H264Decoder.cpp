@@ -2,10 +2,14 @@
 
 #include "FrameBus.h"
 
+#include <codecapi.h>
 #include <mfapi.h>
+#include <strmif.h>
 #include <mferror.h>
 #include <mfidl.h>
+#include <mfobjects.h>
 #include <mftransform.h>
+#include <oleauto.h>
 
 #include <cstring>
 #include <vector>
@@ -37,64 +41,76 @@ size_t FindStart(const uint8_t* data, size_t size, size_t at, size_t* codeBytes)
     return size;
 }
 
-void AppendLength(std::vector<uint8_t>* out, const uint8_t* data, size_t size) {
-    out->push_back(static_cast<uint8_t>((size >> 24) & 0xff));
-    out->push_back(static_cast<uint8_t>((size >> 16) & 0xff));
-    out->push_back(static_cast<uint8_t>((size >> 8) & 0xff));
-    out->push_back(static_cast<uint8_t>(size & 0xff));
+void AppendStartCode(std::vector<uint8_t>* out, const uint8_t* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return;
+    }
+    out->push_back(0);
+    out->push_back(0);
+    out->push_back(0);
+    out->push_back(1);
     out->insert(out->end(), data, data + size);
 }
 
-std::vector<uint8_t> BuildAvcc(const std::vector<uint8_t>& sps, const std::vector<uint8_t>& pps) {
-    std::vector<uint8_t> avcc;
-    if (sps.size() < 4 || pps.empty()) {
-        return avcc;
-    }
-    avcc.push_back(1);
-    avcc.push_back(sps[1]);
-    avcc.push_back(sps[2]);
-    avcc.push_back(sps[3]);
-    avcc.push_back(0xff);
-    avcc.push_back(0xe1);
-    avcc.push_back(static_cast<uint8_t>((sps.size() >> 8) & 0xff));
-    avcc.push_back(static_cast<uint8_t>(sps.size() & 0xff));
-    avcc.insert(avcc.end(), sps.begin(), sps.end());
-    avcc.push_back(1);
-    avcc.push_back(static_cast<uint8_t>((pps.size() >> 8) & 0xff));
-    avcc.push_back(static_cast<uint8_t>(pps.size() & 0xff));
-    avcc.insert(avcc.end(), pps.begin(), pps.end());
-    return avcc;
-}
-
-void ScaleNv12(const uint8_t* source, int sourceWidth, int sourceHeight, int stride, uint8_t* destination) {
+void ScaleNv12(const uint8_t* luma, const uint8_t* chroma, int sourceWidth, int sourceHeight, int stride, uint8_t* destination) {
     const int destWidth = static_cast<int>(kFrameWidth);
     const int destHeight = static_cast<int>(kFrameHeight);
-    if (sourceWidth == destWidth && sourceHeight == destHeight && stride == destWidth) {
-        std::memcpy(destination, source, FrameByteCount());
+    if (luma == nullptr || chroma == nullptr || sourceWidth <= 0 || sourceHeight <= 0 || stride <= 0) {
+        return;
+    }
+    const bool contiguous = chroma == luma + static_cast<size_t>(stride) * static_cast<size_t>(sourceHeight);
+    if (sourceWidth == destWidth && sourceHeight == destHeight && stride == destWidth && contiguous) {
+        std::memcpy(destination, luma, FrameByteCount());
+        return;
+    }
+    if (sourceWidth == destWidth && stride == destWidth && sourceHeight == destHeight) {
+        std::memcpy(destination, luma, static_cast<size_t>(destHeight) * kFrameStride);
+        std::memcpy(destination + kFrameStride * kFrameHeight, chroma, static_cast<size_t>(destHeight / 2) * kFrameStride);
         return;
     }
     for (int y = 0; y < destHeight; ++y) {
         const int sourceY = y * sourceHeight / destHeight;
-        const uint8_t* row = source + static_cast<size_t>(sourceY) * static_cast<size_t>(stride);
+        const uint8_t* row = luma + static_cast<size_t>(sourceY) * static_cast<size_t>(stride);
         uint8_t* out = destination + static_cast<size_t>(y) * kFrameStride;
         for (int x = 0; x < destWidth; ++x) {
             out[x] = row[x * sourceWidth / destWidth];
         }
     }
-    const uint8_t* sourceChroma = source + static_cast<size_t>(stride) * static_cast<size_t>(sourceHeight);
     uint8_t* destChroma = destination + kFrameStride * kFrameHeight;
     const int chromaHeight = destHeight / 2;
     const int sourceChromaHeight = sourceHeight / 2;
     const int sourceChromaWidth = sourceWidth / 2;
     for (int y = 0; y < chromaHeight; ++y) {
         const int sourceY = sourceChromaHeight == 0 ? 0 : y * sourceChromaHeight / chromaHeight;
-        const uint8_t* row = sourceChroma + static_cast<size_t>(sourceY) * static_cast<size_t>(stride);
+        const uint8_t* row = chroma + static_cast<size_t>(sourceY) * static_cast<size_t>(stride);
         uint8_t* out = destChroma + static_cast<size_t>(y) * kFrameStride;
         for (int x = 0; x < destWidth; x += 2) {
             const int sourceX = sourceChromaWidth == 0 ? 0 : (x / 2) * sourceChromaWidth / (destWidth / 2) * 2;
             out[x] = row[sourceX];
             out[x + 1] = row[sourceX + 1];
         }
+    }
+}
+
+void EnableLowLatency(IMFTransform* transform) {
+    if (transform == nullptr) {
+        return;
+    }
+    IMFAttributes* attributes = nullptr;
+    if (SUCCEEDED(transform->GetAttributes(&attributes)) && attributes != nullptr) {
+        attributes->SetUINT32(CODECAPI_AVLowLatencyMode, TRUE);
+        attributes->SetUINT32(MF_LOW_LATENCY, TRUE);
+        attributes->Release();
+    }
+    ICodecAPI* codec = nullptr;
+    if (SUCCEEDED(transform->QueryInterface(IID_PPV_ARGS(&codec))) && codec != nullptr) {
+        VARIANT value;
+        VariantInit(&value);
+        value.vt = VT_BOOL;
+        value.boolVal = VARIANT_TRUE;
+        codec->SetValue(&CODECAPI_AVLowLatencyMode, &value);
+        VariantClear(&value);
+        codec->Release();
     }
 }
 
@@ -157,10 +173,24 @@ bool H264Decoder::Decode(uint64_t pts, const uint8_t* annexB, size_t size, std::
     if (pts == kNoPts) {
         return false;
     }
+    bool hasSps = false;
+    bool hasPps = false;
+    bool hasIdr = false;
+    for (const Nal& nal : nals) {
+        hasSps = hasSps || nal.type == 7;
+        hasPps = hasPps || nal.type == 8;
+        hasIdr = hasIdr || nal.type == 5;
+    }
     std::vector<uint8_t> sampleBytes;
+    if (hasIdr && !hasSps) {
+        AppendStartCode(&sampleBytes, sps_.data(), sps_.size());
+    }
+    if (hasIdr && !hasPps) {
+        AppendStartCode(&sampleBytes, pps_.data(), pps_.size());
+    }
     for (const Nal& nal : nals) {
         if (nal.type == 1 || nal.type == 5 || nal.type == 6 || nal.type == 7 || nal.type == 8) {
-            AppendLength(&sampleBytes, nal.data, nal.size);
+            AppendStartCode(&sampleBytes, nal.data, nal.size);
         }
     }
     if (sampleBytes.empty() || !EnsureDecoder() || !Configure()) {
@@ -241,11 +271,15 @@ bool H264Decoder::Configure() {
     if (configured_) {
         return true;
     }
-    avcc_ = BuildAvcc(sps_, pps_);
-    if (avcc_.empty() || decoder_ == nullptr) {
+    if (decoder_ == nullptr) {
         return false;
     }
     auto* transform = static_cast<IMFTransform*>(decoder_);
+    if (inputSet_) {
+        transform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        transform->SetInputType(0, nullptr, 0);
+        inputSet_ = false;
+    }
     IMFMediaType* input = nullptr;
     if (FAILED(MFCreateMediaType(&input)) || input == nullptr) {
         return false;
@@ -256,13 +290,17 @@ bool H264Decoder::Configure() {
     MFSetAttributeRatio(input, MF_MT_FRAME_RATE, kFrameFps, 1);
     MFSetAttributeRatio(input, MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
     input->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-    input->SetBlob(MF_MT_MPEG_SEQUENCE_HEADER, avcc_.data(), static_cast<UINT32>(avcc_.size()));
+    input->SetUINT32(MF_LOW_LATENCY, TRUE);
     const HRESULT hr = transform->SetInputType(0, input, 0);
     input->Release();
     if (FAILED(hr)) {
         return false;
     }
+    inputSet_ = true;
     configured_ = ChooseOutput();
+    if (configured_) {
+        EnableLowLatency(transform);
+    }
     return configured_;
 }
 
@@ -352,11 +390,37 @@ bool CopyOutput(::IMFSample* sample, IMFTransform* transform, std::vector<uint8_
     if (FAILED(sample->ConvertToContiguousBuffer(&buffer)) || buffer == nullptr) {
         return false;
     }
-    UINT32 width = kFrameWidth;
-    UINT32 height = kFrameHeight;
+    UINT32 codedWidth = kFrameWidth;
+    UINT32 codedHeight = kFrameHeight;
     IMFMediaType* type = nullptr;
     if (SUCCEEDED(transform->GetOutputCurrentType(0, &type)) && type != nullptr) {
-        MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height);
+        MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &codedWidth, &codedHeight);
+    }
+    UINT32 width = codedWidth;
+    UINT32 height = codedHeight;
+    int offsetX = 0;
+    int offsetY = 0;
+    if (type != nullptr) {
+        MFVideoArea area{};
+        UINT32 blob = 0;
+        if (SUCCEEDED(type->GetBlob(
+                MF_MT_MINIMUM_DISPLAY_APERTURE,
+                reinterpret_cast<UINT8*>(&area),
+                sizeof(area),
+                &blob)) &&
+            blob >= sizeof(area) && area.Area.cx > 0 && area.Area.cy > 0 && area.OffsetX.value >= 0 &&
+            area.OffsetY.value >= 0) {
+            const UINT32 originX = static_cast<UINT32>(area.OffsetX.value);
+            const UINT32 originY = static_cast<UINT32>(area.OffsetY.value);
+            const UINT32 cropWidth = static_cast<UINT32>(area.Area.cx);
+            const UINT32 cropHeight = static_cast<UINT32>(area.Area.cy);
+            if (originX + cropWidth <= codedWidth && originY + cropHeight <= codedHeight) {
+                offsetX = static_cast<int>(originX);
+                offsetY = static_cast<int>(originY);
+                width = cropWidth;
+                height = cropHeight;
+            }
+        }
         type->Release();
     }
     BYTE* scan = nullptr;
@@ -383,13 +447,22 @@ bool CopyOutput(::IMFSample* sample, IMFTransform* transform, std::vector<uint8_
     const int step = stride < 0 ? -stride : stride;
     const uint8_t* source = scan;
     if (stride < 0) {
-        source = scan + static_cast<size_t>(step) * static_cast<size_t>(height > 0 ? height - 1 : 0);
+        source = scan + static_cast<size_t>(step) * static_cast<size_t>(codedHeight > 0 ? codedHeight - 1 : 0);
     }
     if (width == 0 || height == 0) {
         width = kFrameWidth;
         height = kFrameHeight;
+        codedWidth = width;
+        codedHeight = height;
     }
-    ScaleNv12(source, static_cast<int>(width), static_cast<int>(height), step, nv12.data());
+    const uint8_t* luma = source;
+    const uint8_t* chroma = source + static_cast<size_t>(step) * static_cast<size_t>(codedHeight);
+    if (stride >= 0) {
+        luma = source + static_cast<size_t>(offsetY) * static_cast<size_t>(step) + static_cast<size_t>(offsetX);
+        chroma = source + static_cast<size_t>(codedHeight) * static_cast<size_t>(step) +
+                 static_cast<size_t>(offsetY / 2) * static_cast<size_t>(step) + static_cast<size_t>(offsetX & ~1);
+    }
+    ScaleNv12(luma, chroma, static_cast<int>(width), static_cast<int>(height), step, nv12.data());
     if (locked2D) {
         twoD->Unlock2D();
     } else {

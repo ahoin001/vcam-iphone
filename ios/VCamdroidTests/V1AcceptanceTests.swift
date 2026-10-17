@@ -131,6 +131,68 @@ import Testing
     #expect(request == .applyControls(ControlUpdate(portrait: true, portraitStrength: 0.4)))
 }
 
+@Test func oldSettingsLeaveOnboardingIncomplete() throws {
+    var settings = StudioSettings()
+    settings.width = 1280
+    settings.height = 720
+    settings.fps = 30
+    settings.bitrateKbps = 6000
+    settings.lens = .front
+    settings.onboardingCompleted = true
+    let data = try JSONEncoder().encode(settings)
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    object.removeValue(forKey: "onboardingCompleted")
+    let stripped = try JSONSerialization.data(withJSONObject: object)
+    let decoded = try JSONDecoder().decode(StudioSettings.self, from: stripped)
+    #expect(decoded.onboardingCompleted == false)
+    #expect(decoded.width == 1280)
+    #expect(decoded.height == 720)
+    #expect(decoded.fps == 30)
+    #expect(decoded.bitrateKbps == 6000)
+    #expect(decoded.lens == .front)
+}
+
+@Test func panelConnectionDoesNotReplaceSavedMode() {
+    var settings = StudioSettings()
+    settings.width = 1280
+    settings.height = 720
+    settings.fps = 30
+    let panel = settings.adopting(.panel(usb: true))
+    #expect(panel.width == 1280)
+    #expect(panel.height == 720)
+    #expect(panel.fps == 30)
+    let legacy = settings.adopting(.legacy(width: 1920, height: 1080, fps: 60, bitrateKbps: 8000))
+    #expect(legacy.width == 1920)
+    #expect(legacy.height == 1080)
+    #expect(legacy.fps == 60)
+}
+
+@Test func packetsLeaveInArrivalOrder() async {
+    let forwarder = OrderedPacketForwarder()
+    let sent = SentPackets()
+    let task = Task {
+        await forwarder.run { packet in
+            if packet.pts == UInt64.max {
+                try? await Task.sleep(for: .milliseconds(30))
+            }
+            await sent.append(packet.pts)
+        }
+    }
+    forwarder.enqueue(pts: UInt64.max, payload: Data([7]))
+    forwarder.enqueue(pts: 1, payload: Data([5]))
+    forwarder.finish()
+    await task.value
+    #expect(await sent.values == [UInt64.max, 1])
+}
+
+private actor SentPackets {
+    private(set) var values: [UInt64] = []
+
+    func append(_ pts: UInt64) {
+        values.append(pts)
+    }
+}
+
 @Test func storedSettingsKeepPortraitOptional() throws {
     var settings = StudioSettings()
     settings.lens = .front

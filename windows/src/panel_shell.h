@@ -315,7 +315,7 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
   <section class="panel">
     <div>
       <h1>Connect your iPhone</h1>
-      <p class="lede">Open VCamdroid on the phone and tap <b>OBS Studio</b>. It shows up here over USB or Wi-Fi.</p>
+      <p class="lede">Open VCamdroid on the phone and leave the camera screen in front. It shows up here over USB or Wi-Fi.</p>
     </div>
     <div class="group">
       <div class="group-head">

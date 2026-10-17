@@ -580,7 +580,25 @@ void CopyText(const std::wstring& text) {
 }
 
 constexpr wchar_t kPhoneCue[] =
-    L"On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front. The picture appears here once the phone starts sending it.";
+    L"On the iPhone, leave VCamdroid open on the camera screen. The picture appears here once the phone starts sending it.";
+constexpr wchar_t kUsbAppClosed[] =
+    L"USB is connected, but VCamdroid is not on the camera screen.";
+constexpr wchar_t kCannotDecode[] =
+    L"The PC is receiving the picture, but it cannot decode it. Leave the camera screen open, then click Connect again.";
+
+bool ReceivingRecently(const vcam::LinkProgress& progress) {
+    if (progress.lastByteMs == 0) {
+        return false;
+    }
+    return GetTickCount64() - progress.lastByteMs < 3000;
+}
+
+bool DecodedRecently(const vcam::LinkProgress& progress) {
+    if (progress.lastDecodedMs == 0) {
+        return false;
+    }
+    return GetTickCount64() - progress.lastDecodedMs < 3000;
+}
 
 std::string DeviceKey(const Listed& device) {
     if (device.kind == Kind::Usb) {
@@ -674,6 +692,7 @@ std::vector<Check> BuildChecks() {
     }
     checks.push_back(std::move(camera));
 
+    const vcam::LinkProgress progress = vcam::Pipeline::Shared().Progress();
     Check phone;
     phone.title = L"Picture from the iPhone";
     if (link == vcam::LinkState::Live) {
@@ -685,6 +704,12 @@ std::vector<Check> BuildChecks() {
     } else if (link == vcam::LinkState::Interrupted) {
         phone.state = CheckState::Blocked;
         phone.detail = L"The video connection closed. Click Connect to try again.";
+    } else if (Connected() && progress.closedWithoutVideo && g_usbConnected) {
+        phone.state = CheckState::Blocked;
+        phone.detail = kUsbAppClosed;
+    } else if (Connected() && ReceivingRecently(progress) && !DecodedRecently(progress)) {
+        phone.state = CheckState::Blocked;
+        phone.detail = kCannotDecode;
     } else if (Connected()) {
         phone.detail = kPhoneCue;
     } else {
@@ -1270,8 +1295,10 @@ void ApplySession(const SessionPoll& poll) {
     if (!Connected() || poll.host != g_connectedHost || poll.port != g_connectedPort) {
         return;
     }
-    const vcam::LinkState link = vcam::Pipeline::Shared().State();
+    const vcam::LinkProgress progress = vcam::Pipeline::Shared().Progress();
+    const vcam::LinkState link = progress.state;
     const std::wstring transport = g_usbConnected ? L"USB" : L"Wi-Fi";
+    const bool phoneSending = JsonBool(poll.body, "streaming") || JsonBool(poll.body, "panelClient");
     if (link == vcam::LinkState::Interrupted) {
         SetStatus(Tone::Error, L"The video connection closed",
             L"Another app may have taken the phone\u2019s video. Click Connect to try again.",
@@ -1279,7 +1306,8 @@ void ApplySession(const SessionPoll& poll) {
         return;
     }
     if (!poll.ok) {
-        SetStatus(Tone::Busy, L"Waiting for the iPhone", kPhoneCue, SessionChips(-1, 0, 0, 0));
+        const std::wstring detail = progress.closedWithoutVideo && g_usbConnected ? std::wstring(kUsbAppClosed) : std::wstring(kPhoneCue);
+        SetStatus(Tone::Busy, L"Waiting for the iPhone", detail, SessionChips(-1, 0, 0, 0));
         return;
     }
     const int battery = JsonInt(poll.body, "battery", -1);
@@ -1310,6 +1338,12 @@ void ApplySession(const SessionPoll& poll) {
         }
     } else if (link == vcam::LinkState::Live) {
         detail = L"Choose VCamdroid as the camera in NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord.";
+    } else if (phoneSending && ReceivingRecently(progress) && !DecodedRecently(progress)) {
+        detail = kCannotDecode;
+        tone = Tone::Warn;
+    } else if (progress.closedWithoutVideo && g_usbConnected) {
+        detail = kUsbAppClosed;
+        tone = Tone::Warn;
     } else {
         detail = kPhoneCue;
     }

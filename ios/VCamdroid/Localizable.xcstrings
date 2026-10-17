@@ -153,7 +153,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OBS connected"
+            "value" : "The computer connected"
           }
         }
       }
@@ -164,7 +164,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OBS disconnected"
+            "value" : "The computer disconnected"
           }
         }
       }
@@ -439,7 +439,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Broadcast this iPhone to OBS, then adjust the shot from the desk."
+            "value" : "Use this iPhone as a Windows webcam named VCamdroid."
           }
         }
       }
@@ -461,7 +461,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How to connect"
+            "value" : "Help"
           }
         }
       }
@@ -472,7 +472,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use 1080p at 30 fps. For recording, set bitrate to 6000–8000 kbps. Keep the phone plugged in, leave Low Power Mode off, and use Automatic curtain so the screen goes black while you shoot. USB stays cooler than Wi-Fi. If the phone warns that it is hot, drop bitrate toward 4000, keep the curtain on, and take the case off. The side button ends the broadcast."
+            "value" : "If VCamPanel says it is receiving the picture but cannot decode it, leave this screen open and click Connect again. If it says USB is connected but VCamdroid is not on the camera screen, open this screen and leave it in front. Waiting for the computer means the phone is ready and the PC has not connected yet."
           }
         }
       }
@@ -483,7 +483,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Copy the Controls link from the studio screen. In OBS, open Docks → Custom Browser Docks and paste it. On Windows you can also open VCamPanel and paste the same link. Zoom, exposure, white balance, focus, torch, and flip change without reconnecting OBS."
+            "value" : "In NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord, choose the camera named VCamdroid. VCamPanel has to stay open."
           }
         }
       }
@@ -494,7 +494,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desk controls"
+            "value" : "Choose VCamdroid"
           }
         }
       }
@@ -505,7 +505,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Long sessions"
+            "value" : "If the picture never appears"
           }
         }
       }
@@ -516,7 +516,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "How to connect"
+            "value" : "Help"
           }
         }
       }
@@ -527,7 +527,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Install Apple Devices or iTunes, tap Trust This Computer, then run usbmux_forward or open VCamPanel for port 4747. In OBS, connect to 127.0.0.1 on that port. Prefer USB for long recordings; it is steadier and cooler than Wi-Fi."
+            "value" : "Install Apple Devices from the Microsoft Store and open it once. Plug in the phone, unlock it, and tap Trust This Computer. In VCamPanel, select the USB phone and click Connect."
           }
         }
       }
@@ -549,7 +549,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Put the phone and the PC on the same network, preferably 5 GHz. In OBS, add a VCamdroid or DroidCam OBS source using the IP and port shown on the phone. Turn off VPN and router client isolation if the PC cannot reach the phone."
+            "value" : "Put the phone and the PC on the same Wi-Fi network. In VCamPanel, select the phone or type the address shown here, then click Connect. Turn off VPN and router client isolation if the PC cannot see the phone."
           }
         }
       }
@@ -747,7 +747,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Session"
+            "value" : "Camera screen"
           }
         }
       }
@@ -1232,6 +1232,358 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wi-Fi"
+          }
+        }
+      }
+    },
+    "advancedSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DroidCam OBS source"
+          }
+        }
+      }
+    },
+    "cameraStopped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera stopped"
+          }
+        }
+      }
+    },
+    "cameraStoppedBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The picture is off until you start again."
+          }
+        }
+      }
+    },
+    "connectionSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
+          }
+        }
+      }
+    },
+    "deletePreset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        }
+      }
+    },
+    "copyLink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy link"
+          }
+        }
+      }
+    },
+    "discovery" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discovery"
+          }
+        }
+      }
+    },
+    "discoveryFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discovery lets VCamPanel find this phone on Wi-Fi. Changing the port or discovery restarts the listener."
+          }
+        }
+      }
+    },
+    "helpAction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help"
+          }
+        }
+      }
+    },
+    "helpObsBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional. Disconnect VCamPanel first. OBS can then use a DroidCam source at the address on this screen. The size and bitrate for that source are under Settings, DroidCam OBS source."
+          }
+        }
+      }
+    },
+    "helpObsTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DroidCam OBS source"
+          }
+        }
+      }
+    },
+    "helpPanelBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the Windows PC, download VCamPanel from the latest release, unzip it, and run VCamPanel.exe. On Windows 11, click Install camera once and approve the prompt."
+          }
+        }
+      }
+    },
+    "helpPanelTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get VCamPanel"
+          }
+        }
+      }
+    },
+    "nextAction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
+    },
+    "onboardingConnectBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB needs Apple Devices on the PC, a data cable, and Trust This Computer. Wi-Fi needs the phone and the PC on the same network."
+          }
+        }
+      }
+    },
+    "onboardingConnectTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB or Wi-Fi"
+          }
+        }
+      }
+    },
+    "onboardingLocalNetwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you use Wi-Fi, iOS asks to find devices on the local network. Allow it. USB does not need that prompt."
+          }
+        }
+      }
+    },
+    "onboardingPanelBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Windows companion is VCamPanel. Download the latest release, unzip it, and run VCamPanel.exe."
+          }
+        }
+      }
+    },
+    "onboardingPanelTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get VCamPanel on the PC"
+          }
+        }
+      }
+    },
+    "onboardingPermissionTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera and local network"
+          }
+        }
+      }
+    },
+    "onboardingWelcomeBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use this iPhone as a Windows webcam named VCamdroid in NVIDIA Broadcast, OBS, Zoom, and Teams."
+          }
+        }
+      }
+    },
+    "onboardingWelcomeTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This iPhone is the camera"
+          }
+        }
+      }
+    },
+    "openPanelNextStep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open VCamPanel on your PC and click Connect"
+          }
+        }
+      }
+    },
+    "presetName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset name"
+          }
+        }
+      }
+    },
+    "presetRenameTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename preset"
+          }
+        }
+      }
+    },
+    "presetsSection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets"
+          }
+        }
+      }
+    },
+    "renamePreset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "replaySetup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay setup"
+          }
+        }
+      }
+    },
+    "savePreset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save current look"
+          }
+        }
+      }
+    },
+    "shareLink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        }
+      }
+    },
+    "startCamera" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "usbOrWifiHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB needs Apple Devices on the PC. Wi-Fi needs the same network."
           }
         }
       }

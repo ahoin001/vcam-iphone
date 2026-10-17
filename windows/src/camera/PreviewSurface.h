@@ -26,7 +26,7 @@ private:
 
     HWND hwnd_ = nullptr;
     HFONT font_ = nullptr;
-    std::wstring placeholder_ = L"On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front.";
+    std::wstring placeholder_ = L"On the iPhone, leave VCamdroid open on the camera screen.";
     bool haveFrame_ = false;
     uint32_t drawnSequence_ = 0;
     void* bus_ = nullptr;

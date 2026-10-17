@@ -25,8 +25,8 @@ private:
     void* decoder_ = nullptr;
     std::vector<uint8_t> sps_;
     std::vector<uint8_t> pps_;
-    std::vector<uint8_t> avcc_;
     bool configured_ = false;
+    bool inputSet_ = false;
     bool providesSamples_ = false;
     unsigned int outputBytes_ = 0;
 };

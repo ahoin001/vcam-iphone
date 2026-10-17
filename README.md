@@ -63,10 +63,10 @@ Do this on the Mac, with the iPhone in your hand.
 12. Press the **Run** button (the play triangle), or press **Command-R**.
 13. Wait until the app installs and opens on the phone. The first build can take several minutes.
 14. If the phone says the developer is not trusted, stay on the phone and open **Settings → General → VPN & Device Management**. Select your Apple ID and tap **Trust**, then open **VCamdroid** again.
-15. On the **Camera access** screen, tap **Continue**, then tap **Allow** on the iOS prompt.
-16. On the **Local network** screen, tap **Continue** if you will use Wi-Fi. Tap **Not now** if you will use only the USB cable.
+15. The first launch is a four-step walkthrough: what the iPhone does, how to get **VCamPanel** on the PC, USB or Wi-Fi, then camera and local network. On the last step, tap **Start** and tap **Allow** for the camera. If you will use Wi-Fi and iOS asks about the local network, tap **Allow**.
+16. After that, opening VCamdroid goes straight to the camera screen. It is already waiting for the PC. **Help** on that screen replays the walkthrough.
 
-**Check:** VCamdroid is on the iPhone home screen and opens to a screen titled **VCamdroid** with a button labeled **OBS Studio**.
+**Check:** VCamdroid is on the iPhone home screen. The first open is the walkthrough. Later opens go to the camera screen, with an address such as `192.168.1.20:4747` and the line **Open VCamPanel on your PC and click Connect**. There is no **OBS Studio** button.
 
 A free Apple ID install expires after about 7 days. When the phone refuses to open the app, plug it into the Mac and press **Run** in Xcode again. A paid Apple Developer account removes that 7-day limit.
 
@@ -93,15 +93,14 @@ Use this when the phone and the PC are on the same Wi-Fi and you do not want the
 1. Join the iPhone and the Windows PC to the same Wi-Fi network. A 5 GHz network is the steadier choice.
 2. On the router, turn off client isolation and AP isolation. With either one on, the PC cannot reach the phone.
 3. Turn off any VPN on the phone and on the PC for the first connection.
-4. On the iPhone, open **VCamdroid**.
-5. Tap **OBS Studio**.
-6. If iOS asks to find and connect to devices on the local network, tap **Allow**.
-7. Leave this studio screen in front. The status reads **Waiting for the computer**. It also shows an address such as `192.168.1.20:4747`.
+4. On the iPhone, open **VCamdroid**. It opens on the camera screen.
+5. If iOS asks to find and connect to devices on the local network, tap **Allow**.
+6. Leave the camera screen in front. The status reads **Open VCamPanel on your PC and click Connect**. It also shows an address such as `192.168.1.20:4747`, and a line for USB or Wi-Fi.
    - The number before the colon is the IP address. In the example, that is `192.168.1.20`.
    - The number after the colon is the port. The default is **4747**.
-8. On the PC, in **VCamPanel**, the phone appears under **Phones** within a few seconds. Click **Refresh** to look again right away. Pick the Wi-Fi phone, or type the IP from the phone under **Wi-Fi address**, then click **Connect**.
+7. On the PC, in **VCamPanel**, the phone appears under **Phones** within a few seconds. Click **Refresh** to look again right away. Pick the Wi-Fi phone, or type the IP from the phone under **Wi-Fi address**, then click **Connect**.
 
-**Check:** On Windows 11, the phone changes from **Waiting for the computer** to **Streaming**, the badge reads **Wi-Fi**, and the VCamPanel toolbar says **Streaming over Wi-Fi** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says this PC is older than Windows 11.
+**Check:** On Windows 11, the phone changes from **Open VCamPanel on your PC and click Connect** to **Streaming**, the badge reads **Wi-Fi**, and the VCamPanel toolbar says **Streaming over Wi-Fi** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on that connect line until section 7, and the toolbar says this PC is older than Windows 11.
 
 Keep the phone on that studio screen. The side button and the app switcher stop the camera.
 
@@ -112,11 +111,11 @@ Use this when you want the cable instead of Wi-Fi. VCamPanel finds the iPhone an
 1. On the PC, install **Apple Devices** or iTunes from the Microsoft Store and open it once.
 2. Run `VCamPanel.exe` from the folder in section 2 if it is not already open.
 3. Plug the iPhone into the PC with a data-capable USB-C cable. Unlock the phone and tap **Trust This Computer** if it asks.
-4. On the iPhone, open **VCamdroid**, tap **OBS Studio**, and leave that screen in front. The status can say **Waiting for the computer**.
+4. On the iPhone, open **VCamdroid** and leave the camera screen in front. The status can say **Open VCamPanel on your PC and click Connect**.
 5. **VCamPanel** shows one **USB** row per iPhone. It connects to that phone by itself when it starts, and again when you plug one in. If more than one phone is listed, click the one you want, then **Connect**. A second copy of the same phone is not listed. If it does not connect, click **Refresh**, select the **USB** phone, and click **Connect**. When USB cannot connect, the toolbar says **Couldn’t connect** and names the usual cause: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or VCamdroid is not in front.
 6. Leave the companion open while you use the camera.
 
-**Check:** On Windows 11, the phone says **Streaming**, the badge reads **USB**, and the VCamPanel toolbar says **Streaming over USB** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Waiting for the computer** until section 7, and the toolbar says this PC is older than Windows 11.
+**Check:** On Windows 11, the phone says **Streaming**, the badge reads **USB**, and the VCamPanel toolbar says **Streaming over USB** and to choose **VCamdroid** as the camera. On Windows 10 the phone stays on **Open VCamPanel on your PC and click Connect** until section 7, and the toolbar says this PC is older than Windows 11.
 
 If you changed **Port** in the phone’s Settings, type that port in the companion’s **Wi-Fi address** field (for example `127.0.0.1:4748`), then select the USB phone again and click **Connect**.
 
@@ -208,17 +207,18 @@ From the computer, section 6 is that same camera desk in `VCamPanel.exe`. While 
 
 In **Settings** on the phone:
 
-- **Curtain** is Automatic (dims after 8 seconds), Always dim, or Off. The moon still works when Off. Tap the black screen to get the controls back.
-- **Show tally** follows a DroidCam OBS source when that source is the video client. The VCamdroid camera does not send tally.
-- **Confirm before stopping**.
-- **Port** is 4747 unless something else is using it.
-- Resolution, frame rate, and bitrate under **For a DroidCam OBS source** are the saved rates for section 7. They do not change the VCamdroid picture while VCamPanel is connected.
+- **Camera screen:** curtain, confirm before stopping, and tally. Curtain is Automatic (dims after 8 seconds), Always dim, or Off. The moon still works when Off. Tap the black screen to get the controls back. Tally follows a DroidCam OBS source when that source is the video client. The VCamdroid camera does not send tally.
+- **Portrait.**
+- **Presets** saves the current look, and can apply, rename, or delete one. The desk has the same presets.
+- **Connection:** port (4747 unless something else is using it) and discovery. Changing the port or discovery restarts the listener.
+- **DroidCam OBS source:** resolution, frame rate, and bitrate. These are the saved rates for section 7. They do not change the VCamdroid picture while VCamPanel is connected.
+- **Help**, **Replay setup**, and **Log**.
 
 For a long session, keep the phone plugged in, leave Low Power Mode off, and use the curtain. If the phone gets hot, the studio warns you. Pressing the side button pauses the stream. Unlock the phone and open **VCamdroid** again to continue.
 
 ## If the picture never appears
 
-- The phone must stay on the studio screen. **Waiting for the computer** means the app is ready and VCamPanel has not opened the picture yet.
+- The phone must stay on the camera screen. **Open VCamPanel on your PC and click Connect** means the app is ready and VCamPanel has not opened the picture yet. **Camera stopped** means you tapped Stop. Tap **Start** on that card to wait for the PC again.
 - Connect starts the picture even if the camera-list warning is showing. Disconnect stops it.
 - VCamPanel must stay running. The picture goes black when it closes, even if **VCamdroid** is still listed.
 - `VCamSource.dll` must sit in the same folder as `VCamPanel.exe`. If it is missing, the **This PC** card and **Setup** say so.
@@ -228,10 +228,11 @@ For a long session, keep the phone plugged in, leave Low Power Mode off, and use
 - In the meeting app or OBS, the device name is **VCamdroid**.
 - The phone allows one video connection. A DroidCam OBS source connected at the same time takes the picture. VCamPanel then says the video connection closed. Disconnect the source and click **Connect**.
 - Wi-Fi: the PC and the phone are on the same network, and the IP in VCamPanel is exactly the address on the phone. A VPN on either device can hide them from each other. Client isolation on the router blocks the connection.
-- USB: **VCamPanel** is still connected. When Connect fails, its toolbar names the usual cause: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or the phone app is not in front.
+- USB: **VCamPanel** is still connected. When Connect fails, its toolbar names the usual cause: Apple Mobile Device Service is not running, the cable is not a data cable, Trust was not accepted, or the phone app is not in front. If the toolbar says **USB is connected, but VCamdroid is not on the camera screen**, the cable is fine and the phone app is not showing the camera. Open that screen and leave it in front.
+- If the toolbar says **The PC is receiving the picture, but it cannot decode it**, the phone is sending and VCamPanel has not produced a frame. Leave the camera screen open and click **Connect** again. Replace `VCamPanel.exe` with the latest release if it still says that.
 - The optional OBS source address for USB is **127.0.0.1** port **4747**, with the tunnel connected.
 - **That port is already in use** on the phone means something else has port 4747. Change **Port** in the phone’s Settings, then use the new port in VCamPanel and, if you use section 7, in OBS.
 - **Camera access is off** means the iPhone blocked the camera. Turn it on in **Settings → Privacy & Security → Camera → VCamdroid**.
 - Before Connect, **VCamPanel** should show **Connect your iPhone**. If the window stays empty, the WebView2 Runtime is missing, and VCamPanel shows a message that says so. Install it, then reopen the companion.
 - After Connect, the desk column says **Opening the camera desk** until it can load the phone’s `/panel` page. It retries by itself. Keep the phone on the studio screen, and check the Wi-Fi notes above if it never opens.
-- After Connect, the preview and the toolbar tell you to open **VCamdroid** on the iPhone and tap **OBS Studio**. The picture replaces that message once frames arrive. That preview matches the camera. In an OBS browser dock, **Show preview** is a lighter glance and can stay off; the app that selected **VCamdroid** still shows the picture.
+- After Connect, the preview and the toolbar tell you to leave **VCamdroid** open on the camera screen. The picture replaces that message once frames arrive. That preview matches the camera. In an OBS browser dock, **Show preview** is a lighter glance and can stay off; the app that selected **VCamdroid** still shows the picture.

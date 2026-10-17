@@ -11,6 +11,15 @@ enum class LinkState {
     Interrupted
 };
 
+struct LinkProgress {
+    LinkState state = LinkState::Idle;
+    unsigned long long bytesReceived = 0;
+    unsigned long long lastByteMs = 0;
+    unsigned long long lastDecodedMs = 0;
+    unsigned int decodeFailures = 0;
+    bool closedWithoutVideo = false;
+};
+
 // Reads the phone's port 4747 video socket. While Start() is in effect it retries
 // a closed socket a few times, then waits for the user to Connect again.
 class VideoClient {
@@ -23,10 +32,12 @@ public:
     void Start(const std::string& host, int port);
     void Stop();
     LinkState State() const;
+    LinkProgress Progress() const;
 
 private:
     struct Worker;
     void Run(std::string host, int port);
+    void NoteIfStalled(Worker* worker);
 
     Worker* worker_ = nullptr;
     LinkState state_ = LinkState::Idle;

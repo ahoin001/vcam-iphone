@@ -19,6 +19,7 @@ public:
     void Start(const std::string& host, int port);
     void Stop();
     LinkState State() const;
+    LinkProgress Progress() const;
 
 private:
     Pipeline() = default;

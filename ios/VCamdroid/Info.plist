@@ -27,9 +27,9 @@
 		<string>_droidcamobs._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>VCamdroid uses the camera to preview and broadcast to OBS.</string>
+	<string>VCamdroid uses the camera so this iPhone can be a webcam on your Windows PC.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>VCamdroid listens on your local network so OBS on this network can connect.</string>
+	<string>VCamdroid listens on your local network so VCamPanel on your PC can connect over Wi-Fi.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

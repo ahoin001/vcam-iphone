@@ -40,4 +40,8 @@ LinkState Pipeline::State() const {
     return client_.State();
 }
 
+LinkProgress Pipeline::Progress() const {
+    return client_.Progress();
+}
+
 }  // namespace vcam

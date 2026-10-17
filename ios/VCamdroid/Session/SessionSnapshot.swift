@@ -35,7 +35,9 @@ struct SessionSnapshot: Equatable, Sendable {
         fields.append("\"lens\":\"\(lens.rawValue)\"")
         fields.append("\"battery\":\(batteryPercent)")
         fields.append("\"tally\":\"\(tally.rawValue)\"")
-        fields.append("\"panelClient\":\(panelClient ? "true" : "false")")
+        if panelClient {
+            fields.append("\"panelClient\":true")
+        }
         return "{\(fields.joined(separator: ","))}"
     }
 

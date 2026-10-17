@@ -1,5 +1,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
+#include <mfapi.h>
+#include <objbase.h>
 
 #include "VideoClient.h"
 
@@ -32,12 +35,19 @@ uint32_t ReadBe32(const uint8_t* bytes) {
            (static_cast<uint32_t>(bytes[2]) << 8) | bytes[3];
 }
 
-void Publish(const std::vector<uint8_t>& frame, FrameBus* localBus, FrameBus* globalBus) {
+void Publish(const std::vector<uint8_t>& frame, FrameBus* localBus, FrameBus* globalBus, std::atomic<unsigned long long>* lastGlobalTryMs) {
     if (frame.size() != FrameByteCount()) {
         return;
     }
-    if (globalBus != nullptr && !globalBus->IsOpen()) {
-        globalBus->Create(kGlobalFrameBusName);
+    if (globalBus != nullptr && !globalBus->IsOpen() && lastGlobalTryMs != nullptr) {
+        const unsigned long long now = GetTickCount64();
+        const unsigned long long previous = lastGlobalTryMs->load();
+        if (previous == 0 || now - previous >= 1000) {
+            lastGlobalTryMs->store(now);
+            if (!globalBus->Open(kGlobalFrameBusName)) {
+                globalBus->Create(kGlobalFrameBusName);
+            }
+        }
     }
     if (localBus != nullptr && localBus->IsOpen()) {
         localBus->Publish(frame.data(), FrameByteCount());
@@ -64,6 +74,33 @@ struct VideoClient::Worker {
     std::mutex mutex;
     FrameBus localBus;
     FrameBus globalBus;
+    std::atomic<unsigned long long> bytesReceived{0};
+    std::atomic<unsigned long long> lastByteMs{0};
+    std::atomic<unsigned long long> lastDecodedMs{0};
+    std::atomic<unsigned int> decodeFailures{0};
+    std::atomic<unsigned int> immediateCloses{0};
+    std::atomic<bool> closedWithoutVideo{false};
+    std::atomic<unsigned long long> lastGlobalTryMs{0};
+};
+
+struct MediaFoundationSession {
+    bool com = false;
+    bool mf = false;
+
+    MediaFoundationSession() {
+        const HRESULT comResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        com = SUCCEEDED(comResult);
+        mf = SUCCEEDED(MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET));
+    }
+
+    ~MediaFoundationSession() {
+        if (mf) {
+            MFShutdown();
+        }
+        if (com) {
+            CoUninitialize();
+        }
+    }
 };
 
 VideoClient::VideoClient() {
@@ -80,6 +117,13 @@ void VideoClient::Start(const std::string& host, int port) {
     Stop();
     auto* worker = static_cast<Worker*>(worker_);
     worker->stop.store(false);
+    worker->bytesReceived.store(0);
+    worker->lastByteMs.store(0);
+    worker->lastDecodedMs.store(0);
+    worker->decodeFailures.store(0);
+    worker->immediateCloses.store(0);
+    worker->closedWithoutVideo.store(false);
+    worker->lastGlobalTryMs.store(0);
     {
         std::lock_guard<std::mutex> lock(worker->mutex);
         state_ = LinkState::Connecting;
@@ -105,15 +149,43 @@ void VideoClient::Stop() {
 }
 
 LinkState VideoClient::State() const {
+    return Progress().state;
+}
+
+LinkProgress VideoClient::Progress() const {
+    LinkProgress progress;
     auto* worker = static_cast<Worker*>(worker_);
     if (worker == nullptr) {
-        return LinkState::Idle;
+        return progress;
+    }
+    {
+        std::lock_guard<std::mutex> lock(worker->mutex);
+        progress.state = state_;
+    }
+    progress.bytesReceived = worker->bytesReceived.load();
+    progress.lastByteMs = worker->lastByteMs.load();
+    progress.lastDecodedMs = worker->lastDecodedMs.load();
+    progress.decodeFailures = worker->decodeFailures.load();
+    progress.closedWithoutVideo = worker->closedWithoutVideo.load();
+    return progress;
+}
+
+void VideoClient::NoteIfStalled(Worker* worker) {
+    const unsigned long long decoded = worker->lastDecodedMs.load();
+    if (decoded == 0) {
+        return;
+    }
+    if (GetTickCount64() - decoded < 2000) {
+        return;
     }
     std::lock_guard<std::mutex> lock(worker->mutex);
-    return state_;
+    if (state_ == LinkState::Live) {
+        state_ = LinkState::Connecting;
+    }
 }
 
 void VideoClient::Run(std::string host, int port) {
+    MediaFoundationSession mediaFoundation;
     auto* worker = static_cast<Worker*>(worker_);
     const auto pump = [this, worker](SOCKET socket) -> bool {
         H264Decoder decoder;
@@ -128,10 +200,15 @@ void VideoClient::Run(std::string host, int port) {
             if (read < 0) {
                 const int error = WSAGetLastError();
                 if (error == WSAETIMEDOUT || error == WSAEWOULDBLOCK) {
+                    NoteIfStalled(worker);
                     continue;
                 }
                 return false;
             }
+            worker->bytesReceived.fetch_add(static_cast<unsigned long long>(read));
+            worker->lastByteMs.store(GetTickCount64());
+            worker->immediateCloses.store(0);
+            worker->closedWithoutVideo.store(false);
             pending.insert(pending.end(), chunk, chunk + read);
             while (pending.size() >= 12 && !worker->stop.load()) {
                 const uint32_t length = ReadBe32(pending.data() + 8);
@@ -143,9 +220,13 @@ void VideoClient::Run(std::string host, int port) {
                 }
                 const uint64_t pts = ReadBe64(pending.data());
                 if (decoder.Decode(pts, pending.data() + 12, length, frame)) {
-                    Publish(frame, &worker->localBus, &worker->globalBus);
+                    Publish(frame, &worker->localBus, &worker->globalBus, &worker->lastGlobalTryMs);
+                    worker->lastDecodedMs.store(GetTickCount64());
                     std::lock_guard<std::mutex> lock(worker->mutex);
                     state_ = LinkState::Live;
+                } else if (pts != ~uint64_t{0}) {
+                    worker->decodeFailures.fetch_add(1);
+                    NoteIfStalled(worker);
                 }
                 pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(12u + length));
             }
@@ -184,8 +265,15 @@ void VideoClient::Run(std::string host, int port) {
         } else {
             const std::string request = "GET /video?1920x1080&client=panel HTTP/1.1\r\nHost: " + host + ":" +
                                         std::to_string(port) + "\r\nConnection: keep-alive\r\n\r\n";
+            const unsigned long long bytesBefore = worker->bytesReceived.load();
             const bool sent = send(socket, request.data(), static_cast<int>(request.size()), 0) > 0;
             const bool finished = sent && pump(socket);
+            if (worker->bytesReceived.load() == bytesBefore) {
+                const unsigned int closes = worker->immediateCloses.fetch_add(1) + 1;
+                if (closes >= 2) {
+                    worker->closedWithoutVideo.store(true);
+                }
+            }
             CloseLive(&worker->live);
             if (worker->stop.load() || finished) {
                 return;

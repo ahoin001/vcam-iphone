@@ -7,10 +7,16 @@ struct ConnectionBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(session.statusMessage)
+            Text(headline)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2)
                 .foregroundStyle(session.isThermalHot ? .yellow : .primary)
+            if session.isRunning && !session.snapshot.isStreaming {
+                Text(.usbOrWifiHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
             HStack(spacing: 6) {
                 Text(session.addressLine)
                     .textSelection(.enabled)
@@ -47,6 +53,16 @@ struct ConnectionBanner: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    private var headline: LocalizedStringResource {
+        if session.stoppedByUser && !session.isRunning {
+            return .cameraStopped
+        }
+        if session.isRunning && !session.snapshot.isStreaming && !session.isThermalHot {
+            return .openPanelNextStep
+        }
+        return session.statusMessage
     }
 
     private func copyPanelAddress() {

@@ -2,6 +2,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(StudioSession.self) private var session
+    @State private var presetName = ""
+    @State private var renaming: ShotPreset?
+    @State private var renameText = ""
+    @State private var helpPresented = false
 
     var body: some View {
         Form {
@@ -16,13 +20,6 @@ struct SettingsView: View {
                 }
                 Toggle(.showTally, isOn: StudioBindings.setting(\.showTally, on: session))
                 Toggle(.confirmStopToggle, isOn: StudioBindings.setting(\.confirmStop, on: session))
-                NavigationLink(value: AppRoute.log) {
-                    Label {
-                        Text(.openLog)
-                    } icon: {
-                        Image(systemName: "list.bullet")
-                    }
-                }
             } header: {
                 Text(.sessionSection)
             } footer: {
@@ -56,19 +53,40 @@ struct SettingsView: View {
             }
 
             Section {
+                TextField(.presetName, text: $presetName)
+                Button(.savePreset, action: savePreset)
+                    .disabled(ShotPresetStore.cleanedName(presetName) == nil)
+                ForEach(session.shotPresets) { preset in
+                    Button(preset.name) {
+                        _ = session.perform(.apply(preset.id))
+                    }
+                    .swipeActions {
+                        Button(.renamePreset) {
+                            renaming = preset
+                            renameText = preset.name
+                        }
+                        .tint(.orange)
+                        Button(.deletePreset, role: .destructive) {
+                            _ = session.perform(.delete(preset.id))
+                        }
+                    }
+                }
+            } header: {
+                Text(.presetsSection)
+            }
+
+            Section {
                 TextField(
                     .port,
                     value: StudioBindings.setting(\.port, on: session),
                     format: .number
                 )
                 .keyboardType(.numberPad)
-                .onChange(of: session.settings.port) {
-                    session.applyControls()
-                }
+                Toggle(.discovery, isOn: StudioBindings.setting(\.discoveryEnabled, on: session))
             } header: {
-                Text(.port)
+                Text(.connectionSection)
             } footer: {
-                Text(.portSettingsFooter)
+                Text(.discoveryFooter)
             }
 
             Section {
@@ -103,15 +121,54 @@ struct SettingsView: View {
                 }
                 .controlSize(.small)
             } header: {
-                Text(.obsOutputSection)
+                Text(.advancedSection)
             } footer: {
                 Text(.outputSettingsFooter)
             }
+
+            Section {
+                Button(.helpAction) { helpPresented = true }
+                Button(.replaySetup) { session.replaySetup() }
+                NavigationLink(value: AppRoute.log) {
+                    Label {
+                        Text(.openLog)
+                    } icon: {
+                        Image(systemName: "list.bullet")
+                    }
+                }
+            }
         }
         .navigationTitle(Text(.settingsTitle))
-        .onChange(of: session.settings) {
-            StudioSettingsStore.save(session.settings)
+        .sheet(isPresented: $helpPresented) {
+            NavigationStack {
+                HowToConnectView {
+                    helpPresented = false
+                    session.replaySetup()
+                }
+            }
         }
+        .alert(Text(.presetRenameTitle), isPresented: renamePresented, presenting: renaming) { preset in
+            TextField(.presetName, text: $renameText)
+            Button(.renamePreset) {
+                if let name = ShotPresetStore.cleanedName(renameText) {
+                    _ = session.perform(.rename(preset.id, name))
+                }
+            }
+            Button(.notNow, role: .cancel) {}
+        }
+    }
+
+    private var renamePresented: Binding<Bool> {
+        Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )
+    }
+
+    private func savePreset() {
+        guard let name = ShotPresetStore.cleanedName(presetName) else { return }
+        _ = session.perform(.save(name))
+        presetName = ""
     }
 
     private func bitrateChip(_ value: Int, title: LocalizedStringResource) -> some View {

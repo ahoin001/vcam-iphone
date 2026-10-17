@@ -14,7 +14,9 @@ final class StudioSession {
     private let server: DroidCamServer
     private let curtainController = ScreenCurtainController()
 
-    var settings: StudioSettings
+    var settings: StudioSettings {
+        didSet { noteSettingsSaved(from: oldValue) }
+    }
     private(set) var snapshot: SessionSnapshot
     private(set) var logs: [LogEntry] = []
     private(set) var clientAddress: String?
@@ -40,7 +42,11 @@ final class StudioSession {
         didSet { snapshot.panelClient = panelStream }
     }
     private var activeBitrateKbps: Int
-    private var presets: [ShotPreset] = ShotPresetStore.load()
+    private(set) var shotPresets: [ShotPreset] = ShotPresetStore.load()
+    private(set) var stoppedByUser = false
+    private var packetForwarder: OrderedPacketForwarder?
+    private var packetTask: Task<Void, Never>?
+    private var listenerRestart: Task<Void, Never>?
     private var pausedForBackground = false
     private var listenFailed = false
     private var lastCurtainArm = Date.distantPast
@@ -99,7 +105,7 @@ final class StudioSession {
 
     func start() async {
         guard !isRunning else { return }
-        persist()
+        stoppedByUser = false
         listenFailed = false
         snapshot.batteryPercent = BatteryPercent.current()
         curtainController.disableIdleTimer()
@@ -118,8 +124,18 @@ final class StudioSession {
             onClient: { address, usb in await self.setClient(address, usb: usb) },
             onListenFailed: { await self.noteListenFailed() }
         )
-        await encoder.setHandler { [server] pts, payload in
-            Task { await server.send(pts: pts, payload: payload) }
+        let forwarder = OrderedPacketForwarder()
+        let videoServer = server
+        packetForwarder?.finish()
+        packetForwarder = forwarder
+        packetTask?.cancel()
+        packetTask = Task {
+            await forwarder.run { packet in
+                await videoServer.send(pts: packet.pts, payload: packet.payload)
+            }
+        }
+        await encoder.setHandler { [forwarder] pts, payload in
+            forwarder.enqueue(pts: pts, payload: payload)
         }
         let preview = portraitPreview
         let desk = deskPreview
@@ -159,6 +175,12 @@ final class StudioSession {
     }
 
     func stop() async {
+        stoppedByUser = true
+        listenerRestart?.cancel()
+        packetForwarder?.finish()
+        packetTask?.cancel()
+        packetForwarder = nil
+        packetTask = nil
         curtainTask?.cancel()
         careTasks.forEach { $0.cancel() }
         careTasks = []
@@ -182,7 +204,11 @@ final class StudioSession {
         isUSBClient = false
         panelStream = false
         activeBitrateKbps = settings.bitrateKbps
-        statusMessage = .waitingForOBS
+        statusMessage = .cameraStopped
+    }
+
+    func replaySetup() {
+        settings.onboardingCompleted = false
     }
 
     func confirmStopIfNeeded() -> Bool {
@@ -219,7 +245,6 @@ final class StudioSession {
 
     func setCurtainMode(_ mode: CurtainMode) {
         settings.curtainMode = mode
-        persist()
         switch mode {
         case .on:
             curtainTask?.cancel()
@@ -245,7 +270,6 @@ final class StudioSession {
     }
 
     func applyControls() {
-        persist()
         noteActivity()
         pushPortrait()
         guard isRunning else { return }
@@ -259,7 +283,6 @@ final class StudioSession {
         if clean != settings {
             settings = clean
         }
-        persist()
         noteActivity()
         pushPortrait()
     }
@@ -273,7 +296,6 @@ final class StudioSession {
         if !panelStream {
             activeBitrateKbps = clamped
         }
-        persist()
         noteActivity()
         guard encoderActive, !panelStream else { return }
         Task { await restartEncoder() }
@@ -293,7 +315,6 @@ final class StudioSession {
         snapshot.width = mode.width
         snapshot.height = mode.height
         snapshot.fps = mode.fps
-        persist()
         applyControls()
         if encoderActive {
             Task { await restartEncoder() }
@@ -321,7 +342,6 @@ final class StudioSession {
             if let lens = update.lens {
                 settings.lens = lens
                 snapshot.lens = lens
-                persist()
                 Task {
                     try? await capture.update(captureConfiguration)
                 }
@@ -341,7 +361,6 @@ final class StudioSession {
         snapshot.fps = settings.fps
         snapshot.lens = settings.lens
         snapshot.format = .avc
-        persist()
         Task {
             try? await capture.update(captureConfiguration)
             if encoderActive {
@@ -352,25 +371,25 @@ final class StudioSession {
     }
 
     func presetListJSON() -> String {
-        ShotPresetStore.json(presets)
+        ShotPresetStore.json(shotPresets)
     }
 
     func perform(_ command: PresetCommand) -> String {
         switch command {
         case .save(let name):
-            presets.append(ShotPreset(name: name, settings: settings))
-            ShotPresetStore.save(presets)
+            shotPresets.append(ShotPreset(name: name, settings: settings))
+            ShotPresetStore.save(shotPresets)
         case .apply(let id):
-            if let preset = presets.first(where: { $0.id == id }) {
+            if let preset = shotPresets.first(where: { $0.id == id }) {
                 _ = apply(controls: preset.asControlUpdate())
             }
         case .delete(let id):
-            presets.removeAll { $0.id == id }
-            ShotPresetStore.save(presets)
+            shotPresets.removeAll { $0.id == id }
+            ShotPresetStore.save(shotPresets)
         case .rename(let id, let name):
-            if let index = presets.firstIndex(where: { $0.id == id }) {
-                presets[index].name = name
-                ShotPresetStore.save(presets)
+            if let index = shotPresets.firstIndex(where: { $0.id == id }) {
+                shotPresets[index].name = name
+                ShotPresetStore.save(shotPresets)
             }
         }
         return presetListJSON()
@@ -477,7 +496,6 @@ final class StudioSession {
         }
         panelStream = request.client == .panel
         adopt(quality)
-        persist()
         pushPortrait()
         do {
             try await capture.update(captureConfiguration)
@@ -530,9 +548,7 @@ final class StudioSession {
     }
 
     private func adopt(_ quality: StreamQuality) {
-        settings.width = quality.width
-        settings.height = quality.height
-        settings.fps = quality.fps
+        settings = settings.adopting(quality)
         activeBitrateKbps = quality.bitrateKbps
         snapshot.width = quality.width
         snapshot.height = quality.height
@@ -566,7 +582,6 @@ final class StudioSession {
 
     func markLocalNetworkExplained() {
         settings.explainedLocalNetwork = true
-        persist()
     }
 
     private func pauseForBackground() async {
@@ -672,8 +687,29 @@ final class StudioSession {
         return PortraitCommand(grade: grade, strength: settings.portraitStrength)
     }
 
-    private func persist() {
+    private func noteSettingsSaved(from old: StudioSettings) {
         StudioSettingsStore.save(settings)
+        guard isRunning, old.port != settings.port || old.discoveryEnabled != settings.discoveryEnabled else { return }
+        listenerRestart?.cancel()
+        listenerRestart = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await self?.restartListener()
+        }
+    }
+
+    private func restartListener() async {
+        await server.stop()
+        guard isRunning else { return }
+        do {
+            try await server.start(
+                port: settings.port,
+                advertise: settings.discoveryEnabled,
+                deviceName: DeviceName.current
+            )
+        } catch {
+            noteListenFailed()
+        }
     }
 
     private func appendLog(_ message: String) {

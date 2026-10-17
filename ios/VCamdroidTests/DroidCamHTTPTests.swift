@@ -132,6 +132,8 @@ func parsesControlRoutes(_ line: String) {
     #expect(apply == .presetCommand(.apply("abc")))
     let list = DroidCamHTTP.parse(firstLine: "GET /v1/presets HTTP/1.1", fallback: fallback)
     #expect(list == .presets)
+    let rename = DroidCamHTTP.parse(firstLine: "PUT /v1/presets?rename=abc&name=Morning%20window HTTP/1.1", fallback: fallback)
+    #expect(rename == .presetCommand(.rename("abc", "Morning window")))
 }
 
 @Test func panelIsNotAVideoStream() {

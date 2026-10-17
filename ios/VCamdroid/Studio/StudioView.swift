@@ -2,11 +2,11 @@ import SwiftUI
 
 struct StudioView: View {
     @Environment(StudioSession.self) private var session
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var tool: StudioTool?
     @State private var confirmingStop = false
+    @State private var helpPresented = false
 
     var body: some View {
         ZStack {
@@ -18,7 +18,7 @@ struct StudioView: View {
             StudioChrome(
                 tool: $tool,
                 isCompactHeight: verticalSizeClass == .compact,
-                onBack: goBack,
+                onHelp: { helpPresented = true },
                 onStop: requestStop
             )
             .padding(.horizontal, 16)
@@ -26,6 +26,9 @@ struct StudioView: View {
             .opacity(session.curtainPresented ? 0 : 1)
             .allowsHitTesting(!session.curtainPresented)
             .accessibilityHidden(session.curtainPresented)
+            if session.stoppedByUser && !session.isRunning {
+                stoppedCard
+            }
             CurtainOverlay()
                 .opacity(session.curtainPresented ? 1 : 0)
                 .scaleEffect(reduceMotion ? 1 : (session.curtainPresented ? 1 : 0.98))
@@ -47,6 +50,14 @@ struct StudioView: View {
                 session.noteActivity()
             }
         )
+        .sheet(isPresented: $helpPresented) {
+            NavigationStack {
+                HowToConnectView {
+                    helpPresented = false
+                    session.replaySetup()
+                }
+            }
+        }
         .confirmationDialog(Text(.confirmStopTitle), isPresented: $confirmingStop, titleVisibility: .visible) {
             Button(.stop, role: .destructive, action: stop)
             Button(.notNow, role: .cancel, action: dismissStop)
@@ -59,8 +70,19 @@ struct StudioView: View {
         reduceMotion ? .easeOut(duration: 0.2) : .timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
     }
 
-    private func goBack() {
-        dismiss()
+    private var stoppedCard: some View {
+        VStack(spacing: 12) {
+            Text(.cameraStopped)
+                .font(.title2.bold())
+            Text(.cameraStoppedBody)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button(.startCamera, systemImage: "video", action: start)
+                .buttonStyle(PressableButtonStyle(prominent: true))
+        }
+        .padding(24)
+        .glassEffect(.regular, in: .rect(cornerRadius: 28))
+        .padding(.horizontal, 32)
     }
 
     private func dismissTool() {
@@ -77,6 +99,10 @@ struct StudioView: View {
 
     private func stop() {
         Task { await session.stop() }
+    }
+
+    private func start() {
+        Task { await session.start() }
     }
 
     private func dismissStop() {
