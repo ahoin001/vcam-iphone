@@ -56,6 +56,7 @@ final class StudioSession {
     private(set) var shotPresets: [ShotPreset] = ShotPresetStore.load()
     private(set) var stoppedByUser = false
     private(set) var customWhiteBalanceSupported = true
+    private(set) var customFocusSupported = true
     private var hasAnnouncedLive = false
     private var packetForwarder: OrderedPacketForwarder?
     private var packetTask: Task<Void, Never>?
@@ -184,7 +185,7 @@ final class StudioSession {
             }
             isRunning = true
             statusMessage = .waitingForOBS
-            await noteWhiteBalanceSupport()
+            await noteDeviceLimits()
             appendLog(String(localized: .waitingForOBS))
             armCurtain()
             watchCare()
@@ -317,17 +318,28 @@ final class StudioSession {
         guard isRunning else { return }
         Task {
             try? await capture.update(captureConfiguration)
-            await noteWhiteBalanceSupport()
+            await noteDeviceLimits()
         }
     }
 
-    private func noteWhiteBalanceSupport() async {
-        let supported = await capture.supportsCustomWhiteBalance()
-        customWhiteBalanceSupported = supported
-        guard !supported, settings.manualWhiteBalance else { return }
+    private func noteDeviceLimits() async {
+        let whiteBalance = await capture.supportsCustomWhiteBalance()
+        let focus = await capture.supportsCustomFocus()
+        customWhiteBalanceSupported = whiteBalance
+        customFocusSupported = focus
         var next = settings
-        next.manualWhiteBalance = false
-        settings = next
+        var changed = false
+        if !whiteBalance, next.manualWhiteBalance {
+            next.manualWhiteBalance = false
+            changed = true
+        }
+        if !focus, next.manualFocus {
+            next.manualFocus = false
+            changed = true
+        }
+        if changed {
+            settings = next
+        }
     }
 
     func applyPortrait() {

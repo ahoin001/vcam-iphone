@@ -411,6 +411,17 @@
         }
       }
     },
+    "focusUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This camera cannot lock focus, so it stays on Auto."
+          }
+        }
+      }
+    },
     "focusNear" : {
       "extractionState" : "manual",
       "localizations" : {

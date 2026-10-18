@@ -14,15 +14,22 @@ struct FocusControl: View {
             } else {
                 StudioReadout(title: .focus, value: .auto)
             }
+            if !session.customFocusSupported {
+                Text(.focusUnavailable)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Picker(.focus, selection: StudioBindings.setting(\.manualFocus, on: session)) {
                 Text(.auto).tag(false)
                 Text(.manual).tag(true)
             }
             .pickerStyle(.segmented)
+            .disabled(!session.customFocusSupported)
             .onChange(of: session.settings.manualFocus) {
                 session.applyControls()
             }
-            if session.settings.manualFocus {
+            if session.settings.manualFocus, session.customFocusSupported {
                 Slider(value: StudioBindings.setting(\.lensPosition, on: session), in: 0...1)
                     .tint(.yellow)
                     .onChange(of: session.settings.lensPosition) {

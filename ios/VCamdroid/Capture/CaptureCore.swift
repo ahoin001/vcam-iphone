@@ -198,8 +198,9 @@ final class CaptureCore: @unchecked Sendable {
             device.whiteBalanceMode = .continuousAutoWhiteBalance
         }
 
-        if configuration.manualFocus, device.isFocusModeSupported(.locked) {
-            device.setFocusModeLocked(lensPosition: min(max(Float(configuration.lensPosition), 0), 1), completionHandler: nil)
+        if configuration.manualFocus, device.isFocusModeSupported(.locked), device.isLockingFocusWithCustomLensPositionSupported {
+            let position = min(max(Float(configuration.lensPosition), 0), 1)
+            device.setFocusModeLocked(lensPosition: position, completionHandler: nil)
         } else if device.isFocusModeSupported(.continuousAutoFocus) {
             device.focusMode = .continuousAutoFocus
         }
@@ -218,6 +219,11 @@ final class CaptureCore: @unchecked Sendable {
     func supportsCustomWhiteBalance() -> Bool {
         guard let device = activeDevice() else { return false }
         return device.isLockingWhiteBalanceWithCustomDeviceGainsSupported
+    }
+
+    func supportsCustomFocus() -> Bool {
+        guard let device = activeDevice() else { return false }
+        return device.isLockingFocusWithCustomLensPositionSupported
     }
 
     private func activeDevice() -> AVCaptureDevice? {
