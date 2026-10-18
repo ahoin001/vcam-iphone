@@ -23,8 +23,9 @@ struct LinkProgress {
     unsigned int repeats = 0;
 };
 
-// Reads the phone's port 4747 video socket. While Start() is in effect it retries
-// a closed socket a few times, then waits for the user to Connect again.
+// Reads the phone's port 4747 video socket. After a picture has arrived it keeps
+// retrying until Stop(). A socket that closes before any picture stops, so another
+// app can take the phone.
 class VideoClient {
 public:
     VideoClient();

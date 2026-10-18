@@ -120,6 +120,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\panel_main.cpp" />
+    <ClCompile Include="src\obs_tally.cpp" />
     <ClCompile Include="src\usbmux.cpp" />
     <ClCompile Include="src\mdns_browse.cpp" />
     <ClCompile Include="src\camera\FrameBus.cpp" />
@@ -131,6 +132,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\panel_shell.h" />
+    <ClInclude Include="src\obs_tally.h" />
     <ClInclude Include="src\guide_photos.h" />
     <ClInclude Include="src\usbmux.h" />
     <ClInclude Include="src\mdns_browse.h" />

@@ -126,6 +126,8 @@ enum DroidCamHTTP {
                     update.format = StreamFormat(rawValue: value.lowercased())
                 case "lens", "camera":
                     update.lens = Lens(rawValue: value.lowercased())
+                case "link":
+                    update.link = LinkHealth(rawValue: value)
                 default:
                     break
                 }

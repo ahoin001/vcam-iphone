@@ -1159,6 +1159,50 @@
         }
       }
     },
+    "cameraLive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The camera is live. Choose VCamdroid in your app."
+          }
+        }
+      }
+    },
+    "hideDeskLink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide desk link"
+          }
+        }
+      }
+    },
+    "pcCannotDecode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PC is receiving the picture, but it cannot decode it. Leave this screen open, then click Connect again in VCamPanel."
+          }
+        }
+      }
+    },
+    "whiteBalanceUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This camera cannot lock color, so it stays on Auto."
+          }
+        }
+      }
+    },
     "thermalWarning" : {
       "extractionState" : "manual",
       "localizations" : {

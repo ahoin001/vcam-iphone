@@ -15,7 +15,7 @@ struct HomeView: View {
                 NavigationStack(path: $path) {
                     StudioView()
                         .navigationDestination(for: AppRoute.self) { route in
-                            RouteDestination(route: route, path: $path)
+                            RouteDestination(route: route)
                         }
                 }
             } else if camera == .notDetermined {
@@ -44,6 +44,10 @@ struct HomeView: View {
             if !session.settings.onboardingCompleted {
                 path = NavigationPath()
             }
+        }
+        .onChange(of: camera) {
+            guard session.settings.onboardingCompleted, camera != .authorized else { return }
+            Task { await session.stop() }
         }
     }
 

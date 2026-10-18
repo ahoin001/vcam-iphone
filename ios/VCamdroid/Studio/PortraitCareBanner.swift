@@ -19,7 +19,7 @@ struct PortraitCareBanner: View {
 
     private var tone: Color {
         switch session.portraitCare {
-        case .eased, .paused, .lowBattery, .heavierAndBattery:
+        case .eased, .paused, .streamHot, .lowBattery, .heavierAndBattery:
             .yellow
         default:
             .primary

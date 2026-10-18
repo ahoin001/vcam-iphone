@@ -11,10 +11,17 @@ struct WhiteBalanceControl: View {
             } else {
                 StudioReadout(title: .whiteBalance, value: kelvinReadout)
             }
+            if !session.customWhiteBalanceSupported {
+                Text(.whiteBalanceUnavailable)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(WhiteBalancePreset.allCases) { preset in
                         let selected = selectedPreset == preset
+                        let locked = !session.customWhiteBalanceSupported && preset != .auto
                         Button(action: { select(preset) }) {
                             Text(title(preset))
                                 .font(.subheadline.weight(selected ? .semibold : .regular))
@@ -28,6 +35,8 @@ struct WhiteBalanceControl: View {
                         .overlay {
                             Capsule().strokeBorder(.white.opacity(selected ? 0 : 0.18), lineWidth: 1)
                         }
+                        .disabled(locked)
+                        .opacity(locked ? 0.4 : 1)
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }

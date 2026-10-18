@@ -1,11 +1,17 @@
 import Foundation
 
+enum LinkHealth: String, Equatable, Sendable {
+    case live
+    case cannotDecode
+}
+
 struct SessionUpdate: Equatable, Sendable {
     var width: Int?
     var height: Int?
     var fps: Int?
     var format: StreamFormat?
     var lens: Lens?
+    var link: LinkHealth?
 }
 
 struct ControlUpdate: Equatable, Sendable {

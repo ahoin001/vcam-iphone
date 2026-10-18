@@ -99,6 +99,9 @@ svg {
 }
 .notice[hidden] { display: none; }
 .actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.monitors { display: flex; gap: 6px; }
+.monitors[hidden] { display: none; }
+.monitors .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
 .obs {
   height: 34px; display: flex; align-items: center; gap: 8px;
   padding: 0 3px 0 12px; border-radius: 999px;
@@ -289,6 +292,11 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <span class="obs-address" id="obs-address">127.0.0.1:4747</span>
       <button class="btn small" id="copy" type="button">Copy</button>
     </div>
+    <div class="monitors" id="monitors" hidden>
+      <button class="btn small" id="peak" type="button" aria-pressed="false">Peaking</button>
+      <button class="btn small" id="zebra" type="button" aria-pressed="false">Zebra</button>
+      <button class="btn small" id="loupe" type="button" aria-pressed="false" title="Show the center at full size">1:1</button>
+    </div>
     <button class="btn" id="guide-open" type="button">Guide</button>
     <button class="btn setup" id="setup" type="button" hidden><span class="badge" aria-hidden="true"></span>Setup</button>
     <button class="icon-btn" id="pin" type="button" aria-pressed="true" aria-label="Keep window on top" title="Keep window on top">
@@ -362,6 +370,11 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <button class="btn" id="sheet-done" type="button">Done</button>
     </div>
     <ul class="checks" id="sheet-checks"></ul>
+    <form class="group" id="obs-password-form" autocomplete="off">
+      <label for="obs-password">OBS WebSocket password</label>
+      <input class="field" id="obs-password" type="password" spellcheck="false" placeholder="Only if OBS asks for one">
+      <p class="hint">In OBS: Tools, WebSocket Server Settings. Leave this blank when OBS has no password. While OBS is recording or streaming, the phone tally turns red. Studio mode alone turns it green.</p>
+    </form>
   </div>
 </section>
 )SHELL";
@@ -525,6 +538,13 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("obs-address").textContent = state.obs || "";
     $("pin").setAttribute("aria-pressed", String(!!state.onTop));
     $("disconnect").hidden = !connected;
+    $("monitors").hidden = !connected;
+    $("peak").setAttribute("aria-pressed", String(!!state.peaking));
+    $("zebra").setAttribute("aria-pressed", String(!!state.zebra));
+    $("loupe").setAttribute("aria-pressed", String(!!state.loupe));
+    if (document.activeElement !== $("obs-password") && state.obsPassword !== undefined) {
+      $("obs-password").value = state.obsPassword || "";
+    }
     $("reconnect").hidden = !(connected && status.tone === "error");
 
     const setup = $("setup");
@@ -630,6 +650,17 @@ inline constexpr char kScript[] = R"SHELL(<script>
     svg.setAttribute("aria-label", lights.map(([hour, kind]) => (kind === "key" ? "Key" : "Second light") + " at " + clockTime(Number(hour))).join(", "));
     svg.innerHTML = '<circle class="dial" cx="32" cy="32" r="27"/>' + beams + lamps
       + '<rect class="cam" x="28" y="2.5" width="8" height="5" rx="1.5"/><circle class="you" cx="32" cy="32" r="5"/>';
+  });
+  function monitor(id, tool) {
+    $(id).addEventListener("click", () => {
+      post({ type: "monitor", tool, value: $(id).getAttribute("aria-pressed") !== "true" });
+    });
+  }
+  monitor("peak", "peaking");
+  monitor("zebra", "zebra");
+  monitor("loupe", "loupe");
+  $("obs-password").addEventListener("change", () => {
+    post({ type: "obsPassword", value: $("obs-password").value });
   });
   $("guide-open").addEventListener("click", () => post({ type: "guide", open: true }));
   $("guide-done").addEventListener("click", () => post({ type: "guide", open: false }));

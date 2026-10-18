@@ -263,6 +263,7 @@ private actor SentPackets {
 
 @Test func portraitCareNamesHeatBatteryAndResolution() {
     #expect(PortraitPolicy.care(enabled: false, thermal: .nominal, fps: 60, height: 2160, batteryPercent: 10, unplugged: true) == .hidden)
+    #expect(PortraitPolicy.care(enabled: false, thermal: .serious, fps: 30, height: 1080, batteryPercent: 100, unplugged: false) == .streamHot)
     #expect(PortraitPolicy.care(enabled: true, thermal: .critical, fps: 30, height: 1080, batteryPercent: 100, unplugged: false) == .paused)
     #expect(PortraitPolicy.care(enabled: true, thermal: .serious, fps: 60, height: 2160, batteryPercent: 10, unplugged: true) == .eased)
     #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 60, height: 1080, batteryPercent: 10, unplugged: true) == .heavierAndBattery)

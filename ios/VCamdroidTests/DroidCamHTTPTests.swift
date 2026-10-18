@@ -71,6 +71,14 @@ func parsesControlRoutes(_ line: String) {
     #expect(request == .update(SessionUpdate(width: 1280, height: 720, fps: 30, format: .avc, lens: .front)))
 }
 
+@Test func linkHealthRoute() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/session?link=cannotDecode HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .update(SessionUpdate(link: .cannotDecode)))
+}
+
 @Test func tallyRoute() {
     let request = DroidCamHTTP.parse(firstLine: "PUT /v1/tally/program/ HTTP/1.1", fallback: VideoMode(width: 1920, height: 1080, fps: 30))
     #expect(request == .tally(.program))

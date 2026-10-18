@@ -40,8 +40,8 @@ struct StudioView: View {
             StudioOrientation { session.setInterfaceOrientation($0) }
         }
         .preferredColorScheme(.dark)
-        .toolbar(.hidden, for: .navigationBar)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarVisibility(.hidden, for: .navigationBar)
+        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         .task {
             await session.start()
         }

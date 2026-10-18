@@ -29,12 +29,11 @@ final class CaptureCore: @unchecked Sendable {
         portrait.set(command)
     }
 
-    func perform(_ work: @escaping @Sendable () throws -> Void) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+    func perform<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
             sessionQueue.async {
                 do {
-                    try work()
-                    continuation.resume()
+                    continuation.resume(returning: try work())
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -209,6 +208,11 @@ final class CaptureCore: @unchecked Sendable {
             let rateMatches = format.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= target && target <= $0.maxFrameRate }
             return sizeMatches && rateMatches
         }
+    }
+
+    func supportsCustomWhiteBalance() -> Bool {
+        guard let device = activeDevice() else { return false }
+        return device.isLockingWhiteBalanceWithCustomDeviceGainsSupported
     }
 
     private func activeDevice() -> AVCaptureDevice? {

@@ -2,12 +2,14 @@ import Foundation
 
 extension StudioSession {
     func selectWhiteBalance(_ preset: WhiteBalancePreset) {
+        var next = settings
         if let kelvin = preset.kelvin {
-            settings.manualWhiteBalance = true
-            settings.kelvin = kelvin
+            next.manualWhiteBalance = true
+            next.kelvin = kelvin
         } else {
-            settings.manualWhiteBalance = false
+            next.manualWhiteBalance = false
         }
+        settings = next
         applyControls()
     }
 

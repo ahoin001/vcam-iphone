@@ -3,6 +3,7 @@
 #include "FrameBus.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <cstring>
 #include <vector>
@@ -54,6 +55,15 @@ void Nv12ToBgra(const uint8_t* nv12, uint8_t* bgra) {
 }
 
 }  // namespace
+
+void PreviewSurface::SetChecks(bool peaking, bool zebra, bool loupe) {
+    peaking_ = peaking;
+    zebra_ = zebra;
+    loupe_ = loupe;
+    if (hwnd_ != nullptr) {
+        InvalidateRect(hwnd_, nullptr, FALSE);
+    }
+}
 
 void PreviewSurface::SetPlaceholder(std::wstring text) {
     if (text == placeholder_) {
@@ -283,6 +293,51 @@ void PreviewSurface::PaintContent(HDC dc, const RECT& client) {
     const int destH = static_cast<int>(srcH * scale);
     const int destX = client.left + (width - destW) / 2;
     const int destY = client.top + (height - destH) / 2;
+    const uint8_t* pixels = bgra->data();
+    std::vector<uint8_t> checked;
+    if (peaking_ || zebra_) {
+        checked = *bgra;
+        auto* nv12 = static_cast<std::vector<uint8_t>*>(nv12_);
+        if (nv12 != nullptr && nv12->size() == FrameByteCount()) {
+            const uint8_t* luma = nv12->data();
+            for (int y = 1; y < srcH - 1; y += 2) {
+                for (int x = 1; x < srcW - 1; x += 2) {
+                    const int offset = y * static_cast<int>(kFrameStride) + x;
+                    const int sample = luma[offset];
+                    const int edge = std::abs(sample - luma[offset - 1]) + std::abs(sample - luma[offset - static_cast<int>(kFrameStride)]);
+                    uint8_t* pixel = checked.data() + (static_cast<size_t>(y) * static_cast<size_t>(srcW) + static_cast<size_t>(x)) * 4u;
+                    if (peaking_ && edge > 48) {
+                        pixel[0] = 220;
+                        pixel[1] = 220;
+                        pixel[2] = 40;
+                    } else if (zebra_ && sample >= 230 && ((x / 8) + (y / 8)) % 2 == 0) {
+                        pixel[0] = 255;
+                        pixel[1] = 255;
+                        pixel[2] = 255;
+                    }
+                }
+            }
+        }
+        pixels = checked.data();
+    }
+    int srcX = 0;
+    int srcY = 0;
+    int copyW = srcW;
+    int copyH = srcH;
+    int drawW = destW;
+    int drawH = destH;
+    int drawX = destX;
+    int drawY = destY;
+    if (loupe_) {
+        copyW = destW < srcW ? destW : srcW;
+        copyH = destH < srcH ? destH : srcH;
+        srcX = (srcW - copyW) / 2;
+        srcY = (srcH - copyH) / 2;
+        drawW = copyW;
+        drawH = copyH;
+        drawX = client.left + (width - drawW) / 2;
+        drawY = client.top + (height - drawH) / 2;
+    }
 
     BITMAPINFO info{};
     info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -295,15 +350,15 @@ void PreviewSurface::PaintContent(HDC dc, const RECT& client) {
     SetBrushOrgEx(dc, 0, 0, nullptr);
     StretchDIBits(
         dc,
-        destX,
-        destY,
-        destW,
-        destH,
-        0,
-        0,
-        srcW,
-        srcH,
-        bgra->data(),
+        drawX,
+        drawY,
+        drawW,
+        drawH,
+        srcX,
+        srcY,
+        copyW,
+        copyH,
+        pixels,
         &info,
         DIB_RGB_COLORS,
         SRCCOPY

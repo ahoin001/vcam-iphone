@@ -289,11 +289,20 @@ void VideoClient::Run(std::string host, int port) {
             }
             attempt = 0;
         }
-        if (attempt >= kBackoffCount) {
+        const bool hadPicture = worker->lastDecodedMs.load() != 0;
+        if (!hadPicture && (worker->closedWithoutVideo.load() || attempt >= kBackoffCount)) {
             break;
         }
-        const int wait = kBackoffMs[attempt];
-        ++attempt;
+        if (hadPicture) {
+            std::lock_guard<std::mutex> lock(worker->mutex);
+            if (state_ == LinkState::Live) {
+                state_ = LinkState::Connecting;
+            }
+        }
+        const int wait = hadPicture ? 5000 : kBackoffMs[attempt];
+        if (!hadPicture) {
+            ++attempt;
+        }
         for (int slept = 0; slept < wait && !worker->stop.load(); slept += 100) {
             Sleep(100);
         }

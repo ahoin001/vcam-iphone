@@ -13,7 +13,7 @@ Work that is not part of the Windows camera client. The current path is the port
 ## Windows
 
 - **A Windows 10 virtual camera, or a signed kernel driver.** Windows 10 keeps the desk and the optional DroidCam OBS source. `MFCreateVirtualCamera` needs Windows 11. A kernel camera would be a different product, with signing and an administrator install.
-- **OBS tally while VCamdroid, rather than the DroidCam source, is the video client.** Tally today arrives on the DroidCam source connection. The system camera does not send it.
+- **OBS tally for the system camera is the WebSocket in VCamPanel.** It turns the phone badge red while OBS is recording or streaming, and green in studio mode. The optional DroidCam source can still send its own tally when it, rather than VCamPanel, is the video client.
 - **Starting the companion with Windows.** VCamPanel has to be open for the picture. Launching it at sign-in is a separate setup choice.
 
 ## Other clients

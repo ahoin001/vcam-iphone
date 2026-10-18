@@ -44,6 +44,8 @@ final class StudioSession {
     private var activeBitrateKbps: Int
     private(set) var shotPresets: [ShotPreset] = ShotPresetStore.load()
     private(set) var stoppedByUser = false
+    private(set) var customWhiteBalanceSupported = true
+    private var hasAnnouncedLive = false
     private var packetForwarder: OrderedPacketForwarder?
     private var packetTask: Task<Void, Never>?
     private var listenerRestart: Task<Void, Never>?
@@ -166,6 +168,7 @@ final class StudioSession {
             }
             isRunning = true
             statusMessage = .waitingForOBS
+            await noteWhiteBalanceSupport()
             appendLog(String(localized: .waitingForOBS))
             armCurtain()
             watchCare()
@@ -287,7 +290,17 @@ final class StudioSession {
         guard isRunning else { return }
         Task {
             try? await capture.update(captureConfiguration)
+            await noteWhiteBalanceSupport()
         }
+    }
+
+    private func noteWhiteBalanceSupport() async {
+        let supported = await capture.supportsCustomWhiteBalance()
+        customWhiteBalanceSupported = supported
+        guard !supported, settings.manualWhiteBalance else { return }
+        var next = settings
+        next.manualWhiteBalance = false
+        settings = next
     }
 
     func applyPortrait() {
@@ -321,9 +334,11 @@ final class StudioSession {
 
     func setMode(_ mode: VideoMode) {
         guard !panelStream else { return }
-        settings.width = mode.width
-        settings.height = mode.height
-        settings.fps = mode.fps
+        var next = settings
+        next.width = mode.width
+        next.height = mode.height
+        next.fps = mode.fps
+        settings = next.sanitized()
         snapshot.width = mode.width
         snapshot.height = mode.height
         snapshot.fps = mode.fps
@@ -349,6 +364,11 @@ final class StudioSession {
     }
 
     func apply(update: SessionUpdate) -> Bool {
+        if let link = update.link {
+            apply(link: link)
+        }
+        let hasMode = update.width != nil || update.height != nil || update.fps != nil || update.format != nil || update.lens != nil
+        guard hasMode else { return update.link != nil }
         if let format = update.format, format != .avc { return false }
         if panelStream {
             if let lens = update.lens {
@@ -408,56 +428,57 @@ final class StudioSession {
     }
 
     func apply(controls update: ControlUpdate) -> Bool {
+        var next = settings
         if let lens = update.lens {
-            settings.lens = lens
+            next.lens = lens
         }
         if let zoom = update.zoom {
-            settings.zoom = zoom
+            next.zoom = zoom
         }
         if let manualExposure = update.manualExposure {
-            settings.manualExposure = manualExposure
+            next.manualExposure = manualExposure
         }
         if let exposureBias = update.exposureBias {
-            settings.exposureBias = exposureBias
+            next.exposureBias = exposureBias
         }
         if let iso = update.iso {
-            settings.iso = iso
+            next.iso = iso
         }
         if let shutter = update.shutter {
-            settings.shutterSeconds = shutter
+            next.shutterSeconds = shutter
         }
         if let whiteBalance = update.whiteBalance {
             if let kelvin = whiteBalance.kelvin {
-                settings.manualWhiteBalance = true
-                settings.kelvin = kelvin
+                next.manualWhiteBalance = true
+                next.kelvin = kelvin
             } else {
-                settings.manualWhiteBalance = false
+                next.manualWhiteBalance = false
             }
         }
         if let manualFocus = update.manualFocus {
-            settings.manualFocus = manualFocus
+            next.manualFocus = manualFocus
         }
         if let focus = update.focus {
-            settings.lensPosition = focus
+            next.lensPosition = focus
         }
         if let torch = update.torch {
-            settings.torch = torch
+            next.torch = torch
         }
         if let flip = update.flip {
-            settings.flip180 = flip
+            next.flip180 = flip
         }
         if let portrait = update.portrait {
-            settings.portraitEnabled = portrait
+            next.portraitEnabled = portrait
         }
         if let portraitStrength = update.portraitStrength {
-            settings.portraitStrength = portraitStrength
+            next.portraitStrength = portraitStrength
         }
         var restartBitrate = false
-        if let bitrateKbps = update.bitrateKbps, bitrateKbps != settings.bitrateKbps {
-            settings.bitrateKbps = bitrateKbps
+        if let bitrateKbps = update.bitrateKbps, bitrateKbps != next.bitrateKbps {
+            next.bitrateKbps = bitrateKbps
             restartBitrate = !panelStream
         }
-        settings = settings.sanitized()
+        settings = next.sanitized()
         if !panelStream {
             activeBitrateKbps = settings.bitrateKbps
         }
@@ -467,6 +488,16 @@ final class StudioSession {
             Task { await restartEncoder() }
         }
         return true
+    }
+
+    private func apply(link: LinkHealth) {
+        switch link {
+        case .cannotDecode:
+            statusMessage = .pcCannotDecode
+        case .live:
+            guard statusMessage == .pcCannotDecode else { return }
+            statusMessage = snapshot.isStreaming ? .streaming : .waitingForOBS
+        }
     }
 
     private func currentControls() -> ControlState {
@@ -535,7 +566,12 @@ final class StudioSession {
             encoderActive = true
             snapshot.isStreaming = true
             snapshot.status = "streaming"
-            statusMessage = .streaming
+            if hasAnnouncedLive {
+                statusMessage = .streaming
+            } else {
+                hasAnnouncedLive = true
+                statusMessage = .cameraLive
+            }
             appendLog(String(localized: .clientConnected))
         } catch {
             encoderActive = false
@@ -711,7 +747,7 @@ final class StudioSession {
             batteryPercent: BatteryPercent.current(),
             unplugged: UIDevice.current.batteryState == .unplugged
         )
-        if care != portraitCare, care == .eased || care == .paused, let message = care.message {
+        if care != portraitCare, care == .eased || care == .paused || care == .streamHot, let message = care.message {
             appendLog(String(localized: message))
         }
         portraitCare = care
@@ -721,6 +757,7 @@ final class StudioSession {
     }
 
     private func noteSettingsSaved(from old: StudioSettings) {
+        guard settings != old else { return }
         StudioSettingsStore.save(settings)
         guard isRunning, old.port != settings.port || old.discoveryEnabled != settings.discoveryEnabled else { return }
         listenerRestart?.cancel()

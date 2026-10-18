@@ -11,6 +11,7 @@
 #include "guide_photos.h"
 #include "mdns_browse.h"
 #include "panel_shell.h"
+#include "obs_tally.h"
 #include "usbmux.h"
 #include "camera/Pipeline.h"
 #include "camera/PreviewSurface.h"
@@ -185,8 +186,16 @@ std::wstring g_connectedName;
 std::wstring g_deskUrl;
 Listed g_lastTarget;
 bool g_haveLastTarget = false;
+bool g_userDisconnected = false;
+bool g_phoneLeft = false;
+std::wstring g_phoneLeftDetail;
+int g_sessionMisses = 0;
 std::wstring g_address;
+std::wstring g_obsPassword;
 std::wstring g_obsAddress = L"127.0.0.1:4747";
+bool g_peaking = false;
+bool g_zebra = false;
+bool g_loupe = false;
 StatusView g_status;
 double g_sideRatio = kDefaultSideRatio;
 double g_stackRatio = kDefaultStackRatio;
@@ -587,6 +596,34 @@ bool HttpGet(const std::string& host, int port, const char* path, std::string& b
     return response.find("200") != std::string::npos;
 }
 
+bool HttpPut(const std::string& host, int port, const std::string& path) {
+    SOCKET socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socket == INVALID_SOCKET) {
+        return false;
+    }
+    DWORD timeout = 800;
+    setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+    setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host.c_str(), &address.sin_addr) != 1) {
+        closesocket(socket);
+        return false;
+    }
+    if (!ConnectWithTimeout(socket, address, kConnectTimeoutMs)) {
+        closesocket(socket);
+        return false;
+    }
+    std::ostringstream request;
+    request << "PUT " << path << " HTTP/1.1\r\nHost: " << host << ":" << port
+            << "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    const std::string blob = request.str();
+    const bool sent = send(socket, blob.data(), static_cast<int>(blob.size()), 0) > 0;
+    closesocket(socket);
+    return sent;
+}
+
 void CopyText(const std::wstring& text) {
     if (!OpenClipboard(g_window)) {
         return;
@@ -626,6 +663,27 @@ bool DecodedRecently(const vcam::LinkProgress& progress) {
         return false;
     }
     return GetTickCount64() - progress.lastDecodedMs < 3000;
+}
+
+std::string g_reportedLink;
+
+void ReportLink(const std::string& host, int port, const std::string& body) {
+    const auto progress = vcam::Pipeline::Shared().Progress();
+    const bool phoneSending = JsonBool(body, "streaming") || JsonBool(body, "panelClient");
+    std::string link;
+    if (phoneSending && ReceivingRecently(progress) && !DecodedRecently(progress)) {
+        link = "cannotDecode";
+    } else if (progress.state == vcam::LinkState::Live) {
+        link = "live";
+    } else {
+        return;
+    }
+    if (g_reportedLink == link) {
+        return;
+    }
+    if (HttpPut(host, port, "/v1/session?link=" + link)) {
+        g_reportedLink = link;
+    }
 }
 
 std::string DeviceKey(const Listed& device) {
@@ -774,6 +832,11 @@ std::string BuildState() {
     AppendJsonString(json, g_address);
     json += ",\"obs\":";
     AppendJsonString(json, g_obsAddress);
+    json += ",\"obsPassword\":";
+    AppendJsonString(json, g_obsPassword);
+    AppendJsonBool(json, "peaking", g_peaking);
+    AppendJsonBool(json, "zebra", g_zebra);
+    AppendJsonBool(json, "loupe", g_loupe);
 
     json += ",\"status\":{\"tone\":\"";
     json += ToneName(g_status.tone);
@@ -854,6 +917,15 @@ void SetStatus(Tone tone, std::wstring title, std::wstring detail, std::vector<s
 
 void ShowIdleStatus() {
     if (Connected()) {
+        return;
+    }
+    if (g_userDisconnected && FindDevice(g_selectedKey) != nullptr) {
+        SetStatus(Tone::Idle, L"Disconnected",
+                  L"This iPhone is still here. Click Connect when you want the picture back.");
+        return;
+    }
+    if (g_phoneLeft) {
+        SetStatus(Tone::Idle, L"The iPhone disconnected", g_phoneLeftDetail);
         return;
     }
     if (!g_connectError.empty()) {
@@ -1053,6 +1125,9 @@ void StartPoll() {
         poll->port = port;
         poll->startedMs = GetTickCount64();
         poll->ok = HttpGet(host, port, "/v1/session", poll->body);
+        if (poll->ok) {
+            ReportLink(host, port, poll->body);
+        }
         poll->finishedMs = GetTickCount64();
         if (!PostMessageW(target, kPollDoneMessage, 0, reinterpret_cast<LPARAM>(poll))) {
             delete poll;
@@ -1124,9 +1199,14 @@ void FinishCameraInstall(HRESULT result) {
 
 void ConnectTo(const Listed& target) {
     KillTimer(g_window, kStatusTimer);
+    StopObsTally();
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
     ResetPace();
+    g_userDisconnected = false;
+    g_phoneLeft = false;
+    g_sessionMisses = 0;
+    g_reportedLink.clear();
     g_usbConnected = false;
     g_connectedHost.clear();
     g_connectError.clear();
@@ -1170,6 +1250,7 @@ void ConnectTo(const Listed& target) {
         SessionChips(-1, 0, 0, 0));
     SetTimer(g_window, kStatusTimer, kStatusIntervalMs, nullptr);
     StartPoll();
+    StartObsTally(g_connectedHost, g_connectedPort, g_obsPassword);
 }
 
 void ConnectFromShell(const std::string& key, const std::wstring& typed) {
@@ -1216,6 +1297,9 @@ Listed UsbTarget(const Listed& device) {
 }
 
 bool AutoConnect() {
+    if (g_userDisconnected) {
+        return false;
+    }
     for (const Listed& device : g_devices) {
         if (device.kind == Kind::Usb) {
             ConnectTo(UsbTarget(device));
@@ -1242,12 +1326,15 @@ void ResetPace() {
     g_pace = {};
 }
 
-void Disconnect() {
+void StopPicture() {
     KillTimer(g_window, kStatusTimer);
     KillTimer(g_window, kDeskRetryTimer);
+    StopObsTally();
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
     ResetPace();
+    g_sessionMisses = 0;
+    g_reportedLink.clear();
     g_usbConnected = false;
     g_connectedHost.clear();
     g_connectedName.clear();
@@ -1259,9 +1346,53 @@ void Disconnect() {
         g_desk->Navigate(L"about:blank");
     }
     Layout();
-    SetStatus(Tone::Idle, L"Disconnected", L"Connect again to use the iPhone as a camera.");
     SetTimer(g_window, kScanTimer, kScanIntervalMs, nullptr);
+}
+
+void Disconnect() {
+    const bool stillHere = FindDevice(g_selectedKey) != nullptr;
+    StopPicture();
+    g_userDisconnected = true;
+    g_phoneLeft = false;
+    if (stillHere) {
+        SetStatus(Tone::Idle, L"Disconnected",
+                  L"This iPhone is still here. Click Connect when you want the picture back.");
+    } else {
+        SetStatus(Tone::Idle, L"Looking for your iPhone",
+                  L"Plug in a data cable and tap Trust, or open VCamdroid on the same Wi-Fi.");
+    }
     StartScan();
+}
+
+void PhoneWentAway(bool cable) {
+    StopPicture();
+    g_userDisconnected = false;
+    g_phoneLeft = true;
+    g_phoneLeftDetail = cable ? L"The cable came out. Plug it in to connect again."
+                              : L"The phone left the Wi-Fi. It will show up here when it is back.";
+    SetStatus(Tone::Idle, L"The iPhone disconnected", g_phoneLeftDetail);
+    StartScan();
+}
+
+bool PhoneStillListed() {
+    if (g_usbConnected) {
+        for (const Listed& device : g_devices) {
+            if (device.kind != Kind::Usb || device.usbId != g_lastTarget.usbId) {
+                continue;
+            }
+            if (!g_lastTarget.serial.empty() && !device.serial.empty() && device.serial != g_lastTarget.serial) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+    for (const Listed& device : g_devices) {
+        if (device.kind == Kind::Wifi && device.ipv4 == g_connectedHost && device.missed < kWifiGraceScans) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void ApplyScan(std::unique_ptr<ScanResult> result) {
@@ -1288,6 +1419,7 @@ void ApplyScan(std::unique_ptr<ScanResult> result) {
     }
     g_devices = std::move(merged);
     g_usbError = std::move(result->usbError);
+    const std::string heldSelection = g_selectedKey;
     if (FindDevice(g_selectedKey) == nullptr) {
         const bool lost = !g_selectedKey.empty();
         g_selectedKey.clear();
@@ -1312,8 +1444,18 @@ void ApplyScan(std::unique_ptr<ScanResult> result) {
     }
 
     if (Connected()) {
-        PushState();
-        return;
+        if (PhoneStillListed()) {
+            PushState();
+            return;
+        }
+        const bool cable = g_usbConnected;
+        if (!heldSelection.empty()) {
+            g_selectedKey = heldSelection;
+        }
+        PhoneWentAway(cable);
+        if (newUsbKey.empty()) {
+            return;
+        }
     }
     const bool first = g_firstScan;
     g_firstScan = false;
@@ -1420,17 +1562,36 @@ void ApplySession(const SessionPoll& poll) {
         return;
     }
     if (!poll.ok) {
+        if (!g_usbConnected && ++g_sessionMisses >= 3) {
+            PhoneWentAway(false);
+            return;
+        }
         const std::wstring detail = progress.closedWithoutVideo && g_usbConnected ? std::wstring(kUsbAppClosed) : std::wstring(kPhoneCue);
         SetStatus(Tone::Busy, L"Waiting for the iPhone", detail, SessionChips(-1, 0, 0, 0));
         return;
     }
+    g_sessionMisses = 0;
     const int battery = JsonInt(poll.body, "battery", -1);
     const int width = JsonInt(poll.body, "width", 0);
     const int height = JsonInt(poll.body, "height", 0);
     const int fps = JsonInt(poll.body, "fps", 0);
     const int delayMs = UpdatePace(poll, progress);
+    const wchar_t* installNotice = L"Open Setup and click Install camera so other apps can select VCamdroid.";
+    const bool needsInstall = vcam::Pipeline::Shared().Setup().needsInstall;
+    if (link == vcam::LinkState::Live && needsInstall &&
+        (g_pace.notice.empty() || g_pace.notice == installNotice)) {
+        g_pace.notice = installNotice;
+        g_pace.healthySince = 0;
+    } else if (g_pace.notice == installNotice) {
+        g_pace.notice.clear();
+        g_pace.healthySince = 0;
+    }
     auto chips = SessionChips(battery, width, height, fps);
-    if (delayMs >= 0 && delayMs < 150 && g_pace.notice.empty()) {
+    const bool ready = link == vcam::LinkState::Live && delayMs >= 0 && delayMs < 150 && g_pace.fps >= 27 &&
+                       g_pace.notice.empty();
+    if (ready) {
+        chips.push_back(L"Ready");
+    } else if (delayMs >= 0 && delayMs < 150 && g_pace.notice.empty()) {
         chips.push_back(std::to_wstring(delayMs) + L" ms");
     }
 
@@ -1440,13 +1601,19 @@ void ApplySession(const SessionPoll& poll) {
         tone = Tone::Live;
         title = L"Streaming over " + transport;
     } else if (link == vcam::LinkState::Connecting) {
-        title = L"Opening the picture";
+        title = progress.lastDecodedMs != 0 ? L"Reconnecting" : L"Opening the picture";
     }
 
     std::wstring detail;
     const std::wstring warning = vcam::Pipeline::Shared().Warning();
-    if (vcam::Pipeline::Shared().Setup().needsInstall) {
-        detail = L"Open Setup and click Install camera so other apps can select VCamdroid.";
+    if (tone == Tone::Live && needsInstall) {
+        if (g_pace.notice.empty() || g_pace.notice == installNotice) {
+            g_pace.notice = installNotice;
+            g_pace.healthySince = 0;
+        }
+        detail = L"Choose VCamdroid as the camera in NVIDIA Broadcast, OBS, Zoom, Teams, Meet, or Discord.";
+    } else if (needsInstall) {
+        detail = installNotice;
         if (tone == Tone::Live) {
             tone = Tone::Warn;
         }
@@ -1539,6 +1706,25 @@ void HandleShellMessage(const std::string& json) {
         SetGuide(JsonBool(json, "open"));
     } else if (type == "installCamera") {
         StartCameraInstall();
+    } else if (type == "obsPassword") {
+        g_obsPassword = Wide(JsonString(json, "value"));
+        SaveSetting(L"panel-obs-password.txt", g_obsPassword);
+        if (Connected()) {
+            StartObsTally(g_connectedHost, g_connectedPort, g_obsPassword);
+        }
+        PushState();
+    } else if (type == "monitor") {
+        const std::string tool = JsonString(json, "tool");
+        const bool on = JsonBool(json, "value");
+        if (tool == "peaking") {
+            g_peaking = on;
+        } else if (tool == "zebra") {
+            g_zebra = on;
+        } else if (tool == "loupe") {
+            g_loupe = on;
+        }
+        g_previewSurface.SetChecks(g_peaking, g_zebra, g_loupe);
+        PushState();
     }
 }
 
@@ -2024,6 +2210,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
     const bool ownsCom = SUCCEEDED(com);
     g_background = CreateSolidBrush(kBg);
     g_address = LoadSetting(L"panel-address.txt");
+    g_obsPassword = LoadSetting(L"panel-obs-password.txt");
     g_onTop = LoadSetting(L"panel-on-top.txt") != L"0";
     LoadDeskRatio();
     g_deskLayout = LoadSetting(L"desk-layout.json");

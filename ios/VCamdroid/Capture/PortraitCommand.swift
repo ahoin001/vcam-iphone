@@ -22,6 +22,7 @@ enum PortraitCare: Equatable, Sendable {
     case heavierAndBattery
     case eased
     case paused
+    case streamHot
 
     var message: LocalizedStringResource? {
         switch self {
@@ -39,6 +40,8 @@ enum PortraitCare: Equatable, Sendable {
             .portraitCareEased
         case .paused:
             .portraitCarePaused
+        case .streamHot:
+            .thermalWarning
         }
     }
 }
@@ -64,15 +67,15 @@ enum PortraitPolicy {
         batteryPercent: Int,
         unplugged: Bool
     ) -> PortraitCare {
-        guard enabled else { return .hidden }
         switch thermal {
         case .critical:
-            return .paused
+            return enabled ? .paused : .streamHot
         case .serious:
-            return .eased
+            return enabled ? .eased : .streamHot
         default:
             break
         }
+        guard enabled else { return .hidden }
         let heavier = fps > 30 || height > 1080
         let lowBattery = unplugged && batteryPercent < 20
         if heavier && lowBattery { return .heavierAndBattery }

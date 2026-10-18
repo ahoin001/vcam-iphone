@@ -22,6 +22,7 @@ actor CaptureEngine {
         let core = core
         try await core.perform {
             try core.start(configuration)
+            return ()
         }
     }
 
@@ -29,6 +30,7 @@ actor CaptureEngine {
         let core = core
         try? await core.perform {
             core.stop()
+            return ()
         }
     }
 
@@ -41,13 +43,20 @@ actor CaptureEngine {
         let core = core
         try await core.perform {
             try core.update(configuration, rebuild: rebuild)
+            return ()
         }
+    }
+
+    func supportsCustomWhiteBalance() async -> Bool {
+        let core = core
+        return (try? await core.perform { core.supportsCustomWhiteBalance() }) ?? false
     }
 
     func focus(at devicePoint: CGPoint) async {
         let core = core
         try? await core.perform {
             core.focus(at: devicePoint)
+            return ()
         }
     }
 }
