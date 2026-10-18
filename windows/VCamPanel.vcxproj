@@ -25,6 +25,7 @@
     <RootNamespace>VCamPanel</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <WebView2LoaderPreference>Static</WebView2LoaderPreference>
+    <PANEL_VERSION Condition="'$(PANEL_VERSION)' == ''">dev</PANEL_VERSION>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -60,11 +61,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
       <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PANEL_VERSION=\"$(PANEL_VERSION)\";WIN32;_DEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ole32.lib;ws2_32.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;ws2_32.lib;winhttp.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>mfsensorgroup.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -75,11 +76,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PANEL_VERSION=\"$(PANEL_VERSION)\";WIN32;NDEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ole32.lib;ws2_32.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;ws2_32.lib;winhttp.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>mfsensorgroup.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -90,11 +91,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PANEL_VERSION=\"$(PANEL_VERSION)\";_DEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ole32.lib;ws2_32.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;ws2_32.lib;winhttp.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>mfsensorgroup.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -105,11 +106,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PANEL_VERSION=\"$(PANEL_VERSION)\";NDEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>ole32.lib;ws2_32.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;ws2_32.lib;winhttp.lib;comctl32.lib;mfplat.lib;mfuuid.lib;mf.lib;mfsensorgroup.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>mfsensorgroup.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
@@ -121,6 +122,8 @@
   <ItemGroup>
     <ClCompile Include="src\panel_main.cpp" />
     <ClCompile Include="src\obs_tally.cpp" />
+    <ClCompile Include="src\frame_advice.cpp" />
+    <ClCompile Include="src\panel_update.cpp" />
     <ClCompile Include="src\usbmux.cpp" />
     <ClCompile Include="src\mdns_browse.cpp" />
     <ClCompile Include="src\camera\FrameBus.cpp" />
@@ -133,6 +136,8 @@
   <ItemGroup>
     <ClInclude Include="src\panel_shell.h" />
     <ClInclude Include="src\obs_tally.h" />
+    <ClInclude Include="src\frame_advice.h" />
+    <ClInclude Include="src\panel_update.h" />
     <ClInclude Include="src\guide_photos.h" />
     <ClInclude Include="src\usbmux.h" />
     <ClInclude Include="src\mdns_browse.h" />

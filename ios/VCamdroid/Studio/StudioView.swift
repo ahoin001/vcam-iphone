@@ -7,6 +7,7 @@ struct StudioView: View {
     @State private var tool: StudioTool?
     @State private var confirmingStop = false
     @State private var helpPresented = false
+    @State private var heatPresented = false
 
     var body: some View {
         ZStack {
@@ -19,23 +20,24 @@ struct StudioView: View {
                 tool: $tool,
                 isCompactHeight: verticalSizeClass == .compact,
                 onHelp: { helpPresented = true },
+                onHeat: { heatPresented = true },
                 onStop: requestStop
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
-            .opacity(session.curtainPresented ? 0 : 1)
-            .allowsHitTesting(!session.curtainPresented)
             .accessibilityHidden(session.curtainPresented)
             if session.stoppedByUser && !session.isRunning {
                 stoppedCard
             }
-            CurtainOverlay()
-                .opacity(session.curtainPresented ? 1 : 0)
-                .scaleEffect(reduceMotion ? 1 : (session.curtainPresented ? 1 : 0.98))
-                .animation(curtainAnimation, value: session.curtainPresented)
-                .allowsHitTesting(session.curtainPresented)
-                .ignoresSafeArea()
         }
+        .overlay {
+            if session.curtainPresented {
+                CurtainOverlay()
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+        }
+        .animation(curtainAnimation, value: session.curtainPresented)
         .background {
             StudioOrientation { session.setInterfaceOrientation($0) }
         }
@@ -56,6 +58,11 @@ struct StudioView: View {
                     helpPresented = false
                     session.replaySetup()
                 }
+            }
+        }
+        .sheet(isPresented: $heatPresented) {
+            NavigationStack {
+                HeatGuideView()
             }
         }
         .confirmationDialog(Text(.confirmStopTitle), isPresented: $confirmingStop, titleVisibility: .visible) {

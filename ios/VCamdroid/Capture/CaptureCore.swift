@@ -29,6 +29,10 @@ final class CaptureCore: @unchecked Sendable {
         portrait.set(command)
     }
 
+    func droppedFrames() -> Int {
+        sink.dropped()
+    }
+
     func perform<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
             sessionQueue.async {
@@ -42,6 +46,7 @@ final class CaptureCore: @unchecked Sendable {
     }
 
     func start(_ configuration: CaptureConfiguration) throws {
+        sink.resetDropped()
         try apply(configuration, rebuild: true)
         applyRotation(configuration.rotationAngle)
         if !previewSession.session.isRunning {

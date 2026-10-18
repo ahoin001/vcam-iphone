@@ -17,6 +17,14 @@ actor Encoder {
         core.stop()
     }
 
+    func setBitrate(_ kbps: Int) {
+        core.setBitrate(kbps)
+    }
+
+    func averageEncodeMs() -> Double {
+        core.averageEncodeMs()
+    }
+
     func markConfigurationUnsent() {
         core.resetConfigurationFlag()
     }

@@ -94,10 +94,22 @@ svg {
   color: var(--muted); font-size: 12px; line-height: 16px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.notice {
-  color: var(--warn-text); font-size: 12px; font-weight: 600; line-height: 16px;
+.notice-row {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
 }
-.notice[hidden] { display: none; }
+.notice-row[hidden] { display: none; }
+.notice {
+  margin: 0; min-width: 0;
+  color: var(--warn-text); font-size: 12px; font-weight: 600; line-height: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.btn.link {
+  height: auto; padding: 0; flex: none;
+  border: 0; background: transparent; color: var(--accent);
+  font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.btn.link:hover { background: transparent; color: var(--accent-hover); }
+.btn.link:active { transform: none; }
 .actions { display: flex; align-items: center; gap: 8px; flex: none; }
 .monitors { display: flex; gap: 6px; }
 .monitors[hidden] { display: none; }
@@ -273,6 +285,31 @@ body.connected .idle, body.sheet-open .idle, body.guide-open .idle { display: no
 .sheet { height: calc(100% - var(--bar)); display: grid; place-items: start center; padding: 24px 16px; overflow: auto; }
 .sheet-card { width: min(640px, 100%); display: grid; gap: 12px; padding: 24px; animation: rise 280ms var(--ease); }
 .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 4px; }
+
+.tips-tray {
+  display: none;
+  height: 168px;
+  padding: 10px 20px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--well);
+  gap: 6px;
+  overflow: auto;
+  animation: rise 180ms var(--ease);
+}
+body.tips-open .tips-tray { display: grid; align-content: start; }
+.tips-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.tips-head h2 { font: 600 13px/1.2 var(--font-display); }
+.tips-list { display: grid; gap: 8px; }
+.tip {
+  display: grid; gap: 4px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+}
+.tip-title { font-size: 13px; font-weight: 600; }
+.tip-why { color: var(--muted); font-size: 12px; line-height: 16px; }
+.tip-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 )SHELL";
 
 inline constexpr char kBody[] = R"SHELL(</style></head>
@@ -282,7 +319,10 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
     <span class="dot" aria-hidden="true"></span>
     <div class="status-text" role="status" aria-live="polite">
       <div class="status-line"><strong id="status-title">Starting</strong><span class="chips" id="chips"></span></div>
-      <p class="notice" id="notice" hidden></p>
+      <div class="notice-row" id="notice-row" hidden>
+        <p class="notice" id="notice"></p>
+        <button class="btn link" id="tips-toggle" type="button" hidden>See fix</button>
+      </div>
       <p class="status-detail" id="status-detail"></p>
     </div>
   </div>
@@ -297,6 +337,7 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <button class="btn small" id="zebra" type="button" aria-pressed="false">Zebra</button>
       <button class="btn small" id="loupe" type="button" aria-pressed="false" title="Show the center at full size">1:1</button>
     </div>
+    <button class="btn" id="heat-open" type="button">Heat</button>
     <button class="btn" id="guide-open" type="button">Guide</button>
     <button class="btn setup" id="setup" type="button" hidden><span class="badge" aria-hidden="true"></span>Setup</button>
     <button class="icon-btn" id="pin" type="button" aria-pressed="true" aria-label="Keep window on top" title="Keep window on top">
@@ -306,6 +347,13 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
     <button class="btn" id="disconnect" type="button" hidden>Disconnect</button>
   </div>
 </header>
+<section class="tips-tray" id="tips" hidden>
+  <div class="tips-head">
+    <h2>Why frames are dropping</h2>
+    <button class="btn small" id="tips-close" type="button">Close</button>
+  </div>
+  <div class="tips-list" id="tips-list"></div>
+</section>
 
 <main class="idle">
   <div class="left">
@@ -370,6 +418,11 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <button class="btn" id="sheet-done" type="button">Done</button>
     </div>
     <ul class="checks" id="sheet-checks"></ul>
+    <div class="group" id="companion-update">
+      <p class="hint" id="update-copy">This build has not checked for updates yet.</p>
+      <button class="btn" id="check-update" type="button">Check for updates</button>
+      <button class="btn primary" id="apply-update" type="button" hidden>Update</button>
+    </div>
     <form class="group" id="obs-password-form" autocomplete="off">
       <label for="obs-password">OBS WebSocket password</label>
       <input class="field" id="obs-password" type="password" spellcheck="false" placeholder="Only if OBS asks for one">
@@ -402,6 +455,7 @@ inline constexpr char kScript[] = R"SHELL(<script>
   let manualScan = false;
   let pcOpen = null;
   let copyTimer = 0;
+  let tipsWereOpen = false;
 
   function icon(name) {
     const holder = document.createElement("span");
@@ -435,6 +489,11 @@ inline constexpr char kScript[] = R"SHELL(<script>
         button.type = "button";
         button.dataset.action = "install";
         text.append(button);
+      } else if (check.action === "update") {
+        const button = node("button", "btn primary small", "Update");
+        button.type = "button";
+        button.dataset.action = "update";
+        text.append(button);
       }
       item.append(mark(check.state), text);
       return item;
@@ -453,6 +512,34 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("pc-toggle").setAttribute("aria-expanded", String(open));
     $("pc-checks").hidden = !open;
     renderChecks($("pc-checks"), pc);
+  }
+
+  function renderTipList(tips, justOpened) {
+    const list = $("tips-list");
+    list.replaceChildren(...(tips || []).map((tip) => {
+      const row = node("div", "tip");
+      row.dataset.id = tip.id || "";
+      const actions = node("div", "tip-actions");
+      if (tip.action) {
+        const fix = node("button", "btn small primary tip-fix", tip.done ? "Done" : tip.action);
+        fix.type = "button";
+        fix.disabled = !!tip.done;
+        fix.addEventListener("click", () => post({ type: "tipAction", id: tip.id }));
+        actions.append(fix);
+      }
+      if (!tip.done) {
+        const skip = node("button", "btn small", "Not now");
+        skip.type = "button";
+        skip.addEventListener("click", () => post({ type: "tipDismiss", id: tip.id }));
+        actions.append(skip);
+      }
+      row.append(node("div", "tip-title", tip.title || ""), node("p", "tip-why", tip.why || ""), actions);
+      return row;
+    }));
+    if (justOpened) {
+      const first = list.querySelector(".tip-fix") || $("tips-close");
+      if (first) first.focus();
+    }
   }
 
   function deviceRow(device) {
@@ -527,9 +614,10 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("guide").hidden = !state.guide;
 
     $("status").dataset.tone = status.tone || "idle";
-    const notice = $("notice");
-    notice.textContent = status.notice || "";
-    notice.hidden = !status.notice;
+    const noticeText = status.notice || "";
+    $("notice").textContent = noticeText;
+    $("notice-row").hidden = !noticeText && !state.tipsOpen;
+    $("tips-toggle").hidden = !state.tipsReady;
     $("status-title").textContent = status.title || "";
     const detail = $("status-detail");
     detail.textContent = status.detail || "";
@@ -553,6 +641,11 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("sheet").hidden = !state.sheet;
     renderChecks($("sheet-checks"), checks);
     renderPc(checks);
+    const update = state.update || {};
+    $("update-copy").textContent = update.detail || ("This build is " + (update.current || "dev") + ".");
+    $("check-update").disabled = !!update.busy;
+    $("apply-update").hidden = !update.available;
+    $("apply-update").disabled = !!update.busy;
 
     if (state.address !== lastAddress) {
       lastAddress = state.address;
@@ -561,6 +654,10 @@ inline constexpr char kScript[] = R"SHELL(<script>
     if (!state.scanning) manualScan = false;
     $("refresh").classList.toggle("spin", manualScan);
     renderDevices(state.devices || [], state.selected || "");
+    document.body.classList.toggle("tips-open", !!state.tipsOpen);
+    $("tips").hidden = !state.tipsOpen;
+    renderTipList(state.tips || [], !!state.tipsOpen && !tipsWereOpen);
+    tipsWereOpen = !!state.tipsOpen;
   }
 
   deviceList.addEventListener("click", (event) => {
@@ -622,13 +719,21 @@ inline constexpr char kScript[] = R"SHELL(<script>
   });
   $("disconnect").addEventListener("click", () => post({ type: "disconnect" }));
   $("reconnect").addEventListener("click", () => post({ type: "reconnect" }));
+  $("tips-toggle").addEventListener("click", () => post({ type: "tips", open: $("tips").hidden }));
+  $("tips-close").addEventListener("click", () => post({ type: "tips", open: false }));
   $("setup").addEventListener("click", () => post({ type: "sheet", open: true }));
   $("sheet-done").addEventListener("click", () => post({ type: "sheet", open: false }));
+  $("check-update").addEventListener("click", () => post({ type: "checkUpdate" }));
+  $("apply-update").addEventListener("click", () => post({ type: "applyUpdate" }));
   document.addEventListener("click", (event) => {
-    const button = event.target.closest('[data-action="install"]');
+    const button = event.target.closest("[data-action]");
     if (!button) return;
-    button.disabled = true;
-    post({ type: "installCamera" });
+    if (button.dataset.action === "install") {
+      button.disabled = true;
+      post({ type: "installCamera" });
+    } else if (button.dataset.action === "update") {
+      post({ type: "applyUpdate" });
+    }
   });
   function clockTime(hour) {
     const whole = Math.floor(hour);
@@ -662,15 +767,23 @@ inline constexpr char kScript[] = R"SHELL(<script>
   $("obs-password").addEventListener("change", () => {
     post({ type: "obsPassword", value: $("obs-password").value });
   });
-  $("guide-open").addEventListener("click", () => post({ type: "guide", open: true }));
+  function showGuideTab(name) {
+    document.querySelectorAll("#guide .tabs button").forEach((item) => item.classList.toggle("on", item.dataset.tab === name));
+    document.querySelectorAll("#guide .guide-panel").forEach((panel) => {
+      panel.classList.toggle("on", panel.dataset.panel === name);
+    });
+  }
+  $("guide-open").addEventListener("click", () => {
+    showGuideTab("light");
+    post({ type: "guide", open: true });
+  });
+  $("heat-open").addEventListener("click", () => {
+    showGuideTab("heat");
+    post({ type: "guide", open: true });
+  });
   $("guide-done").addEventListener("click", () => post({ type: "guide", open: false }));
   document.querySelectorAll("#guide .tabs button").forEach((button) => {
-    button.addEventListener("click", () => {
-      document.querySelectorAll("#guide .tabs button").forEach((item) => item.classList.toggle("on", item === button));
-      document.querySelectorAll("#guide .guide-panel").forEach((panel) => {
-        panel.classList.toggle("on", panel.dataset.panel === button.dataset.tab);
-      });
-    });
+    button.addEventListener("click", () => showGuideTab(button.dataset.tab));
   });
   $("pc-toggle").addEventListener("click", () => {
     pcOpen = $("pc-toggle").getAttribute("aria-expanded") !== "true";
@@ -678,6 +791,10 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("pc-checks").hidden = !pcOpen;
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("tips").hidden) {
+      post({ type: "tips", open: false });
+      return;
+    }
     if (event.key === "Escape" && !$("sheet").hidden) post({ type: "sheet", open: false });
     if (event.key === "Escape" && !$("guide").hidden) post({ type: "guide", open: false });
   });
@@ -778,6 +895,7 @@ inline constexpr char kGuideBody[] = R"SHELL(
       <button class="btn" type="button" data-tab="exposure">Exposure</button>
       <button class="btn" type="button" data-tab="color">Color</button>
       <button class="btn" type="button" data-tab="situations">Situations</button>
+      <button class="btn" type="button" data-tab="heat">Heat</button>
     </div>
     <section class="guide-panel on" data-panel="light">
       <p class="guide-copy">Lighting does more for the picture than the camera. These are the setups from Senpai&rsquo;s lighting MasterClass, each with a real photo of the look. <a class="source" href="https://www.youtube.com/watch?v=mCxWTtDH-f4" target="_blank" rel="noopener">Watch the video</a></p>
@@ -876,6 +994,20 @@ inline constexpr char kGuideBody[] = R"SHELL(
         <article class="note"><strong>Stream or recording</strong><p>Same exposure either way. The bitrate slider is only the saved rate for an optional OBS source.</p></article>
       </div>
     </section>
+    {{heat-panel}}
+  </div>
+</section>
+)SHELL";
+
+inline constexpr char kHeatPanel[] = R"SHELL(
+<section class="guide-panel" data-panel="heat">
+  <p class="guide-copy">The picture stays 1080p30. These are the things that keep a long session cool.</p>
+  <div class="notes">
+    <article class="note"><strong>Curtain</strong><p>Cover the phone. The preview stops drawing. Tap the black screen to bring the controls back. The iPhone brightness stays where you set it.</p></article>
+    <article class="note"><strong>Portrait</strong><p>Leave Portrait off. Cut the background in NVIDIA Broadcast or OBS. Phone Portrait warms the iPhone, and it eases off on its own if the phone is already warm.</p></article>
+    <article class="note"><strong>Torch and charging</strong><p>The torch and a charger add heat. A long show runs cooler on battery once the phone is already warm.</p></article>
+    <article class="note"><strong>Lighter rate</strong><p>If the phone warms up, the app lightens the bitrate. The size stays 1080p30. Exposure, color, focus, and zoom stay as you set them.</p></article>
+    <article class="note"><strong>Side button</strong><p>Pressing the side button pauses the stream. Unlock the phone and open VCamdroid to continue.</p></article>
   </div>
 </section>
 )SHELL";

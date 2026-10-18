@@ -4,6 +4,7 @@ struct StudioChrome: View {
     @Binding var tool: StudioTool?
     var isCompactHeight: Bool
     var onHelp: () -> Void
+    var onHeat: () -> Void
     var onStop: () -> Void
     @Environment(StudioSession.self) private var session
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -11,7 +12,7 @@ struct StudioChrome: View {
     var body: some View {
         VStack(spacing: 12) {
             GlassEffectContainer(spacing: 8) {
-                StudioStatusBar(onHelp: onHelp)
+                StudioStatusBar(onHelp: onHelp, onHeat: onHeat)
             }
             if session.portraitCare != .hidden {
                 PortraitCareBanner()

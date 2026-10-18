@@ -36,25 +36,6 @@ struct StudioSessionDock: View {
             action: session.engageCurtain
         )
         .opacity(moonOn ? 1 : 0.45)
-        .contextMenu {
-            Button {
-                session.setCurtainMode(.automatic)
-            } label: {
-                Text(.curtainAutomatic)
-                Text(.curtainAutomaticHint)
-            }
-            Button {
-                session.setCurtainMode(.on)
-            } label: {
-                Text(.curtainAlways)
-                Text(.curtainAlwaysHint)
-            }
-            Button {
-                session.setCurtainMode(.off)
-            } label: {
-                Text(.curtainOff)
-                Text(.curtainOffHint)
-            }
-        }
+        .accessibilityHint(Text(.curtainCoverHint))
     }
 }

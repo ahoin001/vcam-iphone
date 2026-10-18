@@ -8,9 +8,11 @@
 #include <wrl.h>
 #include <WebView2.h>
 
+#include "frame_advice.h"
 #include "guide_photos.h"
 #include "mdns_browse.h"
 #include "panel_shell.h"
+#include "panel_update.h"
 #include "obs_tally.h"
 #include "usbmux.h"
 #include "camera/Pipeline.h"
@@ -22,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iterator>
 #include <memory>
@@ -50,8 +53,11 @@ constexpr UINT kDeskRetryMs = 2500;
 constexpr UINT kScanDoneMessage = WM_APP + 1;
 constexpr UINT kPollDoneMessage = WM_APP + 2;
 constexpr UINT kInstallDoneMessage = WM_APP + 3;
+constexpr UINT kTipDoneMessage = WM_APP + 4;
+constexpr UINT kUpdateDoneMessage = WM_APP + 5;
 constexpr wchar_t kInstallSwitch[] = L"--install-camera";
 constexpr int kToolbarHeight = 60;
+constexpr int kTipsTrayHeight = 168;
 constexpr int kPaneRadius = 14;
 constexpr int kSplitterHit = 10;
 constexpr int kMinPreview = 240;
@@ -127,6 +133,49 @@ struct Pace {
     unsigned long long climbSince = 0;
     unsigned long long healthySince = 0;
     std::wstring notice;
+    bool repeatsClimbing = false;
+};
+
+struct CpuSample {
+    unsigned long long idle = 0;
+    unsigned long long kernel = 0;
+    unsigned long long user = 0;
+    int percent = 0;
+};
+
+struct UpdateJob {
+    bool apply = false;
+    bool ok = false;
+    bool available = false;
+    std::string tag;
+    std::string url;
+    std::wstring detail;
+    std::wstring stage;
+};
+
+struct UpdateView {
+    bool checked = false;
+    bool ok = false;
+    bool available = false;
+    bool busy = false;
+    std::string tag;
+    std::string url;
+    std::wstring detail;
+};
+
+struct TipView {
+    std::vector<vcam::Tip> current;
+    std::vector<std::string> dismissed;
+    std::string doneId;
+    unsigned long long doneAt = 0;
+    unsigned long long problemSince = 0;
+    unsigned long long healthySince = 0;
+    int lastPhoneDrops = 0;
+    int lastCaptureDrops = 0;
+    unsigned long long phoneRecent = 0;
+    unsigned long long captureRecent = 0;
+    bool open = false;
+    bool ready = false;
 };
 
 struct StatusView {
@@ -137,6 +186,12 @@ struct StatusView {
 };
 
 Pace g_pace;
+CpuSample g_cpu;
+TipView g_tips;
+std::thread g_tipThread;
+std::string g_pendingTipId;
+UpdateView g_update;
+std::thread g_updateThread;
 
 struct Check {
     CheckState state = CheckState::Waiting;
@@ -483,6 +538,15 @@ int JsonInt(const std::string& json, const char* key, int fallback) {
     return atoi(json.c_str() + at + needle.size());
 }
 
+double JsonNumber(const std::string& json, const char* key, double fallback) {
+    const std::string needle = std::string("\"") + key + "\":";
+    const auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return fallback;
+    }
+    return strtod(json.c_str() + at + needle.size(), nullptr);
+}
+
 std::string JsonString(const std::string& json, const char* key) {
     const std::string needle = std::string("\"") + key + "\":\"";
     const auto at = json.find(needle);
@@ -624,6 +688,46 @@ bool HttpPut(const std::string& host, int port, const std::string& path) {
     return sent;
 }
 
+int SampleCpu() {
+    FILETIME idle{};
+    FILETIME kernel{};
+    FILETIME user{};
+    if (!GetSystemTimes(&idle, &kernel, &user)) {
+        return g_cpu.percent;
+    }
+    auto ticks = [](FILETIME time) {
+        return (static_cast<unsigned long long>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+    };
+    const unsigned long long idleNow = ticks(idle);
+    const unsigned long long kernelNow = ticks(kernel);
+    const unsigned long long userNow = ticks(user);
+    if (g_cpu.kernel != 0) {
+        const unsigned long long idleDelta = idleNow - g_cpu.idle;
+        const unsigned long long totalDelta = (kernelNow - g_cpu.kernel) + (userNow - g_cpu.user);
+        if (totalDelta > 0) {
+            const int percent = static_cast<int>(100 - (idleDelta * 100) / totalDelta);
+            g_cpu.percent = (std::max)(0, (std::min)(100, percent));
+        }
+    }
+    g_cpu.idle = idleNow;
+    g_cpu.kernel = kernelNow;
+    g_cpu.user = userNow;
+    return g_cpu.percent;
+}
+
+bool TipDismissed(const std::string& id) {
+    return std::find(g_tips.dismissed.begin(), g_tips.dismissed.end(), id) != g_tips.dismissed.end();
+}
+
+void ResetTips() {
+    if (g_tipThread.joinable()) {
+        g_tipThread.join();
+    }
+    g_tips = {};
+    g_cpu = {};
+    g_pendingTipId.clear();
+}
+
 void CopyText(const std::wstring& text) {
     if (!OpenClipboard(g_window)) {
         return;
@@ -728,7 +832,33 @@ std::vector<Check> BuildChecks() {
     const vcam::CameraSetup setup = vcam::Pipeline::Shared().Setup();
     const vcam::LinkState link = vcam::Pipeline::Shared().State();
     std::vector<Check> checks;
-    checks.reserve(5);
+    checks.reserve(6);
+
+    Check companion;
+    companion.pc = true;
+    companion.title = L"VCamPanel";
+    if (g_update.available) {
+        companion.state = CheckState::Blocked;
+        companion.detail = g_update.detail;
+        if (!g_update.busy) {
+            companion.action = "update";
+        }
+    } else {
+        companion.state = CheckState::Ready;
+        if (g_update.busy) {
+            companion.detail = g_update.detail.empty() ? L"Checking GitHub for a newer companion." : g_update.detail;
+        } else if (g_update.checked && !g_update.ok) {
+            companion.detail = g_update.detail.empty()
+                ? L"GitHub could not be reached. Click Check for updates to try again."
+                : g_update.detail;
+        } else {
+            companion.detail = g_update.detail.empty()
+                ? (vcam::IsDevBuild() ? L"This is an unreleased build."
+                                      : Wide(std::string("This build is ") + vcam::CurrentVersion() + "."))
+                : g_update.detail;
+        }
+    }
+    checks.push_back(std::move(companion));
 
     Check windows;
     windows.pc = true;
@@ -854,6 +984,26 @@ std::string BuildState() {
         AppendJsonString(json, g_status.chips[index]);
     }
     json += "]}";
+    AppendJsonBool(json, "tipsReady", g_tips.ready);
+    AppendJsonBool(json, "tipsOpen", g_tips.open);
+    json += ",\"tips\":[";
+    for (size_t index = 0; index < g_tips.current.size(); ++index) {
+        const vcam::Tip& tip = g_tips.current[index];
+        if (index > 0) {
+            json += ',';
+        }
+        json += "{\"id\":";
+        AppendJsonString(json, Wide(tip.id));
+        json += ",\"title\":";
+        AppendJsonString(json, tip.title);
+        json += ",\"why\":";
+        AppendJsonString(json, tip.why);
+        json += ",\"action\":";
+        AppendJsonString(json, tip.actionLabel);
+        AppendJsonBool(json, "done", tip.id == g_tips.doneId);
+        json += '}';
+    }
+    json += ']';
 
     json += ",\"devices\":[";
     for (size_t index = 0; index < g_devices.size(); ++index) {
@@ -894,7 +1044,18 @@ std::string BuildState() {
         }
         json += '}';
     }
-    json += "]}";
+    json += ']';
+
+    json += ",\"update\":{\"current\":";
+    AppendJsonString(json, Wide(vcam::CurrentVersion()));
+    AppendJsonBool(json, "available", g_update.available);
+    AppendJsonBool(json, "busy", g_update.busy);
+    json += ",\"version\":";
+    AppendJsonString(json, Wide(g_update.tag));
+    json += ",\"detail\":";
+    AppendJsonString(json, g_update.detail);
+    json += "}";
+    json += "}";
     return json;
 }
 
@@ -990,18 +1151,19 @@ void Layout() {
     const int height = client.bottom - client.top;
     const int bar = (std::min)(Scale(g_window, kToolbarHeight), height);
     const bool session = Connected() && !g_sheetOpen && !g_guideOpen;
+    const int tray = (session && g_tips.open) ? Scale(g_window, kTipsTrayHeight) : 0;
 
     if (g_shellController) {
         RECT shell = client;
         if (session) {
-            shell.bottom = bar;
+            shell.bottom = bar + tray;
         }
         g_shellController->put_Bounds(shell);
         g_shellController->put_IsVisible(TRUE);
     }
 
     const int margin = Scale(g_window, 12);
-    const RECT content{margin, bar + margin, width - margin, height - margin};
+    const RECT content{margin, bar + tray + margin, width - margin, height - margin};
     const int innerW = content.right - content.left;
     const int innerH = content.bottom - content.top;
     if (!session || innerW <= 0 || innerH <= 0) {
@@ -1135,6 +1297,8 @@ void StartPoll() {
     });
 }
 
+void StopPicture();
+
 // Runs this exe again elevated with --install-camera, then reports its exit code.
 void StartCameraInstall() {
     if (!g_window || g_installing) {
@@ -1197,8 +1361,121 @@ void FinishCameraInstall(HRESULT result) {
     PushState();
 }
 
+bool RecentlyChecked() {
+    const std::wstring text = LoadSetting(L"panel-update-check.txt");
+    if (text.empty()) {
+        return false;
+    }
+    const long long last = _wtoll(text.c_str());
+    const long long now = static_cast<long long>(time(nullptr));
+    return last > 0 && now >= last && (now - last) < 15;
+}
+
+void StartUpdateCheck(bool manual) {
+    if (!g_window || g_update.busy) {
+        return;
+    }
+    if (!manual && (g_update.checked || RecentlyChecked())) {
+        return;
+    }
+    if (!manual && vcam::IsDevBuild()) {
+        g_update.detail = L"This is an unreleased build. Click Check for updates to look on GitHub.";
+        PushState();
+        return;
+    }
+    g_update.busy = true;
+    g_update.detail = L"Checking GitHub for a newer companion.";
+    PushState();
+    if (g_updateThread.joinable()) {
+        g_updateThread.join();
+    }
+    const HWND target = g_window;
+    g_updateThread = std::thread([target] {
+        auto* job = new UpdateJob();
+        const vcam::UpdateOffer offer = vcam::CheckLatest();
+        job->ok = offer.ok;
+        job->available = offer.available;
+        job->tag = offer.tag;
+        job->url = offer.url;
+        job->detail = offer.detail;
+        if (!PostMessageW(target, kUpdateDoneMessage, 0, reinterpret_cast<LPARAM>(job))) {
+            delete job;
+        }
+    });
+}
+
+void StartApplyUpdate() {
+    if (!g_window || g_update.busy) {
+        return;
+    }
+    if (g_update.url.empty()) {
+        StartUpdateCheck(true);
+        return;
+    }
+    g_update.busy = true;
+    g_update.detail = L"Downloading the new companion. The picture will stop, then this window restarts.";
+    PushState();
+    if (g_updateThread.joinable()) {
+        g_updateThread.join();
+    }
+    const HWND target = g_window;
+    const std::string url = g_update.url;
+    g_updateThread = std::thread([target, url] {
+        auto* job = new UpdateJob();
+        job->apply = true;
+        const vcam::UpdateStage stage = vcam::PrepareUpdate(url);
+        job->ok = stage.ok;
+        job->detail = stage.detail;
+        job->stage = stage.folder;
+        if (!PostMessageW(target, kUpdateDoneMessage, 0, reinterpret_cast<LPARAM>(job))) {
+            delete job;
+        }
+    });
+}
+
+void FinishUpdateJob(std::unique_ptr<UpdateJob> job) {
+    if (!job) {
+        return;
+    }
+    g_update.busy = false;
+    if (job->apply) {
+        if (!job->ok) {
+            g_update.detail = job->detail.empty()
+                ? L"The update did not finish. The folder may not be writable, or GitHub may be blocked."
+                : job->detail;
+            PushState();
+            return;
+        }
+        if (Connected()) {
+            StopPicture();
+        } else {
+            vcam::Pipeline::Shared().Stop();
+        }
+        if (!vcam::LaunchUpdater(job->stage)) {
+            g_update.detail = L"The updater could not start. Move VCamPanel to a folder you can write, then try again.";
+            PushState();
+            return;
+        }
+        DestroyWindow(g_window);
+        return;
+    }
+    g_update.checked = true;
+    g_update.ok = job->ok;
+    g_update.available = job->available;
+    g_update.tag = job->tag;
+    g_update.url = job->url;
+    g_update.detail = job->detail;
+    if (job->ok) {
+        wchar_t stamp[32] = {};
+        swprintf_s(stamp, L"%lld", static_cast<long long>(time(nullptr)));
+        SaveSetting(L"panel-update-check.txt", stamp);
+    }
+    PushState();
+}
+
 void ResetPace() {
     g_pace = {};
+    ResetTips();
 }
 
 void ConnectTo(const Listed& target) {
@@ -1518,6 +1795,7 @@ int UpdatePace(const SessionPoll& poll, const vcam::LinkProgress& progress) {
     const bool repeatsClimbing = g_pace.haveRepeats && progress.repeats > g_pace.repeats;
     g_pace.haveRepeats = true;
     g_pace.repeats = progress.repeats;
+    g_pace.repeatsClimbing = repeatsClimbing;
     const std::string thermal = JsonString(poll.body, "thermal");
 
     std::wstring condition;
@@ -1547,6 +1825,115 @@ int UpdatePace(const SessionPoll& poll, const vcam::LinkProgress& progress) {
     return delay;
 }
 
+bool DropNotice() {
+    const std::wstring& notice = g_pace.notice;
+    return notice == L"Dropping frames" || notice == L"USB couldn\u2019t keep up" ||
+           notice == L"Phone is hot, quality may drop" ||
+           notice == L"The recording app is getting repeated frames" ||
+           notice == L"Running behind";
+}
+
+void UpdateTips(const SessionPoll& poll, int delayMs) {
+    const unsigned long long now = GetTickCount64();
+    const int phoneDrops = JsonInt(poll.body, "droppedFrames", 0);
+    const int captureDrops = JsonInt(poll.body, "captureDrops", 0);
+    if (phoneDrops > g_tips.lastPhoneDrops) {
+        g_tips.phoneRecent = now;
+    }
+    if (captureDrops > g_tips.lastCaptureDrops) {
+        g_tips.captureRecent = now;
+    }
+    g_tips.lastPhoneDrops = phoneDrops;
+    g_tips.lastCaptureDrops = captureDrops;
+    vcam::AdviceInput input;
+    input.fps = g_pace.fps;
+    input.phoneDrops = g_tips.phoneRecent != 0 && now - g_tips.phoneRecent < 8000 ? 1 : 0;
+    input.captureDrops = g_tips.captureRecent != 0 && now - g_tips.captureRecent < 8000 ? 1 : 0;
+    input.repeatsClimbing = g_pace.repeatsClimbing;
+    input.delayMs = delayMs;
+    input.cpuPercent = SampleCpu();
+    input.usb = g_usbConnected;
+    input.thermal = JsonString(poll.body, "thermal");
+    input.portrait = JsonBool(poll.body, "portrait");
+    input.manualExposure = JsonBool(poll.body, "manualExposure");
+    input.shutter = JsonNumber(poll.body, "shutter", 0);
+    input.torch = JsonBool(poll.body, "torch");
+    input.lowPower = JsonBool(poll.body, "lowPower");
+    input.charging = JsonBool(poll.body, "charging");
+    input.battery = JsonInt(poll.body, "battery", -1);
+
+    std::vector<vcam::Tip> tips = vcam::Advise(input);
+    tips.erase(std::remove_if(tips.begin(), tips.end(),
+                   [](const vcam::Tip& tip) { return TipDismissed(tip.id); }),
+        tips.end());
+
+    if (!g_tips.doneId.empty() && g_tips.doneAt != 0 && now - g_tips.doneAt >= 10000) {
+        const bool still = !tips.empty() || DropNotice();
+        if (still) {
+            g_tips.dismissed.push_back(g_tips.doneId);
+            tips.erase(std::remove_if(tips.begin(), tips.end(),
+                           [](const vcam::Tip& tip) { return tip.id == g_tips.doneId; }),
+                tips.end());
+        }
+        g_tips.doneId.clear();
+        g_tips.doneAt = 0;
+    }
+
+    const bool troubled = !tips.empty() || DropNotice();
+    if (troubled) {
+        if (g_tips.problemSince == 0) {
+            g_tips.problemSince = now;
+        }
+        g_tips.healthySince = 0;
+        if (!tips.empty()) {
+            g_tips.current = std::move(tips);
+        }
+        g_tips.ready = now - g_tips.problemSince >= 5000 && !g_tips.current.empty();
+        return;
+    }
+
+    g_tips.problemSince = 0;
+    if (g_tips.healthySince == 0) {
+        g_tips.healthySince = now;
+    }
+    if (now - g_tips.healthySince >= 10000) {
+        const bool wasOpen = g_tips.open;
+        g_tips.ready = false;
+        g_tips.open = false;
+        g_tips.current.clear();
+        g_tips.doneId.clear();
+        g_tips.doneAt = 0;
+        if (wasOpen) {
+            Layout();
+        }
+    }
+}
+
+void SetTipsOpen(bool open) {
+    g_tips.open = open && g_tips.ready && !g_tips.current.empty();
+    Layout();
+    PushState();
+}
+
+void StartTipAction(const std::string& id, const std::string& path) {
+    if (path.empty() || !Connected()) {
+        return;
+    }
+    g_pendingTipId = id;
+    if (g_tipThread.joinable()) {
+        g_tipThread.join();
+    }
+    const HWND target = g_window;
+    const std::string host = g_connectedHost;
+    const int port = g_connectedPort;
+    g_tipThread = std::thread([target, host, port, path] {
+        HttpPut(host, port, path);
+        if (target) {
+            PostMessageW(target, kTipDoneMessage, 0, 0);
+        }
+    });
+}
+
 void ApplySession(const SessionPoll& poll) {
     if (!Connected() || poll.host != g_connectedHost || poll.port != g_connectedPort) {
         return;
@@ -1556,6 +1943,11 @@ void ApplySession(const SessionPoll& poll) {
     const std::wstring transport = g_usbConnected ? L"USB" : L"Wi-Fi";
     const bool phoneSending = JsonBool(poll.body, "streaming") || JsonBool(poll.body, "panelClient");
     if (link == vcam::LinkState::Interrupted) {
+        if (g_tips.open) {
+            g_tips.open = false;
+            g_tips.ready = false;
+            Layout();
+        }
         SetStatus(Tone::Error, L"The video connection closed",
             L"Another app may have taken the phone\u2019s video. Click Connect to try again.",
             SessionChips(-1, 0, 0, 0));
@@ -1634,6 +2026,15 @@ void ApplySession(const SessionPoll& poll) {
         detail = kPhoneCue;
     }
     SetStatus(tone, std::move(title), std::move(detail), std::move(chips));
+    if (link == vcam::LinkState::Live) {
+        UpdateTips(poll, delayMs);
+        PushState();
+    } else if (g_tips.ready || g_tips.open) {
+        g_tips.ready = false;
+        g_tips.open = false;
+        Layout();
+        PushState();
+    }
 }
 
 void SetOnTop(bool onTop) {
@@ -1667,6 +2068,7 @@ void HandleShellMessage(const std::string& json) {
         g_shellReady = true;
         Layout();
         PushState();
+        StartUpdateCheck(false);
     } else if (type == "refresh") {
         g_connectError.clear();
         StartScan();
@@ -1725,6 +2127,38 @@ void HandleShellMessage(const std::string& json) {
         }
         g_previewSurface.SetChecks(g_peaking, g_zebra, g_loupe);
         PushState();
+    } else if (type == "tips") {
+        SetTipsOpen(JsonBool(json, "open"));
+    } else if (type == "tipAction") {
+        const std::string id = JsonString(json, "id");
+        for (const vcam::Tip& tip : g_tips.current) {
+            if (tip.id == id) {
+                StartTipAction(id, tip.actionPath);
+                break;
+            }
+        }
+    } else if (type == "tipDismiss") {
+        const std::string id = JsonString(json, "id");
+        if (!id.empty() && !TipDismissed(id)) {
+            g_tips.dismissed.push_back(id);
+        }
+        g_tips.current.erase(std::remove_if(g_tips.current.begin(), g_tips.current.end(),
+                                 [&id](const vcam::Tip& tip) { return tip.id == id; }),
+            g_tips.current.end());
+        if (g_tips.doneId == id) {
+            g_tips.doneId.clear();
+            g_tips.doneAt = 0;
+        }
+        if (g_tips.current.empty()) {
+            g_tips.ready = false;
+            g_tips.open = false;
+            Layout();
+        }
+        PushState();
+    } else if (type == "checkUpdate") {
+        StartUpdateCheck(true);
+    } else if (type == "applyUpdate") {
+        StartApplyUpdate();
     }
 }
 
@@ -1823,6 +2257,10 @@ std::wstring ShellHtml() {
     html += panel_shell::kGuideStyle;
     html += panel_shell::kBody;
     html += panel_shell::kGuideBody;
+    const auto heatAt = html.find("{{heat-panel}}");
+    if (heatAt != std::string::npos) {
+        html.replace(heatAt, std::string("{{heat-panel}}").size(), panel_shell::kHeatPanel);
+    }
     html += panel_shell::kScript;
     for (const guide_photos::Photo& photo : guide_photos::kPhotos) {
         const std::string token = std::string("{{guide:") + photo.name + "}}";
@@ -2115,6 +2553,16 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case kInstallDoneMessage:
         FinishCameraInstall(static_cast<HRESULT>(static_cast<DWORD>(wparam)));
         return 0;
+    case kTipDoneMessage:
+        if (!g_pendingTipId.empty() && Connected()) {
+            g_tips.doneId = g_pendingTipId;
+            g_tips.doneAt = GetTickCount64();
+            PushState();
+        }
+        return 0;
+    case kUpdateDoneMessage:
+        FinishUpdateJob(std::unique_ptr<UpdateJob>(reinterpret_cast<UpdateJob*>(lparam)));
+        return 0;
     case WM_TIMER:
         if (wparam == kStatusTimer) {
             StartPoll();
@@ -2265,6 +2713,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
     }
     if (g_installThread.joinable()) {
         g_installThread.detach();
+    }
+    if (g_tipThread.joinable()) {
+        g_tipThread.join();
+    }
+    if (g_updateThread.joinable()) {
+        g_updateThread.join();
     }
     if (g_background) {
         DeleteObject(g_background);

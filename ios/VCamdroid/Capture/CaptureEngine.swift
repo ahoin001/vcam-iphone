@@ -2,7 +2,7 @@ import CoreMedia
 import Foundation
 
 actor CaptureEngine {
-    private let core: CaptureCore
+    private nonisolated let core: CaptureCore
     private var configuration = CaptureConfiguration(settings: StudioSettings(), rotationAngle: 0)
 
     init(previewSession: PreviewSession) {
@@ -15,6 +15,10 @@ actor CaptureEngine {
 
     func setPortrait(_ command: PortraitCommand) {
         core.setPortrait(command)
+    }
+
+    nonisolated func droppedFrames() -> Int {
+        core.droppedFrames()
     }
 
     func start(_ configuration: CaptureConfiguration) async throws {

@@ -35,13 +35,25 @@ jobs:
           msbuild VCamPanel.vcxproj -t:Restore -p:Configuration=Release -p:Platform=x64 -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=v0.0.0-ci-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build VCamPanel, VCamSource, and usbmux_forward
         working-directory: windows
         shell: pwsh
         run: |
           msbuild VCamSource.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
+          msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 -p:PANEL_VERSION=${{ steps.tag.outputs.name }} -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msbuild usbmux_forward.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -78,18 +90,6 @@ jobs:
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$stage\*" -DestinationPath $zip
           Get-Item $zip | Format-List Name, Length, FullName
-
-      - name: Resolve release tag
-        id: tag
-        shell: bash
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=v0.0.0-ci-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

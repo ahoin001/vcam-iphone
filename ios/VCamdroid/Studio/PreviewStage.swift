@@ -9,6 +9,7 @@ struct PreviewStage: View {
             session: session.previewSession.session,
             rotation: session.streamRotation,
             showsProcessed: session.portraitPreviewActive,
+            attachPreview: !session.curtainPresented,
             sink: session.portraitPreview
         ) { point in
             onPreviewTap()

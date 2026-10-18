@@ -279,6 +279,17 @@
         }
       }
     },
+    "curtainCoverHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Covers the screen in black. Tap that screen to bring the controls back."
+          }
+        }
+      }
+    },
     "curtainOffHint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1192,6 +1203,28 @@
         }
       }
     },
+    "phoneWarmCharging" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The phone is warm and charging. A long show runs cooler on battery, so the picture is at a lighter rate."
+          }
+        }
+      }
+    },
+    "phoneWarmLighter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The phone is warm, so the picture is at a lighter rate."
+          }
+        }
+      }
+    },
     "whiteBalanceUnavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1364,6 +1397,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Discovery lets VCamPanel find this phone on Wi-Fi. Changing the port or discovery restarts the listener."
+          }
+        }
+      }
+    },
+    "heatAction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heat"
+          }
+        }
+      }
+    },
+    "heatCurtainBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cover the phone with the moon button. The preview stops drawing while the screen is black. Tap that screen to bring the controls back. The iPhone brightness stays where you set it."
+          }
+        }
+      }
+    },
+    "heatCurtainTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Curtain"
+          }
+        }
+      }
+    },
+    "heatGuideTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heat"
+          }
+        }
+      }
+    },
+    "heatPortraitBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave Portrait off and cut the background in NVIDIA Broadcast or OBS. Phone Portrait warms the iPhone. If the phone is already warm, Portrait eases off on its own and comes back when the phone is cool."
+          }
+        }
+      }
+    },
+    "heatPortraitTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portrait"
+          }
+        }
+      }
+    },
+    "heatRateBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the phone warms up, the picture stays 1080p30 and the app lightens the bitrate. Exposure, color, focus, and zoom stay as you set them."
+          }
+        }
+      }
+    },
+    "heatRateTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lighter rate"
+          }
+        }
+      }
+    },
+    "heatSideBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressing the side button pauses the stream. Unlock the phone and open VCamdroid to continue."
+          }
+        }
+      }
+    },
+    "heatSideTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Side button"
+          }
+        }
+      }
+    },
+    "heatTorchBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The torch and a charger add heat. A long show runs cooler on battery once the phone is already warm."
+          }
+        }
+      }
+    },
+    "heatTorchTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torch and charging"
           }
         }
       }

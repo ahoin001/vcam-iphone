@@ -34,12 +34,23 @@ final class StudioSession {
     }
     let portraitPreview = PortraitPreviewSink()
     private let deskPreview = PreviewJPEGSink()
+    private let streamGate = StreamGate()
+    private var budget = ThermalBudget()
+    private var budgetTask: Task<Void, Never>?
+    private var pacedBitrateKbps: Int?
     private var curtainTask: Task<Void, Never>?
+    private var quietActivityUntil = Date.distantPast
     private var careTasks: [Task<Void, Never>] = []
     private var lastPortraitCommand = PortraitCommand.off
     private var encoderActive = false
     private var panelStream = false {
-        didSet { snapshot.panelClient = panelStream }
+        didSet {
+            snapshot.panelClient = panelStream
+            streamGate.setSkipDesk(panelStream)
+            if panelStream {
+                deskPreview.clear()
+            }
+        }
     }
     private var activeBitrateKbps: Int
     private(set) var shotPresets: [ShotPreset] = ShotPresetStore.load()
@@ -145,10 +156,15 @@ final class StudioSession {
         }
         let preview = portraitPreview
         let desk = deskPreview
-        await capture.setFrameHandler { [encoder, preview, desk] pixelBuffer, time in
-            encoder.submit(pixelBuffer, time: time)
+        let gate = streamGate
+        await capture.setFrameHandler { [encoder, preview, desk, gate] pixelBuffer, time in
+            if gate.shouldEncode(time) {
+                encoder.submit(pixelBuffer, time: time)
+            }
             preview.enqueue(pixelBuffer, time: time)
-            desk.enqueue(pixelBuffer)
+            if !gate.skipsDesk {
+                desk.enqueue(pixelBuffer)
+            }
         }
         let command = updatePortraitCare()
         lastPortraitCommand = command
@@ -172,6 +188,7 @@ final class StudioSession {
             appendLog(String(localized: .waitingForOBS))
             armCurtain()
             watchCare()
+            watchBudget()
         } catch DroidCamServerError.invalidPort, DroidCamServerError.portInUse {
             statusMessage = .portInUse
             appendLog(String(localized: .portInUse))
@@ -189,13 +206,16 @@ final class StudioSession {
         packetForwarder = nil
         packetTask = nil
         curtainTask?.cancel()
+        budgetTask?.cancel()
+        budgetTask = nil
+        budget = ThermalBudget()
+        pacedBitrateKbps = nil
         careTasks.forEach { $0.cancel() }
         careTasks = []
         curtainPresented = false
         portraitPreviewActive = false
         portraitCare = .hidden
         lastPortraitCommand = .off
-        curtainController.restore()
         curtainController.enableIdleTimer()
         encoderActive = false
         await capture.setPortrait(.off)
@@ -249,6 +269,7 @@ final class StudioSession {
 
     func noteActivity() {
         guard settings.curtainMode == .automatic else { return }
+        guard Date() >= quietActivityUntil else { return }
         if curtainPresented {
             hideCurtain()
             armCurtain()
@@ -281,7 +302,13 @@ final class StudioSession {
     }
 
     func engageCurtain() {
-        showCurtain()
+        curtainTask?.cancel()
+        quietActivityUntil = Date().addingTimeInterval(0.6)
+        curtainTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
+            self?.showCurtain()
+        }
     }
 
     func applyControls() {
@@ -510,6 +537,14 @@ final class StudioSession {
         copy.clockMs = Self.hostClockMs()
         copy.droppedFrames = packetForwarder?.dropped() ?? 0
         copy.thermal = Self.thermalName()
+        copy.captureDrops = capture.droppedFrames() + streamGate.drops
+        copy.portrait = settings.portraitEnabled
+        copy.manualExposure = settings.manualExposure
+        copy.shutter = settings.shutterSeconds
+        copy.torch = settings.torch
+        copy.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let battery = UIDevice.current.batteryState
+        copy.charging = battery == .charging || battery == .full
         return copy
     }
 
@@ -558,6 +593,9 @@ final class StudioSession {
             )
         }
         panelStream = request.client == .panel
+        budget = ThermalBudget()
+        pacedBitrateKbps = quality.bitrateKbps
+        streamGate.setFrameSeconds(1.0 / Double(max(quality.fps, 1)))
         adopt(quality)
         pushPortrait()
         do {
@@ -576,6 +614,8 @@ final class StudioSession {
         } catch {
             encoderActive = false
             panelStream = false
+            budget = ThermalBudget()
+            pacedBitrateKbps = nil
             activeBitrateKbps = settings.bitrateKbps
             snapshot.isStreaming = false
             snapshot.status = "waiting"
@@ -587,6 +627,8 @@ final class StudioSession {
     private func endVideo() async {
         encoderActive = false
         panelStream = false
+        budget = ThermalBudget()
+        pacedBitrateKbps = nil
         activeBitrateKbps = settings.bitrateKbps
         await encoder.stop()
         snapshot.isStreaming = false
@@ -662,7 +704,6 @@ final class StudioSession {
         snapshot.isStreaming = false
         snapshot.status = "waiting"
         curtainPresented = false
-        curtainController.restore()
     }
 
     private func resumeFromBackground() async {
@@ -676,18 +717,21 @@ final class StudioSession {
     }
 
     private func showCurtain() {
+        guard isRunning else { return }
         curtainPresented = true
-        curtainController.dim()
     }
 
     private func hideCurtain() {
         curtainPresented = false
-        curtainController.restore()
     }
 
     private func armCurtain() {
         curtainTask?.cancel()
         guard isRunning, settings.curtainMode != .off else { return }
+        if settings.curtainMode == .on {
+            showCurtain()
+            return
+        }
         lastCurtainArm = Date()
         curtainTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(8))
@@ -725,8 +769,46 @@ final class StudioSession {
             statusMessage = .thermalWarning
         } else if isThermalHot {
             isThermalHot = false
-            statusMessage = snapshot.isStreaming ? .streaming : .waitingForOBS
+            statusMessage = budget.step > 0 ? warmStatus : (snapshot.isStreaming ? .streaming : .waitingForOBS)
         }
+    }
+
+    private func watchBudget() {
+        budgetTask?.cancel()
+        budgetTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                await self?.noteBudgetSample()
+            }
+        }
+    }
+
+    private func noteBudgetSample() async {
+        guard isRunning, encoderActive, panelStream else { return }
+        let encodeMs = await encoder.averageEncodeMs()
+        guard encodeMs > 0 else { return }
+        let pace = ThermalBudget.pace(encodeMs: encodeMs, thermal: ProcessInfo.processInfo.thermalState)
+        guard let step = budget.note(pace: pace, now: Date()) else { return }
+        pushPortrait()
+        let base = StreamQuality.panel(usb: isUSBClient).bitrateKbps
+        let next = ThermalBudget.bitrateKbps(base: base, step: step)
+        guard next != pacedBitrateKbps else { return }
+        pacedBitrateKbps = next
+        activeBitrateKbps = next
+        await encoder.setBitrate(next)
+        encoder.requestKeyframe()
+        guard statusMessage != .pcCannotDecode else { return }
+        statusMessage = step > 0 ? warmStatus : (snapshot.isStreaming ? .streaming : .waitingForOBS)
+    }
+
+    private var warmStatus: LocalizedStringResource {
+        batteryIsCharging ? .phoneWarmCharging : .phoneWarmLighter
+    }
+
+    private var batteryIsCharging: Bool {
+        let battery = UIDevice.current.batteryState
+        return battery == .charging || battery == .full
     }
 
     private func pushPortrait() {
@@ -751,7 +833,10 @@ final class StudioSession {
             appendLog(String(localized: message))
         }
         portraitCare = care
-        let grade = PortraitPolicy.grade(enabled: settings.portraitEnabled, thermal: thermal)
+        let grade = ThermalBudget.applying(
+            step: budget.step,
+            to: PortraitPolicy.grade(enabled: settings.portraitEnabled, thermal: thermal)
+        )
         portraitPreviewActive = settings.portraitPhonePreview && (grade == .balanced || grade == .fast)
         return PortraitCommand(grade: grade, strength: settings.portraitStrength)
     }

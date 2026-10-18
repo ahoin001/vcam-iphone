@@ -1,3 +1,5 @@
+import Foundation
+
 struct SessionSnapshot: Equatable, Sendable {
     var status: String
     var isStreaming: Bool
@@ -13,6 +15,13 @@ struct SessionSnapshot: Equatable, Sendable {
     var clockMs: UInt64 = 0
     var droppedFrames: Int = 0
     var thermal: String = "nominal"
+    var captureDrops: Int = 0
+    var portrait = false
+    var manualExposure = false
+    var shutter: Double = 0
+    var torch = false
+    var lowPower = false
+    var charging = false
 
     static let waiting = SessionSnapshot(
         status: "waiting",
@@ -42,10 +51,33 @@ struct SessionSnapshot: Equatable, Sendable {
         fields.append("\"clockMs\":\(clockMs)")
         fields.append("\"droppedFrames\":\(droppedFrames)")
         fields.append("\"thermal\":\"\(thermal)\"")
+        fields.append("\"captureDrops\":\(captureDrops)")
+        fields.append("\"portrait\":\(portrait ? "true" : "false")")
+        fields.append("\"manualExposure\":\(manualExposure ? "true" : "false")")
+        fields.append("\"shutter\":\(Self.number(shutter))")
+        fields.append("\"torch\":\(torch ? "true" : "false")")
+        fields.append("\"lowPower\":\(lowPower ? "true" : "false")")
+        fields.append("\"charging\":\(charging ? "true" : "false")")
         if panelClient {
             fields.append("\"panelClient\":true")
         }
         return "{\(fields.joined(separator: ","))}"
+    }
+
+    private static func number(_ value: Double) -> String {
+        var text = String(format: "%.4f", locale: Locale(identifier: "en_US_POSIX"), value)
+        if text.contains(".") {
+            while text.last == "0" {
+                text.removeLast()
+            }
+            if text.last == "." {
+                text.removeLast()
+            }
+        }
+        if text == "-0" {
+            return "0"
+        }
+        return text
     }
 
     var videoMode: VideoMode {

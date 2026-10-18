@@ -14,7 +14,7 @@ import Testing
         batteryPercent: 80,
         tally: .program
     )
-    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\",\"clockMs\":0,\"droppedFrames\":0,\"thermal\":\"nominal\"}")
+    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\",\"clockMs\":0,\"droppedFrames\":0,\"thermal\":\"nominal\",\"captureDrops\":0,\"portrait\":false,\"manualExposure\":false,\"shutter\":0,\"torch\":false,\"lowPower\":false,\"charging\":false}")
     #expect(snapshot.json(success: true).contains("\"success\":true"))
 }
 
@@ -186,6 +186,16 @@ import Testing
     #expect(await sent.values == [UInt64.max, 1])
 }
 
+@Test func captureSinkCountsDroppedBuffers() {
+    let sink = CaptureVideoSink()
+    #expect(sink.dropped() == 0)
+    sink.noteDropped()
+    sink.noteDropped()
+    #expect(sink.dropped() == 2)
+    sink.resetDropped()
+    #expect(sink.dropped() == 0)
+}
+
 @Test func fullQueueDropsUntilTheNextKeyframe() {
     let forwarder = OrderedPacketForwarder()
     let picture = Data([0, 0, 0, 1, 0x41])
@@ -271,4 +281,50 @@ private actor SentPackets {
     #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1440, batteryPercent: 80, unplugged: false) == .heavierMode)
     #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1080, batteryPercent: 80, unplugged: true) == .steady)
     #expect(PortraitPolicy.care(enabled: true, thermal: .nominal, fps: 30, height: 1080, batteryPercent: 19, unplugged: false) == .steady)
+}
+
+@Test func coolKeepsTheBaseRate() {
+    #expect(ThermalBudget.pace(encodeMs: 8, thermal: .nominal) == .cool)
+    #expect(ThermalBudget.bitrateKbps(base: 12_000, step: 0) == 12_000)
+    #expect(ThermalBudget.bitrateKbps(base: 30_000, step: 0) == 30_000)
+    let picture = StreamQuality.panel(usb: true)
+    #expect(picture.width == 1920)
+    #expect(picture.height == 1080)
+    #expect(picture.fps == 30)
+}
+
+@Test func sustainedEncodePressureStepsTheRateDown() {
+    var budget = ThermalBudget()
+    let now = Date()
+    #expect(budget.note(pace: .warm, now: now) == nil)
+    #expect(budget.note(pace: .warm, now: now.addingTimeInterval(1)) == nil)
+    #expect(budget.note(pace: .warm, now: now.addingTimeInterval(2)) == 1)
+    #expect(ThermalBudget.bitrateKbps(base: 12_000, step: budget.step) == 8_000)
+    #expect(budget.note(pace: .warm, now: now.addingTimeInterval(3)) == nil)
+    #expect(budget.note(pace: .warm, now: now.addingTimeInterval(4)) == nil)
+    #expect(budget.note(pace: .warm, now: now.addingTimeInterval(5)) == 2)
+    #expect(ThermalBudget.bitrateKbps(base: 30_000, step: 2) == 8_000)
+    #expect(ThermalBudget.bitrateKbps(base: 12_000, step: 2) == 5_000)
+    let picture = StreamQuality.panel(usb: false)
+    #expect(picture.width == 1920)
+    #expect(picture.height == 1080)
+    #expect(picture.fps == 30)
+}
+
+@Test func criticalIsWarmWhenEncodeIsFast() {
+    #expect(ThermalBudget.pace(encodeMs: 4, thermal: .critical) == .warm)
+    #expect(ThermalBudget.pace(encodeMs: 4, thermal: .serious) == .warm)
+}
+
+@Test func coolRestoresTheRateAfterItHolds() {
+    var budget = ThermalBudget()
+    budget.step = 1
+    let now = Date()
+    #expect(budget.note(pace: .cool, now: now) == nil)
+    #expect(budget.note(pace: .cool, now: now.addingTimeInterval(19)) == nil)
+    #expect(budget.note(pace: .cool, now: now.addingTimeInterval(20)) == 0)
+    #expect(ThermalBudget.applying(step: 0, to: .balanced) == .balanced)
+    #expect(ThermalBudget.applying(step: 1, to: .balanced) == .fast)
+    #expect(ThermalBudget.applying(step: 2, to: .balanced) == .paused)
+    #expect(ThermalBudget.applying(step: 2, to: .off) == .off)
 }
