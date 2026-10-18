@@ -9,6 +9,10 @@ struct SessionSnapshot: Equatable, Sendable {
     var batteryPercent: Int
     var tally: TallyState
     var panelClient = false
+    /// Host clock, in milliseconds, using the same clock as each frame's capture time.
+    var clockMs: UInt64 = 0
+    var droppedFrames: Int = 0
+    var thermal: String = "nominal"
 
     static let waiting = SessionSnapshot(
         status: "waiting",
@@ -35,6 +39,9 @@ struct SessionSnapshot: Equatable, Sendable {
         fields.append("\"lens\":\"\(lens.rawValue)\"")
         fields.append("\"battery\":\(batteryPercent)")
         fields.append("\"tally\":\"\(tally.rawValue)\"")
+        fields.append("\"clockMs\":\(clockMs)")
+        fields.append("\"droppedFrames\":\(droppedFrames)")
+        fields.append("\"thermal\":\"\(thermal)\"")
         if panelClient {
             fields.append("\"panelClient\":true")
         }

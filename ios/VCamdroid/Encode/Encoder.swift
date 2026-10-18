@@ -24,4 +24,8 @@ actor Encoder {
     nonisolated func submit(_ pixelBuffer: CVPixelBuffer, time: CMTime) {
         core.submit(pixelBuffer, time: time)
     }
+
+    nonisolated func requestKeyframe() {
+        core.forceKeyframe()
+    }
 }

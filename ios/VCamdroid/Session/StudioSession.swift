@@ -125,6 +125,10 @@ final class StudioSession {
             onListenFailed: { await self.noteListenFailed() }
         )
         let forwarder = OrderedPacketForwarder()
+        let videoEncoder = encoder
+        forwarder.setOverflowHandler {
+            videoEncoder.requestKeyframe()
+        }
         let videoServer = server
         packetForwarder?.finish()
         packetForwarder = forwarder
@@ -208,6 +212,14 @@ final class StudioSession {
     }
 
     func replaySetup() {
+        Task { await leaveForSetup() }
+    }
+
+    private func leaveForSetup() async {
+        if isRunning {
+            await stop()
+        }
+        stoppedByUser = false
         settings.onboardingCompleted = false
     }
 
@@ -464,7 +476,26 @@ final class StudioSession {
     private func currentSnapshot() -> SessionSnapshot {
         var copy = snapshot
         copy.batteryPercent = BatteryPercent.current()
+        copy.clockMs = Self.hostClockMs()
+        copy.droppedFrames = packetForwarder?.dropped() ?? 0
+        copy.thermal = Self.thermalName()
         return copy
+    }
+
+    private static func hostClockMs() -> UInt64 {
+        let seconds = CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock()))
+        guard seconds.isFinite, seconds > 0 else { return 0 }
+        return UInt64(seconds * 1000)
+    }
+
+    private static func thermalName() -> String {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return "nominal"
+        case .fair: return "fair"
+        case .serious: return "serious"
+        case .critical: return "critical"
+        @unknown default: return "nominal"
+        }
     }
 
     private func catalog() -> ResolutionCatalog {
@@ -491,7 +522,8 @@ final class StudioSession {
                 width: request.width,
                 height: request.height,
                 fps: settings.fps,
-                bitrateKbps: settings.bitrateKbps
+                bitrateKbps: settings.bitrateKbps,
+                keyframeInterval: settings.keyframeInterval
             )
         }
         panelStream = request.client == .panel
@@ -499,7 +531,7 @@ final class StudioSession {
         pushPortrait()
         do {
             try await capture.update(captureConfiguration)
-            try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
+            try await encoder.start(quality, keyframeInterval: quality.keyframeInterval)
             encoderActive = true
             snapshot.isStreaming = true
             snapshot.status = "streaming"
@@ -534,12 +566,13 @@ final class StudioSession {
                 width: settings.width,
                 height: settings.height,
                 fps: settings.fps,
-                bitrateKbps: settings.bitrateKbps
+                bitrateKbps: settings.bitrateKbps,
+                keyframeInterval: settings.keyframeInterval
             )
         adopt(quality)
         await encoder.stop()
         do {
-            try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
+            try await encoder.start(quality, keyframeInterval: quality.keyframeInterval)
             encoderActive = true
         } catch {
             encoderActive = false

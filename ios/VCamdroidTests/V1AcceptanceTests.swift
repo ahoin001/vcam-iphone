@@ -14,7 +14,7 @@ import Testing
         batteryPercent: 80,
         tally: .program
     )
-    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\"}")
+    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\",\"clockMs\":0,\"droppedFrames\":0,\"thermal\":\"nominal\"}")
     #expect(snapshot.json(success: true).contains("\"success\":true"))
 }
 
@@ -48,7 +48,8 @@ import Testing
 
 @Test func panelQualityFollowsTheTransport() {
     let usb = StreamQuality.panel(usb: true)
-    #expect(usb == StreamQuality(width: 1920, height: 1080, fps: 30, bitrateKbps: 30_000, peakMultiplier: 2, profile: .high))
+    #expect(usb == StreamQuality(width: 1920, height: 1080, fps: 30, bitrateKbps: 30_000, peakMultiplier: 2, profile: .high, keyframeInterval: 2))
+    #expect(usb.keyframeInterval == 2)
     let wifi = StreamQuality.panel(usb: false)
     #expect(wifi.bitrateKbps == 12_000)
     #expect(wifi.fps == 30)
@@ -183,6 +184,48 @@ import Testing
     forwarder.finish()
     await task.value
     #expect(await sent.values == [UInt64.max, 1])
+}
+
+@Test func fullQueueDropsUntilTheNextKeyframe() {
+    let forwarder = OrderedPacketForwarder()
+    let picture = Data([0, 0, 0, 1, 0x41])
+    let keyframe = Data([0, 0, 0, 1, 0x65])
+    let requests = OverflowCount()
+    forwarder.setOverflowHandler {
+        requests.add()
+    }
+    forwarder.enqueue(pts: 1, payload: picture)
+    forwarder.enqueue(pts: 2, payload: picture)
+    forwarder.enqueue(pts: 3, payload: picture)
+    forwarder.enqueue(pts: 4, payload: picture)
+    forwarder.enqueue(pts: 5, payload: picture)
+    #expect(forwarder.pendingCount() == OrderedPacketForwarder.capacity)
+    #expect(forwarder.dropped() == 2)
+    #expect(requests.value == 1)
+    forwarder.enqueue(pts: UInt64.max, payload: Data([7]))
+    #expect(forwarder.pendingCount() == OrderedPacketForwarder.capacity)
+    #expect(forwarder.dropped() == 3)
+    forwarder.enqueue(pts: 6, payload: keyframe)
+    #expect(forwarder.dropped() == 4)
+    #expect(forwarder.pendingCount() == OrderedPacketForwarder.capacity)
+    #expect(requests.value == 1)
+}
+
+private final class OverflowCount: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func add() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
 }
 
 private actor SentPackets {

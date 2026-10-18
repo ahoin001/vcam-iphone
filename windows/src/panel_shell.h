@@ -94,6 +94,10 @@ svg {
   color: var(--muted); font-size: 12px; line-height: 16px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.notice {
+  color: var(--warn-text); font-size: 12px; font-weight: 600; line-height: 16px;
+}
+.notice[hidden] { display: none; }
 .actions { display: flex; align-items: center; gap: 8px; flex: none; }
 .obs {
   height: 34px; display: flex; align-items: center; gap: 8px;
@@ -275,6 +279,7 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
     <span class="dot" aria-hidden="true"></span>
     <div class="status-text" role="status" aria-live="polite">
       <div class="status-line"><strong id="status-title">Starting</strong><span class="chips" id="chips"></span></div>
+      <p class="notice" id="notice" hidden></p>
       <p class="status-detail" id="status-detail"></p>
     </div>
   </div>
@@ -509,6 +514,9 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("guide").hidden = !state.guide;
 
     $("status").dataset.tone = status.tone || "idle";
+    const notice = $("notice");
+    notice.textContent = status.notice || "";
+    notice.hidden = !status.notice;
     $("status-title").textContent = status.title || "";
     const detail = $("status-detail");
     detail.textContent = status.detail || "";

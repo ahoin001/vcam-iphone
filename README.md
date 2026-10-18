@@ -139,13 +139,17 @@ For a clean background, leave **Portrait** off on the phone. Do the cut on the P
 
 **Check:** the app shows the iPhone, and the phone still says **Streaming**.
 
-Closing VCamPanel, or leaving the phone app, stops the live picture. The camera can remain in the list and show black until you connect again. The phone has no microphone in this build, so the meeting uses the computer’s microphone or another mic you select in that app.
+To record that picture in OBS without a second encode washing it out, set the **VCamdroid** Video Capture Device to a custom resolution of **1920×1080** at **30** fps, format **NV12**, color space **709**, color range **Limited**, and turn **Use buffering** off. In Settings → Video, set both the base and the output to **1920×1080** at **30** fps, with no rescale. Record to **MKV** (remux to MP4 afterwards) with NVENC constant quality **CQP 16–18**, or x264 **CRF 16**.
+
+Closing VCamPanel, or leaving the phone app, stops the live picture. The camera can remain in the list and show black until you connect again. The phone has no microphone in this build, so the meeting uses the computer’s microphone or another mic you select in that app. Video from the phone arrives a little after that mic. Record a clap once, then in OBS open the mic’s Advanced Audio Properties and set **Sync Offset** to the gap between the sound and the hands. Keep the same cable and settings and that number stays valid.
 
 ## 6. Adjust the camera from the desk
 
 After Connect, VCamPanel shows the camera desk under its toolbar. Finish section 3 or section 4 first, then leave `VCamPanel.exe` connected. The toolbar keeps the connection, the phone’s battery, and the resolution in view.
 
 On a wide window the preview fills the left side and the shot controls sit on the right. Drag the thin grabber between them to grow the picture or the desk. A narrow window stacks the preview above the controls; the same grabber then resizes the split up and down. That preview is the same picture NVIDIA Broadcast, OBS, and the other apps receive: VCamPanel decodes the phone once and shows those frames at the stream rate. Moving a control updates the next frame here and in those apps.
+
+While the picture is moving, the toolbar shows the delay as a small chip, such as **42 ms**, when it is steady and under 150 ms. A notice appears above that line, and stays for about two seconds after the cause clears, when something is wrong: **Running behind** means the picture is late or getting later; **Dropping frames** means the PC is decoding fewer than 27 frames a second; **USB couldn’t keep up** means the phone had to discard pictures; **Phone is hot, quality may drop** means the iPhone is thermally limited; **The recording app is getting repeated frames** means OBS or NVIDIA Broadcast asked again before a new frame arrived. A delay that stays the same is corrected with the mic Sync Offset in section 5, not in VCamPanel.
 
 An OBS browser dock of `/panel` is different. It has no companion preview, so **Show preview** there is a lighter glance from the phone. Leave it off if the phone is warming up. On a wide dock, drag the grabber beside the preview to resize the inspector. The dock remembers that width and the open sections for the address it was opened with. A new phone IP starts the dock at its defaults. The app you selected in section 5, and the preview inside VCamPanel, are the live picture.
 

@@ -6,6 +6,7 @@
 #include <mferror.h>
 
 #include <cstring>
+#include <vector>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfuuid.lib")
@@ -611,9 +612,19 @@ void MediaStream::Shutdown() {
     }
 }
 
+void MediaStream::ConsumeFrameSignal() {
+    HANDLE frame = static_cast<HANDLE>(bus_.FrameEvent());
+    if (frame != nullptr) {
+        WaitForSingleObject(frame, 0);
+    }
+}
+
 void MediaStream::Run() {
+    std::vector<uint8_t> held(FrameByteCount());
+    bool haveHeld = false;
+    uint32_t delivered = 0;
     while (true) {
-        WaitForSingleObject(wake_, 33);
+        WaitForSingleObject(wake_, INFINITE);
         IUnknown* token = nullptr;
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -626,7 +637,40 @@ void MediaStream::Run() {
             token = requests_.front();
             requests_.pop();
         }
-        Deliver(token);
+        AttachBus();
+        const uint32_t sequence = bus_.Sequence();
+        if (sequence == 0 || sequence == delivered) {
+            HANDLE frame = static_cast<HANDLE>(bus_.FrameEvent());
+            if (frame != nullptr) {
+                WaitForSingleObject(frame, kFrameWaitMs);
+            } else {
+                Sleep(kFrameWaitMs);
+            }
+        }
+        bool stopped = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stopped = stop_;
+        }
+        if (stopped) {
+            if (token != nullptr) {
+                token->Release();
+            }
+            return;
+        }
+        const uint32_t now = bus_.Sequence();
+        const bool fresh = now != 0 && now != delivered && bus_.CopyLatest(held.data(), FrameByteCount());
+        if (fresh) {
+            delivered = now;
+            haveHeld = true;
+            ConsumeFrameSignal();
+            Deliver(token, held.data());
+        } else if (haveHeld) {
+            bus_.NoteRepeat();
+            Deliver(token, held.data());
+        } else {
+            Deliver(token, nullptr);
+        }
         if (token != nullptr) {
             token->Release();
         }
@@ -643,7 +687,7 @@ bool MediaStream::AttachBus() {
     return bus_.Open(kLocalFrameBusName) || bus_.Create(kLocalFrameBusName);
 }
 
-HRESULT MediaStream::Deliver(IUnknown* token) {
+HRESULT MediaStream::Deliver(IUnknown* token, const uint8_t* nv12) {
     if (queue_ == nullptr) {
         return MF_E_SHUTDOWN;
     }
@@ -664,8 +708,10 @@ HRESULT MediaStream::Deliver(IUnknown* token) {
         buffer->Release();
         return E_FAIL;
     }
-    if (!AttachBus() || !bus_.CopyLatest(bytes, FrameByteCount())) {
+    if (nv12 == nullptr) {
         FrameBus::FillBlack(bytes, FrameByteCount());
+    } else {
+        std::memcpy(bytes, nv12, FrameByteCount());
     }
     buffer->Unlock();
     buffer->SetCurrentLength(FrameByteCount());

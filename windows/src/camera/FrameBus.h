@@ -15,7 +15,8 @@ namespace vcam {
 constexpr wchar_t kGlobalFrameBusName[] = L"Global\\VCamdroid.FrameBus";
 constexpr wchar_t kLocalFrameBusName[] = L"Local\\VCamdroid.FrameBus";
 constexpr uint32_t kFrameBusMagic = 0x5643414Du;
-constexpr uint32_t kFrameBusVersion = 1;
+constexpr uint32_t kFrameBusVersion = 2;
+constexpr uint32_t kFrameWaitMs = 70;
 constexpr uint32_t kFrameWidth = 1920;
 constexpr uint32_t kFrameHeight = 1080;
 constexpr uint32_t kFrameFps = 30;
@@ -39,6 +40,9 @@ struct FrameBusHeader {
     volatile uint32_t published;
     volatile uint32_t sequence;
     volatile uint64_t heartbeatMs;
+    volatile uint64_t captureMs;
+    volatile uint32_t repeats;
+    uint32_t pad;
 };
 
 class FrameBus {
@@ -53,18 +57,24 @@ public:
     void Close();
     bool IsOpen() const { return header_ != nullptr; }
 
-    bool Publish(const uint8_t* nv12, uint32_t bytes);
+    bool Publish(const uint8_t* nv12, uint32_t bytes, uint64_t captureMs);
     bool CopyLatest(uint8_t* nv12, uint32_t bytes) const;
     uint32_t Sequence() const;
+    uint64_t CaptureMs() const;
+    uint32_t Repeats() const;
+    void NoteRepeat();
+    void* FrameEvent() const { return event_; }
     bool Alive() const;
 
     static void FillBlack(uint8_t* nv12, uint32_t bytes);
 
 private:
     bool Map(void* handle, bool initialize);
+    void EnsureEvent(const wchar_t* mappingName);
     uint8_t* Buffer(uint32_t index) const;
 
     void* mapping_ = nullptr;
+    void* event_ = nullptr;
     FrameBusHeader* header_ = nullptr;
     uint8_t* base_ = nullptr;
 };

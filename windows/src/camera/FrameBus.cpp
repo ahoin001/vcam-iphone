@@ -60,7 +60,11 @@ bool FrameBus::Create(const wchar_t* name) {
         return false;
     }
     const bool created = GetLastError() != ERROR_ALREADY_EXISTS;
-    return Map(mapping, created);
+    if (!Map(mapping, created)) {
+        return false;
+    }
+    EnsureEvent(name);
+    return true;
 }
 
 bool FrameBus::Open(const wchar_t* name) {
@@ -69,7 +73,11 @@ bool FrameBus::Open(const wchar_t* name) {
     if (mapping == nullptr) {
         return false;
     }
-    return Map(mapping, false);
+    if (!Map(mapping, false)) {
+        return false;
+    }
+    EnsureEvent(name);
+    return true;
 }
 
 bool FrameBus::Map(void* handle, bool initialize) {
@@ -86,6 +94,18 @@ bool FrameBus::Map(void* handle, bool initialize) {
     return true;
 }
 
+void FrameBus::EnsureEvent(const wchar_t* mappingName) {
+    if (event_ != nullptr || mappingName == nullptr) {
+        return;
+    }
+    wchar_t name[160] = {};
+    wcscpy_s(name, mappingName);
+    wcscat_s(name, L".Frame");
+    SECURITY_DESCRIPTOR descriptor{};
+    SECURITY_ATTRIBUTES attributes = PermissiveAttributes(&descriptor);
+    event_ = CreateEventW(&attributes, FALSE, FALSE, name);
+}
+
 void FrameBus::Close() {
     header_ = nullptr;
     if (base_ != nullptr) {
@@ -96,22 +116,30 @@ void FrameBus::Close() {
         CloseHandle(static_cast<HANDLE>(mapping_));
         mapping_ = nullptr;
     }
+    if (event_ != nullptr) {
+        CloseHandle(static_cast<HANDLE>(event_));
+        event_ = nullptr;
+    }
 }
 
 uint8_t* FrameBus::Buffer(uint32_t index) const {
     return base_ + sizeof(FrameBusHeader) + static_cast<size_t>(FrameByteCount()) * (index % kFrameBuffers);
 }
 
-bool FrameBus::Publish(const uint8_t* nv12, uint32_t bytes) {
+bool FrameBus::Publish(const uint8_t* nv12, uint32_t bytes, uint64_t captureMs) {
     if (header_ == nullptr || nv12 == nullptr || bytes != FrameByteCount()) {
         return false;
     }
     const uint32_t index = (header_->published + 1u) % kFrameBuffers;
     std::memcpy(Buffer(index), nv12, bytes);
     MemoryBarrier();
+    header_->captureMs = captureMs;
     header_->published = index;
     InterlockedIncrement(reinterpret_cast<volatile LONG*>(&header_->sequence));
     header_->heartbeatMs = GetTickCount64();
+    if (event_ != nullptr) {
+        SetEvent(static_cast<HANDLE>(event_));
+    }
     return true;
 }
 
@@ -134,6 +162,27 @@ uint32_t FrameBus::Sequence() const {
         return 0;
     }
     return header_->sequence;
+}
+
+uint64_t FrameBus::CaptureMs() const {
+    if (header_ == nullptr) {
+        return 0;
+    }
+    return header_->captureMs;
+}
+
+uint32_t FrameBus::Repeats() const {
+    if (header_ == nullptr) {
+        return 0;
+    }
+    return header_->repeats;
+}
+
+void FrameBus::NoteRepeat() {
+    if (header_ == nullptr) {
+        return;
+    }
+    InterlockedIncrement(reinterpret_cast<volatile LONG*>(&header_->repeats));
 }
 
 bool FrameBus::Alive() const {

@@ -3,8 +3,11 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <string>
+#include <thread>
 
 namespace vcam {
 
@@ -20,6 +23,7 @@ private:
     static LRESULT CALLBACK Proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
     void OnCreate();
     void OnTimer();
+    void Watch();
     void Paint(HDC dc, const RECT& client);
     void PaintContent(HDC dc, const RECT& client);
     bool EnsureBackBuffer(HDC target, int width, int height);
@@ -42,6 +46,10 @@ private:
     void* bus_ = nullptr;
     void* nv12_ = nullptr;
     void* bgra_ = nullptr;
+    std::mutex busLock_;
+    std::thread watch_;
+    std::atomic<bool> stopWatch_{false};
+    HANDLE watchStop_ = nullptr;
 };
 
 }  // namespace vcam

@@ -7,6 +7,7 @@ final class EncoderCore: @unchecked Sendable {
     private let lock = NSLock()
     private var session: VTCompressionSession?
     private var sentConfiguration = false
+    private var forceNextKeyframe = false
     private var onPacket: (@Sendable (UInt64, Data) -> Void)?
     private let callback: VTCompressionOutputCallback = { refcon, _, status, _, sampleBuffer in
         guard status == noErr, let refcon, let sampleBuffer else { return }
@@ -23,12 +24,15 @@ final class EncoderCore: @unchecked Sendable {
     func start(_ quality: StreamQuality, keyframeInterval: Int) throws {
         stop()
         var compression: VTCompressionSession?
+        let specification = [
+            kVTVideoEncoderSpecification_EnableLowLatencyRateControl: kCFBooleanTrue as Any
+        ] as CFDictionary
         let status = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             width: Int32(quality.width),
             height: Int32(quality.height),
             codecType: kCMVideoCodecType_H264,
-            encoderSpecification: nil,
+            encoderSpecification: specification,
             imageBufferAttributes: nil,
             compressedDataAllocator: nil,
             outputCallback: callback,
@@ -58,6 +62,13 @@ final class EncoderCore: @unchecked Sendable {
         lock.lock()
         session = compression
         sentConfiguration = false
+        forceNextKeyframe = false
+        lock.unlock()
+    }
+
+    func forceKeyframe() {
+        lock.lock()
+        forceNextKeyframe = true
         lock.unlock()
     }
 
@@ -66,6 +77,7 @@ final class EncoderCore: @unchecked Sendable {
         let current = session
         session = nil
         sentConfiguration = false
+        forceNextKeyframe = false
         lock.unlock()
         guard let current else { return }
         VTCompressionSessionCompleteFrames(current, untilPresentationTimeStamp: .invalid)
@@ -75,14 +87,19 @@ final class EncoderCore: @unchecked Sendable {
     func submit(_ pixelBuffer: CVPixelBuffer, time: CMTime) {
         lock.lock()
         let current = session
+        let force = forceNextKeyframe
+        forceNextKeyframe = false
         lock.unlock()
         guard let current else { return }
+        let properties: CFDictionary? = force
+            ? [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
+            : nil
         VTCompressionSessionEncodeFrame(
             current,
             imageBuffer: pixelBuffer,
             presentationTimeStamp: time,
             duration: .invalid,
-            frameProperties: nil,
+            frameProperties: properties,
             sourceFrameRefcon: nil,
             infoFlagsOut: nil
         )

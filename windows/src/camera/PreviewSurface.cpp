@@ -10,8 +10,7 @@
 namespace vcam {
 namespace {
 
-constexpr UINT kPreviewTimer = 1;
-constexpr UINT kPreviewIntervalMs = 33;
+constexpr UINT kPreviewFrame = WM_APP + 1;
 constexpr COLORREF kStage = RGB(12, 14, 16);
 constexpr COLORREF kWaiting = RGB(154, 149, 140);
 constexpr int kWaitingPoints = 13;
@@ -41,9 +40,9 @@ void Nv12ToBgra(const uint8_t* nv12, uint8_t* bgra) {
             const int v = static_cast<int>(uvRow[x + 1]) - 128;
             for (int pixel = 0; pixel < 2; ++pixel) {
                 const int c = static_cast<int>(yRow[x + pixel]) - 16;
-                const int red = (298 * c + 409 * v + 128) >> 8;
-                const int green = (298 * c - 100 * u - 208 * v + 128) >> 8;
-                const int blue = (298 * c + 516 * u + 128) >> 8;
+                const int red = (298 * c + 459 * v + 128) >> 8;
+                const int green = (298 * c - 55 * u - 136 * v + 128) >> 8;
+                const int blue = (298 * c + 541 * u + 128) >> 8;
                 out[0] = ClampByte(blue);
                 out[1] = ClampByte(green);
                 out[2] = ClampByte(red);
@@ -100,6 +99,36 @@ void PreviewSurface::OnCreate() {
     nv12_ = nv12;
     bgra_ = bgra;
     UpdateFont();
+    watchStop_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    watch_ = std::thread([this]() { Watch(); });
+}
+
+void PreviewSurface::Watch() {
+    while (!stopWatch_.load()) {
+        HANDLE frame = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(busLock_);
+            auto* bus = static_cast<FrameBus*>(bus_);
+            if (bus != nullptr) {
+                if (!bus->IsOpen()) {
+                    const bool opened = bus->Open(kLocalFrameBusName) || bus->Open(kGlobalFrameBusName);
+                    if (!opened) {
+                        frame = nullptr;
+                    }
+                }
+                frame = static_cast<HANDLE>(bus->FrameEvent());
+            }
+        }
+        HANDLE handles[2] = {watchStop_, frame};
+        const DWORD count = frame == nullptr ? 1u : 2u;
+        const DWORD result = WaitForMultipleObjects(count, handles, FALSE, 200);
+        if (result == WAIT_OBJECT_0 || stopWatch_.load()) {
+            return;
+        }
+        if (hwnd_ != nullptr) {
+            PostMessageW(hwnd_, kPreviewFrame, 0, 0);
+        }
+    }
 }
 
 void PreviewSurface::UpdateFont() {
@@ -126,6 +155,7 @@ void PreviewSurface::ConvertNv12() {
 }
 
 void PreviewSurface::OnTimer() {
+    std::lock_guard<std::mutex> lock(busLock_);
     auto* bus = static_cast<FrameBus*>(bus_);
     auto* nv12 = static_cast<std::vector<uint8_t>*>(nv12_);
     if (bus == nullptr || nv12 == nullptr) {
@@ -300,16 +330,11 @@ LRESULT CALLBACK PreviewSurface::Proc(HWND hwnd, UINT message, WPARAM wparam, LP
         return 0;
     case WM_SHOWWINDOW:
         if (wparam) {
-            SetTimer(hwnd, kPreviewTimer, kPreviewIntervalMs, nullptr);
             self->OnTimer();
-        } else {
-            KillTimer(hwnd, kPreviewTimer);
         }
         return 0;
-    case WM_TIMER:
-        if (wparam == kPreviewTimer) {
-            self->OnTimer();
-        }
+    case kPreviewFrame:
+        self->OnTimer();
         return 0;
     case WM_DPICHANGED_AFTERPARENT:
         self->UpdateFont();
@@ -327,7 +352,17 @@ LRESULT CALLBACK PreviewSurface::Proc(HWND hwnd, UINT message, WPARAM wparam, LP
         return 0;
     }
     case WM_DESTROY:
-        KillTimer(hwnd, kPreviewTimer);
+        self->stopWatch_.store(true);
+        if (self->watchStop_ != nullptr) {
+            SetEvent(self->watchStop_);
+        }
+        if (self->watch_.joinable()) {
+            self->watch_.join();
+        }
+        if (self->watchStop_ != nullptr) {
+            CloseHandle(self->watchStop_);
+            self->watchStop_ = nullptr;
+        }
         self->ReleaseBackBuffer();
         delete static_cast<FrameBus*>(self->bus_);
         delete static_cast<std::vector<uint8_t>*>(self->nv12_);

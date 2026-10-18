@@ -109,6 +109,23 @@ struct SessionPoll {
     int port = 0;
     bool ok = false;
     std::string body;
+    unsigned long long startedMs = 0;
+    unsigned long long finishedMs = 0;
+};
+
+struct Pace {
+    long long offset = 0;
+    bool haveOffset = false;
+    unsigned int decodedFrames = 0;
+    unsigned long long fpsSampleMs = 0;
+    double fps = 0;
+    unsigned int repeats = 0;
+    bool haveRepeats = false;
+    int drops = 0;
+    int lastDelay = -1;
+    unsigned long long climbSince = 0;
+    unsigned long long healthySince = 0;
+    std::wstring notice;
 };
 
 struct StatusView {
@@ -117,6 +134,8 @@ struct StatusView {
     std::wstring detail;
     std::vector<std::wstring> chips;
 };
+
+Pace g_pace;
 
 struct Check {
     CheckState state = CheckState::Waiting;
@@ -437,6 +456,15 @@ bool ParseHostPort(const std::wstring& text, std::string& host, int& port) {
     return !host.empty() && port > 0 && port <= 65535;
 }
 
+unsigned long long JsonU64(const std::string& json, const char* key) {
+    const std::string needle = std::string("\"") + key + "\":";
+    const auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return 0;
+    }
+    return strtoull(json.c_str() + at + needle.size(), nullptr, 10);
+}
+
 int JsonInt(const std::string& json, const char* key, int fallback) {
     const std::string needle = std::string("\"") + key + "\":";
     const auto at = json.find(needle);
@@ -753,6 +781,8 @@ std::string BuildState() {
     AppendJsonString(json, g_status.title);
     json += ",\"detail\":";
     AppendJsonString(json, g_status.detail);
+    json += ",\"notice\":";
+    AppendJsonString(json, g_pace.notice);
     json += ",\"chips\":[";
     for (size_t index = 0; index < g_status.chips.size(); ++index) {
         if (index > 0) {
@@ -1021,7 +1051,9 @@ void StartPoll() {
         auto* poll = new SessionPoll();
         poll->host = host;
         poll->port = port;
+        poll->startedMs = GetTickCount64();
         poll->ok = HttpGet(host, port, "/v1/session", poll->body);
+        poll->finishedMs = GetTickCount64();
         if (!PostMessageW(target, kPollDoneMessage, 0, reinterpret_cast<LPARAM>(poll))) {
             delete poll;
         }
@@ -1094,6 +1126,7 @@ void ConnectTo(const Listed& target) {
     KillTimer(g_window, kStatusTimer);
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
+    ResetPace();
     g_usbConnected = false;
     g_connectedHost.clear();
     g_connectError.clear();
@@ -1205,11 +1238,16 @@ bool AutoConnect() {
     return false;
 }
 
+void ResetPace() {
+    g_pace = {};
+}
+
 void Disconnect() {
     KillTimer(g_window, kStatusTimer);
     KillTimer(g_window, kDeskRetryTimer);
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
+    ResetPace();
     g_usbConnected = false;
     g_connectedHost.clear();
     g_connectedName.clear();
@@ -1291,6 +1329,82 @@ void ApplyScan(std::unique_ptr<ScanResult> result) {
     ShowIdleStatus();
 }
 
+int UpdatePace(const SessionPoll& poll, const vcam::LinkProgress& progress) {
+    if (!poll.ok) {
+        return -1;
+    }
+    const unsigned long long now = GetTickCount64();
+    const unsigned long long clockMs = JsonU64(poll.body, "clockMs");
+    if (clockMs != 0 && poll.finishedMs >= poll.startedMs) {
+        const unsigned long long mid = poll.startedMs + (poll.finishedMs - poll.startedMs) / 2;
+        g_pace.offset = static_cast<long long>(clockMs) - static_cast<long long>(mid);
+        g_pace.haveOffset = true;
+    }
+
+    int delay = -1;
+    const bool picture = progress.lastCaptureMs != 0 && progress.lastCaptureMs != ~0ull && progress.lastDecodedMs != 0;
+    if (g_pace.haveOffset && picture) {
+        const long long capturedAt = static_cast<long long>(progress.lastCaptureMs) - g_pace.offset;
+        const long long late = static_cast<long long>(progress.lastDecodedMs) - capturedAt;
+        if (late >= 0 && late < 10000) {
+            delay = static_cast<int>(late);
+        }
+    }
+    if (delay >= 0 && g_pace.lastDelay >= 0 && delay > g_pace.lastDelay + 30) {
+        if (g_pace.climbSince == 0) {
+            g_pace.climbSince = now;
+        }
+    } else {
+        g_pace.climbSince = 0;
+    }
+    g_pace.lastDelay = delay;
+    const bool climbing = g_pace.climbSince != 0 && now - g_pace.climbSince >= 2000;
+
+    if (g_pace.fpsSampleMs != 0 && now - g_pace.fpsSampleMs >= 800 && progress.decodedFrames >= g_pace.decodedFrames) {
+        const double seconds = static_cast<double>(now - g_pace.fpsSampleMs) / 1000.0;
+        g_pace.fps = static_cast<double>(progress.decodedFrames - g_pace.decodedFrames) / seconds;
+        g_pace.decodedFrames = progress.decodedFrames;
+        g_pace.fpsSampleMs = now;
+    } else if (g_pace.fpsSampleMs == 0) {
+        g_pace.fpsSampleMs = now;
+        g_pace.decodedFrames = progress.decodedFrames;
+    }
+
+    const int drops = JsonInt(poll.body, "droppedFrames", 0);
+    const bool dropsIncreased = drops > g_pace.drops;
+    g_pace.drops = drops;
+    const bool repeatsClimbing = g_pace.haveRepeats && progress.repeats > g_pace.repeats;
+    g_pace.haveRepeats = true;
+    g_pace.repeats = progress.repeats;
+    const std::string thermal = JsonString(poll.body, "thermal");
+
+    std::wstring condition;
+    if (delay > 150 || climbing) {
+        condition = L"Running behind";
+    } else if (progress.state == vcam::LinkState::Live && g_pace.fps > 0 && g_pace.fps < 27) {
+        condition = L"Dropping frames";
+    } else if (dropsIncreased) {
+        condition = L"USB couldn\u2019t keep up";
+    } else if (thermal == "serious" || thermal == "critical") {
+        condition = L"Phone is hot, quality may drop";
+    } else if (repeatsClimbing) {
+        condition = L"The recording app is getting repeated frames";
+    }
+
+    if (!condition.empty()) {
+        g_pace.notice = std::move(condition);
+        g_pace.healthySince = 0;
+    } else if (!g_pace.notice.empty()) {
+        if (g_pace.healthySince == 0) {
+            g_pace.healthySince = now;
+        } else if (now - g_pace.healthySince >= 2000) {
+            g_pace.notice.clear();
+            g_pace.healthySince = 0;
+        }
+    }
+    return delay;
+}
+
 void ApplySession(const SessionPoll& poll) {
     if (!Connected() || poll.host != g_connectedHost || poll.port != g_connectedPort) {
         return;
@@ -1314,6 +1428,11 @@ void ApplySession(const SessionPoll& poll) {
     const int width = JsonInt(poll.body, "width", 0);
     const int height = JsonInt(poll.body, "height", 0);
     const int fps = JsonInt(poll.body, "fps", 0);
+    const int delayMs = UpdatePace(poll, progress);
+    auto chips = SessionChips(battery, width, height, fps);
+    if (delayMs >= 0 && delayMs < 150 && g_pace.notice.empty()) {
+        chips.push_back(std::to_wstring(delayMs) + L" ms");
+    }
 
     Tone tone = Tone::Busy;
     std::wstring title = L"Connected over " + transport;
@@ -1347,7 +1466,7 @@ void ApplySession(const SessionPoll& poll) {
     } else {
         detail = kPhoneCue;
     }
-    SetStatus(tone, std::move(title), std::move(detail), SessionChips(battery, width, height, fps));
+    SetStatus(tone, std::move(title), std::move(detail), std::move(chips));
 }
 
 void SetOnTop(bool onTop) {

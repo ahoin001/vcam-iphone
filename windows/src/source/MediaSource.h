@@ -104,7 +104,8 @@ public:
 
 private:
     void Run();
-    HRESULT Deliver(IUnknown* token);
+    HRESULT Deliver(IUnknown* token, const uint8_t* nv12);
+    void ConsumeFrameSignal();
     bool AttachBus();
     void ClearRequests();
 

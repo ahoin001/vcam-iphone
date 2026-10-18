@@ -35,7 +35,7 @@ uint32_t ReadBe32(const uint8_t* bytes) {
            (static_cast<uint32_t>(bytes[2]) << 8) | bytes[3];
 }
 
-void Publish(const std::vector<uint8_t>& frame, FrameBus* localBus, FrameBus* globalBus, std::atomic<unsigned long long>* lastGlobalTryMs) {
+void Publish(const std::vector<uint8_t>& frame, uint64_t captureMs, FrameBus* localBus, FrameBus* globalBus, std::atomic<unsigned long long>* lastGlobalTryMs) {
     if (frame.size() != FrameByteCount()) {
         return;
     }
@@ -50,10 +50,10 @@ void Publish(const std::vector<uint8_t>& frame, FrameBus* localBus, FrameBus* gl
         }
     }
     if (localBus != nullptr && localBus->IsOpen()) {
-        localBus->Publish(frame.data(), FrameByteCount());
+        localBus->Publish(frame.data(), FrameByteCount(), captureMs);
     }
     if (globalBus != nullptr && globalBus->IsOpen()) {
-        globalBus->Publish(frame.data(), FrameByteCount());
+        globalBus->Publish(frame.data(), FrameByteCount(), captureMs);
     }
 }
 
@@ -81,6 +81,8 @@ struct VideoClient::Worker {
     std::atomic<unsigned int> immediateCloses{0};
     std::atomic<bool> closedWithoutVideo{false};
     std::atomic<unsigned long long> lastGlobalTryMs{0};
+    std::atomic<unsigned long long> lastCaptureMs{0};
+    std::atomic<unsigned int> decodedFrames{0};
 };
 
 struct MediaFoundationSession {
@@ -124,6 +126,8 @@ void VideoClient::Start(const std::string& host, int port) {
     worker->immediateCloses.store(0);
     worker->closedWithoutVideo.store(false);
     worker->lastGlobalTryMs.store(0);
+    worker->lastCaptureMs.store(0);
+    worker->decodedFrames.store(0);
     {
         std::lock_guard<std::mutex> lock(worker->mutex);
         state_ = LinkState::Connecting;
@@ -167,6 +171,9 @@ LinkProgress VideoClient::Progress() const {
     progress.lastDecodedMs = worker->lastDecodedMs.load();
     progress.decodeFailures = worker->decodeFailures.load();
     progress.closedWithoutVideo = worker->closedWithoutVideo.load();
+    progress.lastCaptureMs = worker->lastCaptureMs.load();
+    progress.decodedFrames = worker->decodedFrames.load();
+    progress.repeats = (std::max)(worker->localBus.Repeats(), worker->globalBus.Repeats());
     return progress;
 }
 
@@ -220,7 +227,9 @@ void VideoClient::Run(std::string host, int port) {
                 }
                 const uint64_t pts = ReadBe64(pending.data());
                 if (decoder.Decode(pts, pending.data() + 12, length, frame)) {
-                    Publish(frame, &worker->localBus, &worker->globalBus, &worker->lastGlobalTryMs);
+                    Publish(frame, pts, &worker->localBus, &worker->globalBus, &worker->lastGlobalTryMs);
+                    worker->lastCaptureMs.store(pts);
+                    worker->decodedFrames.fetch_add(1);
                     worker->lastDecodedMs.store(GetTickCount64());
                     std::lock_guard<std::mutex> lock(worker->mutex);
                     state_ = LinkState::Live;

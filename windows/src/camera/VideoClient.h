@@ -18,6 +18,9 @@ struct LinkProgress {
     unsigned long long lastDecodedMs = 0;
     unsigned int decodeFailures = 0;
     bool closedWithoutVideo = false;
+    unsigned long long lastCaptureMs = 0;
+    unsigned int decodedFrames = 0;
+    unsigned int repeats = 0;
 };
 
 // Reads the phone's port 4747 video socket. While Start() is in effect it retries
