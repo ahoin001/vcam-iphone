@@ -1197,6 +1197,10 @@ void FinishCameraInstall(HRESULT result) {
     PushState();
 }
 
+void ResetPace() {
+    g_pace = {};
+}
+
 void ConnectTo(const Listed& target) {
     KillTimer(g_window, kStatusTimer);
     StopObsTally();
@@ -1320,10 +1324,6 @@ bool AutoConnect() {
         }
     }
     return false;
-}
-
-void ResetPace() {
-    g_pace = {};
 }
 
 void StopPicture() {
