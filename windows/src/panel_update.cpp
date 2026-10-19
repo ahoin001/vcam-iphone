@@ -16,8 +16,11 @@
 #pragma comment(lib, "winhttp.lib")
 
 #ifndef PANEL_VERSION
-#define PANEL_VERSION "dev"
+#define PANEL_VERSION dev
 #endif
+
+#define VCAM_STR_IMPL(x) #x
+#define VCAM_STR(x) VCAM_STR_IMPL(x)
 
 namespace vcam {
 namespace {
@@ -314,11 +317,11 @@ bool RunHidden(const std::wstring& exe, std::wstring command) {
 }  // namespace
 
 const char* CurrentVersion() {
-    return PANEL_VERSION;
+    return VCAM_STR(PANEL_VERSION);
 }
 
 bool IsDevBuild() {
-    return std::strcmp(PANEL_VERSION, "dev") == 0;
+    return std::strcmp(VCAM_STR(PANEL_VERSION), "dev") == 0;
 }
 
 std::wstring ExeFolder() {

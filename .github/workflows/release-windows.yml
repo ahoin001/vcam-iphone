@@ -53,7 +53,7 @@ jobs:
         run: |
           msbuild VCamSource.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 -p:PANEL_VERSION=${{ steps.tag.outputs.name }} -m -v:m
+          msbuild VCamPanel.vcxproj -p:Configuration=Release -p:Platform=x64 "-p:PANEL_VERSION=${{ steps.tag.outputs.name }}" -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msbuild usbmux_forward.vcxproj -p:Configuration=Release -p:Platform=x64 -m -v:m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
