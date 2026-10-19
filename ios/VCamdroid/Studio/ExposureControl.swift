@@ -7,15 +7,22 @@ struct ExposureControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             StudioReadout(title: .exposure, value: exposureReadout)
+            if !session.customExposureSupported {
+                Text(.exposureUnavailable)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Picker(.exposure, selection: StudioBindings.setting(\.manualExposure, on: session)) {
                 Text(.auto).tag(false)
                 Text(.manual).tag(true)
             }
             .pickerStyle(.segmented)
+            .disabled(!session.customExposureSupported)
             .onChange(of: session.settings.manualExposure) {
                 session.applyControls()
             }
-            if session.settings.manualExposure {
+            if session.settings.manualExposure, session.customExposureSupported {
                 ExposureValueSlider(title: .iso, readout: isoReadout, unit: isoUnit, watched: session.settings.iso)
                 ExposureValueSlider(title: .shutter, readout: shutterReadout, unit: shutterUnit, watched: session.settings.shutterSeconds)
             } else {

@@ -159,6 +159,9 @@ final class CaptureCore: @unchecked Sendable {
             throw CaptureEngineError.formatUnavailable
         }
         device.activeFormat = format
+        if device.isAutoVideoFrameRateEnabled, device.activeFormat.isAutoVideoFrameRateSupported {
+            device.isAutoVideoFrameRateEnabled = false
+        }
         let frameDuration = CMTime(value: 1, timescale: CMTimeScale(configuration.fps))
         device.activeVideoMinFrameDuration = frameDuration
         device.activeVideoMaxFrameDuration = frameDuration
@@ -172,13 +175,29 @@ final class CaptureCore: @unchecked Sendable {
     }
 
     private func applyControls(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {
-        let maximumZoom = min(device.activeFormat.videoMaxZoomFactor, device.maxAvailableVideoZoomFactor)
-        device.videoZoomFactor = min(max(CGFloat(configuration.zoom), 1), max(maximumZoom, 1))
+        applyZoom(configuration.zoom, on: device)
+        applyTorch(configuration.torch, on: device)
+        applyExposure(configuration, on: device)
+        applyWhiteBalance(configuration, on: device)
+        applyFocus(configuration, on: device)
+    }
 
-        if device.hasTorch {
-            device.torchMode = configuration.torch && device.isTorchAvailable ? .on : .off
+    private func applyZoom(_ zoom: Double, on device: AVCaptureDevice) {
+        let upper = min(device.activeFormat.videoMaxZoomFactor, device.maxAvailableVideoZoomFactor)
+        let lower = min(max(device.minAvailableVideoZoomFactor, 1), upper)
+        guard upper > 0, upper >= lower else { return }
+        device.videoZoomFactor = min(max(CGFloat(zoom), lower), upper)
+    }
+
+    private func applyTorch(_ on: Bool, on device: AVCaptureDevice) {
+        if on, device.isTorchModeSupported(.on), device.isTorchAvailable {
+            device.torchMode = .on
+        } else if device.isTorchModeSupported(.off) {
+            device.torchMode = .off
         }
+    }
 
+    private func applyExposure(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {
         if configuration.manualExposure, device.isExposureModeSupported(.custom) {
             let iso = min(max(Float(configuration.iso), device.activeFormat.minISO), device.activeFormat.maxISO)
             var duration = CMTime(seconds: configuration.shutterSeconds, preferredTimescale: 1_000_000)
@@ -190,14 +209,26 @@ final class CaptureCore: @unchecked Sendable {
             let bias = min(max(Float(configuration.exposureBias), device.minExposureTargetBias), device.maxExposureTargetBias)
             device.setExposureTargetBias(bias, completionHandler: nil)
         }
+    }
 
-        if configuration.manualWhiteBalance, device.isWhiteBalanceModeSupported(.locked), device.isLockingWhiteBalanceWithCustomDeviceGainsSupported {
+    private func applyWhiteBalance(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {
+        if configuration.manualWhiteBalance, canLockWhiteBalance(device, kelvin: configuration.kelvin) {
             let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(configuration.kelvin), tint: 0)
             device.setWhiteBalanceModeLocked(whiteBalanceTemperatureAndTintValues: temperature, handler: nil)
         } else if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
             device.whiteBalanceMode = .continuousAutoWhiteBalance
         }
+    }
 
+    private func canLockWhiteBalance(_ device: AVCaptureDevice, kelvin: Double) -> Bool {
+        guard device.isWhiteBalanceModeSupported(.locked), device.isLockingWhiteBalanceWithCustomDeviceGainsSupported else { return false }
+        let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(kelvin), tint: 0)
+        let gains = device.deviceWhiteBalanceGains(for: temperature)
+        let maximum = device.maxWhiteBalanceGain
+        return [gains.redGain, gains.greenGain, gains.blueGain].allSatisfy { $0 >= 1 && $0 <= maximum }
+    }
+
+    private func applyFocus(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {
         if configuration.manualFocus, device.isFocusModeSupported(.locked), device.isLockingFocusWithCustomLensPositionSupported {
             let position = min(max(Float(configuration.lensPosition), 0), 1)
             device.setFocusModeLocked(lensPosition: position, completionHandler: nil)
@@ -216,14 +247,14 @@ final class CaptureCore: @unchecked Sendable {
         }
     }
 
-    func supportsCustomWhiteBalance() -> Bool {
-        guard let device = activeDevice() else { return false }
-        return device.isLockingWhiteBalanceWithCustomDeviceGainsSupported
-    }
-
-    func supportsCustomFocus() -> Bool {
-        guard let device = activeDevice() else { return false }
-        return device.isLockingFocusWithCustomLensPositionSupported
+    func controlLimits() -> DeviceControlLimits {
+        guard let device = activeDevice() else { return .unknown }
+        return DeviceControlLimits(
+            customWhiteBalance: device.isLockingWhiteBalanceWithCustomDeviceGainsSupported,
+            customFocus: device.isLockingFocusWithCustomLensPositionSupported,
+            customExposure: device.isExposureModeSupported(.custom),
+            torch: device.isTorchModeSupported(.on)
+        )
     }
 
     private func activeDevice() -> AVCaptureDevice? {

@@ -57,6 +57,8 @@ final class StudioSession {
     private(set) var stoppedByUser = false
     private(set) var customWhiteBalanceSupported = true
     private(set) var customFocusSupported = true
+    private(set) var customExposureSupported = true
+    private(set) var torchSupported = true
     private var hasAnnouncedLive = false
     private var packetForwarder: OrderedPacketForwarder?
     private var packetTask: Task<Void, Never>?
@@ -323,18 +325,27 @@ final class StudioSession {
     }
 
     private func noteDeviceLimits() async {
-        let whiteBalance = await capture.supportsCustomWhiteBalance()
-        let focus = await capture.supportsCustomFocus()
-        customWhiteBalanceSupported = whiteBalance
-        customFocusSupported = focus
+        let limits = await capture.controlLimits()
+        customWhiteBalanceSupported = limits.customWhiteBalance
+        customFocusSupported = limits.customFocus
+        customExposureSupported = limits.customExposure
+        torchSupported = limits.torch
         var next = settings
         var changed = false
-        if !whiteBalance, next.manualWhiteBalance {
+        if !limits.customWhiteBalance, next.manualWhiteBalance {
             next.manualWhiteBalance = false
             changed = true
         }
-        if !focus, next.manualFocus {
+        if !limits.customFocus, next.manualFocus {
             next.manualFocus = false
+            changed = true
+        }
+        if !limits.customExposure, next.manualExposure {
+            next.manualExposure = false
+            changed = true
+        }
+        if !limits.torch, next.torch {
+            next.torch = false
             changed = true
         }
         if changed {

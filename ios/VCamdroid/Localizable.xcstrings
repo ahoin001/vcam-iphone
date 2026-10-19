@@ -345,6 +345,17 @@
         }
       }
     },
+    "exposureUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This camera cannot lock exposure, so it stays on Auto."
+          }
+        }
+      }
+    },
     "exposureAutoHint" : {
       "extractionState" : "manual",
       "localizations" : {

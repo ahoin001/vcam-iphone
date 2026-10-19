@@ -26,6 +26,8 @@ struct StudioToolDock: View {
                 isSelected: session.settings.torch,
                 action: session.toggleTorch
             )
+            .disabled(!session.torchSupported)
+            .opacity(session.torchSupported ? 1 : 0.4)
             StudioDockButton(
                 systemImage: "rotate.right",
                 label: .flip,

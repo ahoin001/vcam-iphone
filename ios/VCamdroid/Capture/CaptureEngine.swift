@@ -51,14 +51,9 @@ actor CaptureEngine {
         }
     }
 
-    func supportsCustomWhiteBalance() async -> Bool {
+    func controlLimits() async -> DeviceControlLimits {
         let core = core
-        return (try? await core.perform { core.supportsCustomWhiteBalance() }) ?? false
-    }
-
-    func supportsCustomFocus() async -> Bool {
-        let core = core
-        return (try? await core.perform { core.supportsCustomFocus() }) ?? false
+        return (try? await core.perform { core.controlLimits() }) ?? .unknown
     }
 
     func focus(at devicePoint: CGPoint) async {
