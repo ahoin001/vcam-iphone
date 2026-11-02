@@ -18,7 +18,8 @@ public:
     HWND Create(HWND parent);
     HWND Handle() const { return hwnd_; }
     void SetPlaceholder(std::wstring text);
-    void SetChecks(bool peaking, bool zebra, bool loupe);
+    void SetEnabled(bool on);
+    bool Enabled() const { return enabled_.load(); }
 
 private:
     static LRESULT CALLBACK Proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
@@ -31,6 +32,8 @@ private:
     void ReleaseBackBuffer();
     void DropStaleFrame();
     void ConvertNv12();
+    void EnsureReaderBuffers();
+    void ReleaseReaderBuffers();
     void UpdateFont();
 
     HWND hwnd_ = nullptr;
@@ -43,9 +46,6 @@ private:
     unsigned long long lastFrameMs_ = 0;
     std::wstring placeholder_ = L"On the iPhone, leave VCamdroid open on the camera screen.";
     bool haveFrame_ = false;
-    bool peaking_ = false;
-    bool zebra_ = false;
-    bool loupe_ = false;
     uint32_t drawnSequence_ = 0;
     void* bus_ = nullptr;
     void* nv12_ = nullptr;
@@ -53,6 +53,7 @@ private:
     std::mutex busLock_;
     std::thread watch_;
     std::atomic<bool> stopWatch_{false};
+    std::atomic<bool> enabled_{true};
     HANDLE watchStop_ = nullptr;
 };
 

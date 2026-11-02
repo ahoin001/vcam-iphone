@@ -6,11 +6,7 @@ struct WhiteBalanceControl: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let selectedPreset {
-                StudioReadout(title: .whiteBalance, value: title(selectedPreset))
-            } else {
-                StudioReadout(title: .whiteBalance, value: kelvinReadout)
-            }
+            StudioReadout(title: .whiteBalance, value: readout)
             if !session.customWhiteBalanceSupported {
                 Text(.whiteBalanceUnavailable)
                     .font(.caption)
@@ -42,6 +38,47 @@ struct WhiteBalanceControl: View {
                 }
             }
             .scrollIndicators(.hidden)
+            if session.customWhiteBalanceSupported {
+                if session.settings.manualWhiteBalance {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(.kelvin)
+                            Spacer(minLength: 8)
+                            Text(kelvinReadout)
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.yellow)
+                        }
+                        .font(.subheadline)
+                        Slider(value: StudioBindings.setting(\.kelvin, on: session), in: 2500...8000)
+                            .tint(.yellow)
+                            .onChange(of: session.settings.kelvin) {
+                                session.applyControls()
+                            }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(.tint)
+                            Spacer(minLength: 8)
+                            Text(tintReadout)
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.yellow)
+                        }
+                        .font(.subheadline)
+                        Slider(value: StudioBindings.setting(\.tint, on: session), in: -150...150)
+                            .tint(.yellow)
+                            .onChange(of: session.settings.tint) {
+                                session.applyControls()
+                            }
+                    }
+                }
+                Button(.lockWhiteBalance) {
+                    Task { await session.lockCurrentWhiteBalance() }
+                }
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.yellow)
+                    .frame(minHeight: 44)
+            }
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.28, dampingFraction: 1), value: selectedPreset)
         .sensoryFeedback(.selection, trigger: selectedPreset)
@@ -49,11 +86,24 @@ struct WhiteBalanceControl: View {
 
     private var selectedPreset: WhiteBalancePreset? {
         guard session.settings.manualWhiteBalance else { return .auto }
+        guard abs(session.settings.tint) < 0.5 else { return nil }
         return WhiteBalancePreset.allCases.first { $0.kelvin == session.settings.kelvin }
+    }
+
+    private var readout: String {
+        if let selectedPreset {
+            String(localized: title(selectedPreset))
+        } else {
+            kelvinReadout
+        }
     }
 
     private var kelvinReadout: String {
         session.settings.kelvin.formatted(.number.precision(.fractionLength(0))) + "K"
+    }
+
+    private var tintReadout: String {
+        session.settings.tint.formatted(.number.precision(.fractionLength(0)))
     }
 
     private func select(_ preset: WhiteBalancePreset) {

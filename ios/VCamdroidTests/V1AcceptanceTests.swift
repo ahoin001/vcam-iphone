@@ -20,7 +20,7 @@ import Testing
 
 @Test func controlJSONMatchesTheStudio() {
     let json = ControlState(settings: StudioSettings()).json()
-    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65,\"bitrateKbps\":4000,\"activeBitrateKbps\":4000}")
+    #expect(json == "{\"lens\":\"back\",\"zoom\":1,\"manualExposure\":false,\"exposureBias\":0,\"iso\":100,\"shutter\":0.0167,\"whiteBalance\":\"auto\",\"kelvin\":5200,\"tint\":0,\"manualFocus\":false,\"focus\":1,\"torch\":false,\"flip\":false,\"portrait\":false,\"portraitStrength\":0.65,\"bitrateKbps\":4000,\"activeBitrateKbps\":4000}")
     #expect(ControlState(settings: StudioSettings()).json(success: true).hasPrefix("{\"success\":true,"))
 }
 
@@ -36,6 +36,8 @@ import Testing
     #expect(json.contains("\"lens\":\"front\""))
     #expect(json.contains("\"zoom\":2.5"))
     #expect(json.contains("\"whiteBalance\":\"cloudy\""))
+    #expect(json.contains("\"kelvin\":6000"))
+    #expect(json.contains("\"tint\":0"))
     #expect(json.contains("\"torch\":true"))
 }
 
@@ -82,6 +84,10 @@ import Testing
     #expect(settings.sanitized().portraitStrength == 1)
     settings.portraitStrength = -2
     #expect(settings.sanitized().portraitStrength == 0)
+    settings.tint = 400
+    #expect(settings.sanitized().tint == 150)
+    settings.tint = -400
+    #expect(settings.sanitized().tint == -150)
 }
 
 @Test func defaultsMatchTheSpec() {

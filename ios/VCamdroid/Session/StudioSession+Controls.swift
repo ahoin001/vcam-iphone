@@ -6,6 +6,7 @@ extension StudioSession {
         if let kelvin = preset.kelvin {
             next.manualWhiteBalance = true
             next.kelvin = kelvin
+            next.tint = 0
         } else {
             next.manualWhiteBalance = false
         }

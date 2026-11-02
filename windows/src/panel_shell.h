@@ -111,9 +111,6 @@ svg {
 .btn.link:hover { background: transparent; color: var(--accent-hover); }
 .btn.link:active { transform: none; }
 .actions { display: flex; align-items: center; gap: 8px; flex: none; }
-.monitors { display: flex; gap: 6px; }
-.monitors[hidden] { display: none; }
-.monitors .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
 .obs {
   height: 34px; display: flex; align-items: center; gap: 8px;
   padding: 0 3px 0 12px; border-radius: 999px;
@@ -138,8 +135,9 @@ svg {
 .btn.wide { width: 100%; height: 44px; font-size: 14px; }
 .btn:disabled, .btn.primary:disabled { opacity: 0.45; cursor: default; transform: none; background: var(--accent); }
 .btn:not(.primary):disabled { background: var(--hover); }
-.setup .badge { width: 7px; height: 7px; border-radius: 50%; background: var(--live); }
-.setup[data-alert="true"] .badge { background: var(--warn); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
+.alert-pip { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.btn[data-alert="true"] .alert-pip { display: block; }
 .icon-btn {
   width: 34px; height: 34px; display: grid; place-items: center;
   border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer;
@@ -332,14 +330,9 @@ inline constexpr char kBody[] = R"SHELL(</style></head>
       <span class="obs-address" id="obs-address">127.0.0.1:4747</span>
       <button class="btn small" id="copy" type="button">Copy</button>
     </div>
-    <div class="monitors" id="monitors" hidden>
-      <button class="btn small" id="peak" type="button" aria-pressed="false">Peaking</button>
-      <button class="btn small" id="zebra" type="button" aria-pressed="false">Zebra</button>
-      <button class="btn small" id="loupe" type="button" aria-pressed="false" title="Show the center at full size">1:1</button>
-    </div>
-    <button class="btn" id="heat-open" type="button">Heat</button>
+    <button class="btn" id="preview" type="button" hidden aria-pressed="true" title="Other apps keep the picture">Preview</button>
     <button class="btn" id="guide-open" type="button">Guide</button>
-    <button class="btn setup" id="setup" type="button" hidden><span class="badge" aria-hidden="true"></span>Setup</button>
+    <button class="btn" id="setup" type="button" hidden><span class="alert-pip" aria-hidden="true"></span>Setup</button>
     <button class="icon-btn" id="pin" type="button" aria-pressed="true" aria-label="Keep window on top" title="Keep window on top">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h6"/><path d="M10 3.5V9l-3 4h10l-3-4V3.5"/><path d="M12 13v7.5"/></svg>
     </button>
@@ -626,10 +619,8 @@ inline constexpr char kScript[] = R"SHELL(<script>
     $("obs-address").textContent = state.obs || "";
     $("pin").setAttribute("aria-pressed", String(!!state.onTop));
     $("disconnect").hidden = !connected;
-    $("monitors").hidden = !connected;
-    $("peak").setAttribute("aria-pressed", String(!!state.peaking));
-    $("zebra").setAttribute("aria-pressed", String(!!state.zebra));
-    $("loupe").setAttribute("aria-pressed", String(!!state.loupe));
+    $("preview").hidden = !connected;
+    $("preview").setAttribute("aria-pressed", String(state.preview !== false));
     if (document.activeElement !== $("obs-password") && state.obsPassword !== undefined) {
       $("obs-password").value = state.obsPassword || "";
     }
@@ -717,6 +708,9 @@ inline constexpr char kScript[] = R"SHELL(<script>
   $("pin").addEventListener("click", () => {
     post({ type: "onTop", value: $("pin").getAttribute("aria-pressed") !== "true" });
   });
+  $("preview").addEventListener("click", () => {
+    post({ type: "preview", value: $("preview").getAttribute("aria-pressed") !== "true" });
+  });
   $("disconnect").addEventListener("click", () => post({ type: "disconnect" }));
   $("reconnect").addEventListener("click", () => post({ type: "reconnect" }));
   $("tips-toggle").addEventListener("click", () => post({ type: "tips", open: $("tips").hidden }));
@@ -756,14 +750,6 @@ inline constexpr char kScript[] = R"SHELL(<script>
     svg.innerHTML = '<circle class="dial" cx="32" cy="32" r="27"/>' + beams + lamps
       + '<rect class="cam" x="28" y="2.5" width="8" height="5" rx="1.5"/><circle class="you" cx="32" cy="32" r="5"/>';
   });
-  function monitor(id, tool) {
-    $(id).addEventListener("click", () => {
-      post({ type: "monitor", tool, value: $(id).getAttribute("aria-pressed") !== "true" });
-    });
-  }
-  monitor("peak", "peaking");
-  monitor("zebra", "zebra");
-  monitor("loupe", "loupe");
   $("obs-password").addEventListener("change", () => {
     post({ type: "obsPassword", value: $("obs-password").value });
   });
@@ -775,10 +761,6 @@ inline constexpr char kScript[] = R"SHELL(<script>
   }
   $("guide-open").addEventListener("click", () => {
     showGuideTab("light");
-    post({ type: "guide", open: true });
-  });
-  $("heat-open").addEventListener("click", () => {
-    showGuideTab("heat");
     post({ type: "guide", open: true });
   });
   $("guide-done").addEventListener("click", () => post({ type: "guide", open: false }));

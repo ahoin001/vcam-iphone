@@ -248,9 +248,7 @@ int g_sessionMisses = 0;
 std::wstring g_address;
 std::wstring g_obsPassword;
 std::wstring g_obsAddress = L"127.0.0.1:4747";
-bool g_peaking = false;
-bool g_zebra = false;
-bool g_loupe = false;
+bool g_previewOn = true;
 StatusView g_status;
 double g_sideRatio = kDefaultSideRatio;
 double g_stackRatio = kDefaultStackRatio;
@@ -964,9 +962,7 @@ std::string BuildState() {
     AppendJsonString(json, g_obsAddress);
     json += ",\"obsPassword\":";
     AppendJsonString(json, g_obsPassword);
-    AppendJsonBool(json, "peaking", g_peaking);
-    AppendJsonBool(json, "zebra", g_zebra);
-    AppendJsonBool(json, "loupe", g_loupe);
+    AppendJsonBool(json, "preview", g_previewOn);
 
     json += ",\"status\":{\"tone\":\"";
     json += ToneName(g_status.tone);
@@ -1179,6 +1175,27 @@ void Layout() {
         hide(g_deskHost);
         if (g_deskController) {
             g_deskController->put_IsVisible(FALSE);
+        }
+        return;
+    }
+
+    auto hide = [](HWND pane) {
+        if (pane == nullptr) {
+            return;
+        }
+        ShowWindow(pane, SW_HIDE);
+        MoveWindow(pane, 0, 0, 0, 0, FALSE);
+    };
+    if (!g_previewOn) {
+        hide(g_preview);
+        hide(g_splitter);
+        if (g_deskHost) {
+            PlacePane(g_deskHost, content);
+            if (g_deskController) {
+                const RECT inside{0, 0, content.right - content.left, content.bottom - content.top};
+                g_deskController->put_Bounds(inside);
+                g_deskController->put_IsVisible(TRUE);
+            }
         }
         return;
     }
@@ -2044,6 +2061,14 @@ void SetOnTop(bool onTop) {
     PushState();
 }
 
+void SetPreview(bool on) {
+    g_previewOn = on;
+    g_previewSurface.SetEnabled(on);
+    SaveSetting(L"panel-preview.txt", on ? L"1" : L"0");
+    Layout();
+    PushState();
+}
+
 void SetSheet(bool open) {
     g_sheetOpen = open;
     if (open) {
@@ -2115,18 +2140,8 @@ void HandleShellMessage(const std::string& json) {
             StartObsTally(g_connectedHost, g_connectedPort, g_obsPassword);
         }
         PushState();
-    } else if (type == "monitor") {
-        const std::string tool = JsonString(json, "tool");
-        const bool on = JsonBool(json, "value");
-        if (tool == "peaking") {
-            g_peaking = on;
-        } else if (tool == "zebra") {
-            g_zebra = on;
-        } else if (tool == "loupe") {
-            g_loupe = on;
-        }
-        g_previewSurface.SetChecks(g_peaking, g_zebra, g_loupe);
-        PushState();
+    } else if (type == "preview") {
+        SetPreview(JsonBool(json, "value"));
     } else if (type == "tips") {
         SetTipsOpen(JsonBool(json, "open"));
     } else if (type == "tipAction") {
@@ -2537,6 +2552,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_CREATE: {
         const auto* created = reinterpret_cast<CREATESTRUCTW*>(lparam);
         g_preview = g_previewSurface.Create(window);
+        g_previewSurface.SetEnabled(g_previewOn);
         g_splitter = CreateSplitter(window, created->hInstance);
         g_deskHost = CreateDeskHost(window, created->hInstance);
         return 0;
@@ -2660,6 +2676,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int show) 
     g_address = LoadSetting(L"panel-address.txt");
     g_obsPassword = LoadSetting(L"panel-obs-password.txt");
     g_onTop = LoadSetting(L"panel-on-top.txt") != L"0";
+    g_previewOn = LoadSetting(L"panel-preview.txt") != L"0";
     LoadDeskRatio();
     g_deskLayout = LoadSetting(L"desk-layout.json");
     if (!ValidDeskLayout(g_deskLayout)) {

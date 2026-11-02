@@ -19,6 +19,7 @@ struct StudioSettings: Equatable, Sendable {
     var shutterSeconds: Double = 1.0 / 60.0
     var manualWhiteBalance: Bool = false
     var kelvin: Double = 5200
+    var tint: Double = 0
     var manualFocus: Bool = false
     var lensPosition: Double = 1
     var flip180: Bool = false
@@ -50,6 +51,7 @@ struct StudioSettings: Equatable, Sendable {
         copy.iso = min(max(copy.iso, 50), 6400)
         copy.shutterSeconds = min(max(copy.shutterSeconds, 1.0 / 10000), 0.5)
         copy.kelvin = min(max(copy.kelvin, 2000), 10000)
+        copy.tint = min(max(copy.tint, -150), 150)
         copy.lensPosition = min(max(copy.lensPosition, 0), 1)
         copy.portraitStrength = min(max(copy.portraitStrength, 0), 1)
         return copy
@@ -60,7 +62,7 @@ extension StudioSettings: Codable {
     private enum CodingKeys: String, CodingKey {
         case width, height, fps, bitrateKbps, keyframeInterval, port, curtainMode, confirmStop, showTally
         case discoveryEnabled, allowsHighFrameRate, explainedLocalNetwork, lens, zoom, exposureBias
-        case manualExposure, iso, shutterSeconds, manualWhiteBalance, kelvin, manualFocus, lensPosition
+        case manualExposure, iso, shutterSeconds, manualWhiteBalance, kelvin, tint, manualFocus, lensPosition
         case flip180, torch, portraitEnabled, portraitStrength, portraitPhonePreview, onboardingCompleted
     }
 
@@ -87,6 +89,7 @@ extension StudioSettings: Codable {
         shutterSeconds = try container.decodeIfPresent(Double.self, forKey: .shutterSeconds) ?? shutterSeconds
         manualWhiteBalance = try container.decodeIfPresent(Bool.self, forKey: .manualWhiteBalance) ?? manualWhiteBalance
         kelvin = try container.decodeIfPresent(Double.self, forKey: .kelvin) ?? kelvin
+        tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? tint
         manualFocus = try container.decodeIfPresent(Bool.self, forKey: .manualFocus) ?? manualFocus
         lensPosition = try container.decodeIfPresent(Double.self, forKey: .lensPosition) ?? lensPosition
         flip180 = try container.decodeIfPresent(Bool.self, forKey: .flip180) ?? flip180
@@ -119,6 +122,7 @@ extension StudioSettings: Codable {
         try container.encode(shutterSeconds, forKey: .shutterSeconds)
         try container.encode(manualWhiteBalance, forKey: .manualWhiteBalance)
         try container.encode(kelvin, forKey: .kelvin)
+        try container.encode(tint, forKey: .tint)
         try container.encode(manualFocus, forKey: .manualFocus)
         try container.encode(lensPosition, forKey: .lensPosition)
         try container.encode(flip180, forKey: .flip180)

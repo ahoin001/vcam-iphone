@@ -211,21 +211,35 @@ final class CaptureCore: @unchecked Sendable {
         }
     }
 
+    func currentWhiteBalance() -> WhiteBalanceSample? {
+        guard let device = activeDevice(), device.isLockingWhiteBalanceWithCustomDeviceGainsSupported else { return nil }
+        let gains = device.deviceWhiteBalanceGains
+        let maximum = device.maxWhiteBalanceGain
+        guard [gains.redGain, gains.greenGain, gains.blueGain].allSatisfy({ $0 >= 1 && $0 <= maximum }) else { return nil }
+        let values = device.temperatureAndTintValues(for: gains)
+        return WhiteBalanceSample(kelvin: Double(values.temperature), tint: Double(values.tint))
+    }
+
     private func applyWhiteBalance(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {
-        if configuration.manualWhiteBalance, canLockWhiteBalance(device, kelvin: configuration.kelvin) {
-            let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(configuration.kelvin), tint: 0)
-            device.setWhiteBalanceModeLocked(whiteBalanceTemperatureAndTintValues: temperature, handler: nil)
+        if configuration.manualWhiteBalance, device.isWhiteBalanceModeSupported(.locked),
+           device.isLockingWhiteBalanceWithCustomDeviceGainsSupported {
+            let requested = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(
+                temperature: Float(configuration.kelvin),
+                tint: Float(configuration.tint)
+            )
+            let gains = clampedGains(device.deviceWhiteBalanceGains(for: requested), maximum: device.maxWhiteBalanceGain)
+            device.setWhiteBalanceModeLocked(with: gains, completionHandler: nil)
         } else if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
             device.whiteBalanceMode = .continuousAutoWhiteBalance
         }
     }
 
-    private func canLockWhiteBalance(_ device: AVCaptureDevice, kelvin: Double) -> Bool {
-        guard device.isWhiteBalanceModeSupported(.locked), device.isLockingWhiteBalanceWithCustomDeviceGainsSupported else { return false }
-        let temperature = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(temperature: Float(kelvin), tint: 0)
-        let gains = device.deviceWhiteBalanceGains(for: temperature)
-        let maximum = device.maxWhiteBalanceGain
-        return [gains.redGain, gains.greenGain, gains.blueGain].allSatisfy { $0 >= 1 && $0 <= maximum }
+    private func clampedGains(_ gains: AVCaptureDevice.WhiteBalanceGains, maximum: Float) -> AVCaptureDevice.WhiteBalanceGains {
+        var next = gains
+        next.redGain = min(max(next.redGain, 1), maximum)
+        next.greenGain = min(max(next.greenGain, 1), maximum)
+        next.blueGain = min(max(next.blueGain, 1), maximum)
+        return next
     }
 
     private func applyFocus(_ configuration: CaptureConfiguration, on device: AVCaptureDevice) {

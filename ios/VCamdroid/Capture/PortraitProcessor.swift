@@ -5,6 +5,7 @@ import Vision
 
 final class PortraitProcessor: @unchecked Sendable {
     private let lock = NSLock()
+    private let work = DispatchQueue(label: "com.darusc.vcamdroid.portrait")
     private var command = PortraitCommand.off
     private let request = VNGeneratePersonSegmentationRequest()
     private let scratch = Scratch()
@@ -15,7 +16,9 @@ final class PortraitProcessor: @unchecked Sendable {
     private var maskHeight = 0
     private var hasPreviousMask = false
     private var frameIndex = 0
-    private var busy = false
+    private var pending: CVPixelBuffer?
+    private var lastOutput: CVPixelBuffer?
+    private var working = false
 
     init() {
         request.outputPixelFormat = kCVPixelFormatType_OneComponent8
@@ -26,8 +29,8 @@ final class PortraitProcessor: @unchecked Sendable {
         lock.lock()
         self.command = command
         if command.grade == .off {
-            hasPreviousMask = false
-            frameIndex = 0
+            pending = nil
+            lastOutput = nil
         }
         lock.unlock()
     }
@@ -35,24 +38,58 @@ final class PortraitProcessor: @unchecked Sendable {
     func process(_ source: CVPixelBuffer) -> CVPixelBuffer {
         lock.lock()
         let command = command
-        let wasBusy = busy
-        if command.grade == .balanced || command.grade == .fast, command.strength > 0.01, !wasBusy {
-            busy = true
+        guard command.grade == .balanced || command.grade == .fast, command.strength > 0.01 else {
+            pending = nil
+            lastOutput = nil
+            lock.unlock()
+            return source
+        }
+        pending = source
+        let ready = lastOutput
+        if !working {
+            working = true
+            work.async { [self] in
+                drain()
+            }
         }
         lock.unlock()
+        return ready ?? source
+    }
 
-        guard command.grade == .balanced || command.grade == .fast, command.strength > 0.01 else {
-            return source
-        }
-        if wasBusy {
-            return source
-        }
-        defer {
+    private func drain() {
+        while true {
             lock.lock()
-            busy = false
+            let command = command
+            let source = pending
+            pending = nil
+            let active = (command.grade == .balanced || command.grade == .fast) && command.strength > 0.01
+            if source == nil || !active {
+                if !active {
+                    lastOutput = nil
+                    hasPreviousMask = false
+                    frameIndex = 0
+                }
+                working = false
+                lock.unlock()
+                return
+            }
+            lock.unlock()
+            let processed = render(source!, command: command)
+            lock.lock()
+            let stillOn = (self.command.grade == .balanced || self.command.grade == .fast) && self.command.strength > 0.01
+            if stillOn, processed !== source {
+                lastOutput = processed
+            }
+            if pending == nil {
+                working = false
+                lock.unlock()
+                return
+            }
             lock.unlock()
         }
+    }
 
+    private func render(_ source: CVPixelBuffer, command: PortraitCommand) -> CVPixelBuffer {
         guard CVPixelBufferGetPixelFormatType(source) == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange else {
             return source
         }

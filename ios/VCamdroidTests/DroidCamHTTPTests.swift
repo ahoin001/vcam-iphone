@@ -116,6 +116,14 @@ func parsesControlRoutes(_ line: String) {
     )))
 }
 
+@Test func controlUpdateReadsKelvinAndTint() {
+    let request = DroidCamHTTP.parse(
+        firstLine: "PUT /v1/controls?kelvin=4500&tint=-20&lockWhiteBalance=1 HTTP/1.1",
+        fallback: VideoMode(width: 1920, height: 1080, fps: 30)
+    )
+    #expect(request == .applyControls(ControlUpdate(kelvin: 4500, tint: -20, lockWhiteBalance: true)))
+}
+
 @Test func controlUpdateReadsBitrate() {
     let request = DroidCamHTTP.parse(
         firstLine: "PUT /v1/controls?bitrateKbps=6000 HTTP/1.1",

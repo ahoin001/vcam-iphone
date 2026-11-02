@@ -22,6 +22,9 @@ struct ControlUpdate: Equatable, Sendable {
     var iso: Double?
     var shutter: Double?
     var whiteBalance: WhiteBalancePreset?
+    var kelvin: Double?
+    var tint: Double?
+    var lockWhiteBalance: Bool?
     var manualFocus: Bool?
     var focus: Double?
     var torch: Bool?
@@ -39,6 +42,8 @@ struct ControlState: Equatable, Sendable {
     var iso: Double
     var shutter: Double
     var whiteBalance: WhiteBalancePreset
+    var kelvin: Double
+    var tint: Double
     var manualFocus: Bool
     var focus: Double
     var torch: Bool
@@ -56,6 +61,8 @@ struct ControlState: Equatable, Sendable {
         iso = settings.iso
         shutter = settings.shutterSeconds
         whiteBalance = Self.preset(for: settings)
+        kelvin = settings.kelvin
+        tint = settings.tint
         manualFocus = settings.manualFocus
         focus = settings.lensPosition
         torch = settings.torch
@@ -78,6 +85,8 @@ struct ControlState: Equatable, Sendable {
         fields.append("\"iso\":\(Self.number(iso))")
         fields.append("\"shutter\":\(Self.number(shutter))")
         fields.append("\"whiteBalance\":\"\(whiteBalance.rawValue)\"")
+        fields.append("\"kelvin\":\(Self.number(kelvin))")
+        fields.append("\"tint\":\(Self.number(tint))")
         fields.append("\"manualFocus\":\(manualFocus ? "true" : "false")")
         fields.append("\"focus\":\(Self.number(focus))")
         fields.append("\"torch\":\(torch ? "true" : "false")")

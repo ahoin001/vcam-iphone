@@ -167,6 +167,15 @@ enum DroidCamHTTP {
         if let value = query["whitebalance"] ?? query["wb"] {
             update.whiteBalance = WhiteBalancePreset(rawValue: value.lowercased())
         }
+        if let value = query["kelvin"], let number = finite(value) {
+            update.kelvin = number
+        }
+        if let value = query["tint"], let number = finite(value) {
+            update.tint = number
+        }
+        if let value = query["lockwhitebalance"], let flag = flag(value) {
+            update.lockWhiteBalance = flag
+        }
         if let value = query["manualfocus"], let flag = flag(value) {
             update.manualFocus = flag
         }

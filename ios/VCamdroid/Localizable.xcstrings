@@ -620,6 +620,28 @@
         }
       }
     },
+    "kelvin" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kelvin"
+          }
+        }
+      }
+    },
+    "lockWhiteBalance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lock current"
+          }
+        }
+      }
+    },
     "localNetworkBody" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1254,6 +1276,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This camera cannot lock color, so it stays on Auto."
+          }
+        }
+      }
+    },
+    "tint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tint"
           }
         }
       }

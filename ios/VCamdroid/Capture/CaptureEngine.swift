@@ -56,6 +56,11 @@ actor CaptureEngine {
         return (try? await core.perform { core.controlLimits() }) ?? .unknown
     }
 
+    func currentWhiteBalance() async -> WhiteBalanceSample? {
+        let core = core
+        return try? await core.perform { core.currentWhiteBalance() }
+    }
+
     func focus(at devicePoint: CGPoint) async {
         let core = core
         try? await core.perform {

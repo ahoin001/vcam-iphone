@@ -1,6 +1,11 @@
 import CoreMedia
 import Foundation
 
+struct WhiteBalanceSample: Equatable, Sendable {
+    var kelvin: Double
+    var tint: Double
+}
+
 struct CaptureConfiguration: Equatable, Sendable {
     var lens: Lens
     var width: Int
@@ -14,6 +19,7 @@ struct CaptureConfiguration: Equatable, Sendable {
     var shutterSeconds: Double
     var manualWhiteBalance: Bool
     var kelvin: Double
+    var tint: Double
     var manualFocus: Bool
     var lensPosition: Double
     var rotationAngle: CGFloat
@@ -31,6 +37,7 @@ struct CaptureConfiguration: Equatable, Sendable {
         shutterSeconds = settings.shutterSeconds
         manualWhiteBalance = settings.manualWhiteBalance
         kelvin = settings.kelvin
+        tint = settings.tint
         manualFocus = settings.manualFocus
         lensPosition = settings.lensPosition
         self.rotationAngle = rotationAngle

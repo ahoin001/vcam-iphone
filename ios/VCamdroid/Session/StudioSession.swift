@@ -477,6 +477,16 @@ final class StudioSession {
         return presetListJSON()
     }
 
+    func lockCurrentWhiteBalance() async {
+        guard customWhiteBalanceSupported, let sample = await capture.currentWhiteBalance() else { return }
+        var next = settings
+        next.manualWhiteBalance = true
+        next.kelvin = sample.kelvin
+        next.tint = sample.tint
+        settings = next.sanitized()
+        applyControls()
+    }
+
     func apply(controls update: ControlUpdate) -> Bool {
         var next = settings
         if let lens = update.lens {
@@ -501,9 +511,21 @@ final class StudioSession {
             if let kelvin = whiteBalance.kelvin {
                 next.manualWhiteBalance = true
                 next.kelvin = kelvin
+                next.tint = 0
             } else {
                 next.manualWhiteBalance = false
             }
+        }
+        if let kelvin = update.kelvin {
+            next.manualWhiteBalance = true
+            next.kelvin = kelvin
+        }
+        if let tint = update.tint {
+            next.manualWhiteBalance = true
+            next.tint = tint
+        }
+        if update.lockWhiteBalance == true {
+            Task { await lockCurrentWhiteBalance() }
         }
         if let manualFocus = update.manualFocus {
             next.manualFocus = manualFocus

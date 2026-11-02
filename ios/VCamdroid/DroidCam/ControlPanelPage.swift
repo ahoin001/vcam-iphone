@@ -493,6 +493,17 @@ enum ControlPanelPage {
               <button type="button" data-value="fluorescent">Fluorescent</button>
               <button type="button" data-value="incandescent">Incandescent</button>
             </div>
+            <div id="wb-manual" hidden>
+              <label class="slider">
+                <span>Kelvin <strong id="kelvin-value">5200K</strong></span>
+                <input id="kelvin" type="range" min="2500" max="8000" step="50" value="5200">
+              </label>
+              <label class="slider">
+                <span>Tint <strong id="tint-value">0</strong></span>
+                <input id="tint" type="range" min="-150" max="150" step="1" value="0">
+              </label>
+            </div>
+            <button type="button" id="lock-wb">Lock current</button>
           </div>
         </details>
         <details class="folder" data-key="focus">
@@ -675,7 +686,7 @@ enum ControlPanelPage {
       const intents = new Map();
       const intentMs = 2500;
       const controlKeys = ["lens", "zoom", "manualExposure", "exposureBias", "iso", "shutter", "whiteBalance",
-        "manualFocus", "focus", "torch", "flip", "portrait", "portraitStrength", "bitrateKbps", "activeBitrateKbps"];
+        "kelvin", "tint", "manualFocus", "focus", "torch", "flip", "portrait", "portraitStrength", "bitrateKbps", "activeBitrateKbps"];
       const sessionKeys = ["mode", "panelClient"];
       let epoch = 0;
       let timer = 0;
@@ -691,6 +702,8 @@ enum ControlPanelPage {
       const focus = document.getElementById("focus");
       const portraitStrength = document.getElementById("portrait-strength");
       const bitrate = document.getElementById("bitrate");
+      const kelvin = document.getElementById("kelvin");
+      const tint = document.getElementById("tint");
       const stage = document.getElementById("stage");
       const previewImage = document.getElementById("preview-image");
       const showPreview = document.getElementById("show-preview");
@@ -847,6 +860,8 @@ enum ControlPanelPage {
       bindRange(focus, "focus", "focus-value", (value) => Number(value).toFixed(2));
       bindRange(portraitStrength, "portraitStrength", "portrait-value", (value) => Math.round(Number(value) * 100) + "%");
       bindRange(bitrate, "bitrateKbps", "bitrate-saved", (value) => Math.round(Number(value)) + " kbps");
+      bindRange(kelvin, "kelvin", "kelvin-value", (value) => Math.round(Number(value)) + "K");
+      bindRange(tint, "tint", "tint-value", (value) => String(Math.round(Number(value))));
 
       function bindChoice(group, key) {
         group.addEventListener("click", (event) => {
@@ -860,6 +875,10 @@ enum ControlPanelPage {
       }
       bindChoice(document.getElementById("lens"), "lens");
       bindChoice(document.getElementById("wb"), "whiteBalance");
+      document.getElementById("lock-wb").addEventListener("click", () => {
+        queue("lockWhiteBalance", "1");
+        flush();
+      });
 
       document.getElementById("zoom-stops").addEventListener("click", (event) => {
         const button = event.target.closest("button");
@@ -936,7 +955,14 @@ enum ControlPanelPage {
 
       function render() {
         markButtons(document.getElementById("lens"), (button) => button.dataset.value === desired("lens"));
-        markButtons(document.getElementById("wb"), (button) => button.dataset.value === desired("whiteBalance"));
+        markButtons(document.getElementById("wb"), (button) => {
+          if (desired("whiteBalance") === "auto") return button.dataset.value === "auto";
+          if (button.dataset.value === "auto") return false;
+          const map = { daylight: 5200, cloudy: 6000, fluorescent: 4000, incandescent: 3200 };
+          const kelvinValue = Number(desired("kelvin"));
+          const tintValue = Number(desired("tint") || 0);
+          return Math.abs(tintValue) < 1 && Math.abs(kelvinValue - (map[button.dataset.value] || 0)) < 25;
+        });
         setRange(zoom, "zoom");
         const zoomValue = desired("zoom");
         markButtons(document.getElementById("zoom-stops"),
@@ -946,6 +972,8 @@ enum ControlPanelPage {
         setRange(shutter, "shutter");
         setRange(focus, "focus");
         setRange(portraitStrength, "portraitStrength");
+        setRange(kelvin, "kelvin");
+        setRange(tint, "tint");
         setFlag("torch", "torch");
         setFlag("flip", "flip");
         setFlag("manual-exposure", "manualExposure");
@@ -983,6 +1011,8 @@ enum ControlPanelPage {
         const portraitOn = document.getElementById("portrait").checked;
         document.getElementById("portrait-row").hidden = !portraitOn;
         document.getElementById("portrait-on-hint").hidden = !portraitOn;
+        const wbAuto = desired("whiteBalance") === "auto";
+        document.getElementById("wb-manual").hidden = wbAuto;
         updateShutterWarn();
         updateSummaries();
       }
@@ -1004,7 +1034,8 @@ enum ControlPanelPage {
           ? "ISO " + document.getElementById("iso-value").textContent + " · " + document.getElementById("shutter-value").textContent
           : "Auto · EV " + document.getElementById("ev-value").textContent);
         const wb = document.querySelector("#wb button.on");
-        text("wb-sum", wb ? (wbNames[wb.dataset.value] || wb.textContent) : "Auto");
+        const kelvinLabel = document.getElementById("kelvin-value").textContent;
+        text("wb-sum", wb ? (wbNames[wb.dataset.value] || wb.textContent) : kelvinLabel);
         const focusManual = document.getElementById("manual-focus").checked;
         text("focus-sum", focusManual ? document.getElementById("focus-value").textContent : "Auto");
         const portraitOn = document.getElementById("portrait").checked;
@@ -1201,7 +1232,7 @@ enum ControlPanelPage {
       const advice = {
         lens: ["Lens", "Use the back camera for a talking head and the front camera when you need to face the screen. Digital zoom past 2× softens detail, so frame with 1× or 2× when you can. Flip if the phone is upside down on a mount. Torch is only for a dark corner: it is harsh and it drains the battery."],
         exposure: ["ISO and shutter", "These two brighten the same picture in different ways. Shutter decides motion: at 30 fps lock 1/60, which is double the frame rate. Faster looks stuttery. Slower smears movement. ISO decides grain: start near 100 and raise it only if the face is still dark. Do not slow the shutter to avoid a higher ISO. Auto plus EV is enough when the room light changes."],
-        whiteBalance: ["White balance", "Lock this to the key light. Daylight (5200K) for a window or neutral LEDs. Incandescent (3200K) for warm lamps. Fluorescent (4000K) for office tubes. Auto hunts when a monitor or a second color of light enters the frame. If skin goes orange, the lock is warmer than the lamp. If it goes blue, the lock is cooler."],
+        whiteBalance: ["White balance", "Lock this to the key light. Daylight (5200K) for a window or neutral LEDs. Incandescent (3200K) for warm lamps. Fluorescent (4000K) for office tubes. Kelvin and tint fine-tune after a preset. Lock current freezes Auto as it is now, like a gray card. Auto hunts when a monitor or a second color of light enters the frame. If skin goes orange, the lock is warmer than the lamp. If it goes blue, the lock is cooler."],
         focus: ["Focus", "Auto is right when you lean toward the camera. Manual is right once you are sitting still, so the phone does not hunt the background. Near is closer to the lens. Set it, then leave it."],
         portrait: ["Portrait", "Leave Portrait off if NVIDIA Broadcast or OBS is already cutting the background. The phone blur is lighter, it warms the phone, and stacking it with a PC cut makes the edges double. Use it only when you do not have those PC tools."],
         stream: ["Stream", "While VCamPanel is the video client, the picture stays 1080p30 at the Wi-Fi or USB rate. The bitrate slider saves a rate for the optional OBS source. Streams can stay near 4 Mbps. A recording can use 6–8. Moving the slider does not change the VCamdroid picture."],
