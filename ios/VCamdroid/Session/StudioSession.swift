@@ -737,10 +737,6 @@ final class StudioSession {
         isUSBClient = usb && address != nil
     }
 
-    func markLocalNetworkExplained() {
-        settings.explainedLocalNetwork = true
-    }
-
     private func pauseForBackground() async {
         await server.dropVideo()
         encoderActive = false

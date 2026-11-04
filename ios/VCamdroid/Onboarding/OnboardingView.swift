@@ -89,7 +89,6 @@ struct OnboardingView: View {
     private func finish() {
         Task {
             _ = await AVCaptureDevice.requestAccess(for: .video)
-            session.markLocalNetworkExplained()
             session.settings.onboardingCompleted = true
         }
     }

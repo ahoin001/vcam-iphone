@@ -22,9 +22,4 @@ enum StudioBindings {
     static func framesPerSecond(on session: StudioSession) -> Binding<Int> {
         Binding(get: { session.framesPerSecond }, set: { session.framesPerSecond = $0 })
     }
-
-    @MainActor
-    static func bitrate(on session: StudioSession) -> Binding<Double> {
-        Binding(get: { session.bitrate }, set: { session.bitrate = $0 })
-    }
 }

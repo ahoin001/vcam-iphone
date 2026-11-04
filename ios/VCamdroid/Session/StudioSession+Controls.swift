@@ -43,9 +43,4 @@ extension StudioSession {
         get { settings.fps }
         set { updateFrameRate(newValue) }
     }
-
-    var bitrate: Double {
-        get { Double(settings.bitrateKbps) }
-        set { setBitrate(Int(newValue.rounded())) }
-    }
 }

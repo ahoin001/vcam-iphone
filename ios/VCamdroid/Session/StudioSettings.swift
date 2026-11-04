@@ -10,7 +10,6 @@ struct StudioSettings: Equatable, Sendable {
     var showTally: Bool = true
     var discoveryEnabled: Bool = true
     var allowsHighFrameRate: Bool = false
-    var explainedLocalNetwork: Bool = false
     var lens: Lens = .back
     var zoom: Double = 1
     var exposureBias: Double = 0
@@ -75,7 +74,7 @@ struct StudioSettings: Equatable, Sendable {
 extension StudioSettings: Codable {
     private enum CodingKeys: String, CodingKey {
         case width, height, fps, bitrateKbps, keyframeInterval, port, curtainMode, confirmStop, showTally
-        case discoveryEnabled, allowsHighFrameRate, explainedLocalNetwork, lens, zoom, exposureBias
+        case discoveryEnabled, allowsHighFrameRate, lens, zoom, exposureBias
         case manualExposure, iso, shutterSeconds, manualWhiteBalance, kelvin, tint, manualFocus, lensPosition
         case flip180, torch, portraitEnabled, portraitStrength, portraitPhonePreview, onboardingCompleted
     }
@@ -94,7 +93,6 @@ extension StudioSettings: Codable {
         showTally = try container.decodeIfPresent(Bool.self, forKey: .showTally) ?? showTally
         discoveryEnabled = try container.decodeIfPresent(Bool.self, forKey: .discoveryEnabled) ?? discoveryEnabled
         allowsHighFrameRate = try container.decodeIfPresent(Bool.self, forKey: .allowsHighFrameRate) ?? allowsHighFrameRate
-        explainedLocalNetwork = try container.decodeIfPresent(Bool.self, forKey: .explainedLocalNetwork) ?? explainedLocalNetwork
         lens = try container.decodeIfPresent(Lens.self, forKey: .lens) ?? lens
         zoom = try container.decodeIfPresent(Double.self, forKey: .zoom) ?? zoom
         exposureBias = try container.decodeIfPresent(Double.self, forKey: .exposureBias) ?? exposureBias
@@ -127,7 +125,6 @@ extension StudioSettings: Codable {
         try container.encode(showTally, forKey: .showTally)
         try container.encode(discoveryEnabled, forKey: .discoveryEnabled)
         try container.encode(allowsHighFrameRate, forKey: .allowsHighFrameRate)
-        try container.encode(explainedLocalNetwork, forKey: .explainedLocalNetwork)
         try container.encode(lens, forKey: .lens)
         try container.encode(zoom, forKey: .zoom)
         try container.encode(exposureBias, forKey: .exposureBias)
