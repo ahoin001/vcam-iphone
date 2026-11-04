@@ -1,0 +1,8 @@
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\panel_main.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\panel_main.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\usbmux.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\usbmux.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\mdns_browse.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\mdns_browse.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\camera\FrameBus.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\FrameBus.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\camera\H264Decoder.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\H264Decoder.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\camera\VideoClient.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\VideoClient.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\camera\VirtualCameraHost.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\VirtualCameraHost.obj
+C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\src\camera\Pipeline.cpp;C:\Users\ahoin\Desktop\vcam-iphone\VCamdroid-main\windows\VCamPanel\x64\Release\Pipeline.obj
