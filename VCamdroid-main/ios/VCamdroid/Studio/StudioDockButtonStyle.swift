@@ -5,8 +5,8 @@ struct StudioDockButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.96 : 1)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? StudioTheme.pressScale : 1)
             .opacity(reduceMotion && configuration.isPressed ? 0.6 : 1)
-            .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.14), value: configuration.isPressed)
+            .animation(StudioTheme.ease, value: configuration.isPressed)
     }
 }

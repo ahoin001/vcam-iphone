@@ -34,7 +34,7 @@ final class StudioSession {
     private var careTasks: [Task<Void, Never>] = []
     private var lastPortraitCommand = PortraitCommand.off
     private var encoderActive = false
-    private var panelStream = false
+    private(set) var panelStream = false
     private var activeBitrateKbps: Int
     private var pausedForBackground = false
     private var listenFailed = false
@@ -74,6 +74,7 @@ final class StudioSession {
 
     func start() async {
         guard !isRunning else { return }
+        settings.resetShot()
         persist()
         listenFailed = false
         snapshot.batteryPercent = BatteryPercent.current()
@@ -154,7 +155,12 @@ final class StudioSession {
         clientAddress = nil
         isUSBClient = false
         panelStream = false
+        snapshot.panel = false
+        snapshot.width = settings.width
+        snapshot.height = settings.height
+        snapshot.fps = settings.fps
         activeBitrateKbps = settings.bitrateKbps
+        persist()
         statusMessage = .waitingForOBS
     }
 
@@ -218,12 +224,11 @@ final class StudioSession {
     }
 
     func applyControls() {
-        persist()
         noteActivity()
         pushPortrait()
         guard isRunning else { return }
         Task {
-            try? await capture.update(CaptureConfiguration(settings: settings))
+            try? await capture.update(captureConfiguration())
         }
     }
 
@@ -255,6 +260,7 @@ final class StudioSession {
     func selectLens(_ lens: Lens) {
         settings.lens = lens
         snapshot.lens = lens
+        persist()
         applyControls()
     }
 
@@ -277,6 +283,7 @@ final class StudioSession {
         guard !panelStream else { return }
         settings.fps = fps
         snapshot.fps = fps
+        persist()
         applyControls()
         if encoderActive {
             Task { await restartEncoder() }
@@ -296,7 +303,7 @@ final class StudioSession {
                 snapshot.lens = lens
                 persist()
                 Task {
-                    try? await capture.update(CaptureConfiguration(settings: settings))
+                    try? await capture.update(captureConfiguration())
                 }
             }
             return true
@@ -316,7 +323,7 @@ final class StudioSession {
         snapshot.format = .avc
         persist()
         Task {
-            try? await capture.update(CaptureConfiguration(settings: settings))
+            try? await capture.update(captureConfiguration())
             if encoderActive {
                 await restartEncoder()
             }
@@ -379,6 +386,9 @@ final class StudioSession {
             activeBitrateKbps = settings.bitrateKbps
         }
         snapshot.lens = settings.lens
+        if update.lens != nil || update.portrait != nil || update.portraitStrength != nil || update.bitrateKbps != nil {
+            persist()
+        }
         applyControls()
         if restartBitrate, encoderActive {
             Task { await restartEncoder() }
@@ -393,7 +403,18 @@ final class StudioSession {
     private func currentSnapshot() -> SessionSnapshot {
         var copy = snapshot
         copy.batteryPercent = BatteryPercent.current()
+        copy.panel = panelStream
         return copy
+    }
+
+    private func captureConfiguration() -> CaptureConfiguration {
+        var live = settings
+        if panelStream {
+            live.width = snapshot.width
+            live.height = snapshot.height
+            live.fps = snapshot.fps
+        }
+        return CaptureConfiguration(settings: live)
     }
 
     private func catalog() -> ResolutionCatalog {
@@ -425,10 +446,9 @@ final class StudioSession {
         }
         panelStream = request.client == .panel
         adopt(quality)
-        persist()
         pushPortrait()
         do {
-            try await capture.update(CaptureConfiguration(settings: settings))
+            try await capture.update(captureConfiguration())
             try await encoder.start(quality, keyframeInterval: settings.keyframeInterval)
             encoderActive = true
             snapshot.isStreaming = true
@@ -453,6 +473,10 @@ final class StudioSession {
         await encoder.stop()
         snapshot.isStreaming = false
         snapshot.status = "waiting"
+        snapshot.panel = false
+        snapshot.width = settings.width
+        snapshot.height = settings.height
+        snapshot.fps = settings.fps
         statusMessage = .waitingForOBS
         appendLog(String(localized: .clientDisconnected))
     }
@@ -478,14 +502,12 @@ final class StudioSession {
     }
 
     private func adopt(_ quality: StreamQuality) {
-        settings.width = quality.width
-        settings.height = quality.height
-        settings.fps = quality.fps
         activeBitrateKbps = quality.bitrateKbps
         snapshot.width = quality.width
         snapshot.height = quality.height
         snapshot.fps = quality.fps
         snapshot.format = .avc
+        snapshot.panel = panelStream
     }
 
     private func setTally(_ tally: TallyState) {
@@ -620,8 +642,14 @@ final class StudioSession {
         return PortraitCommand(grade: grade, strength: settings.portraitStrength)
     }
 
+    func persistPreferences() {
+        persist()
+    }
+
     private func persist() {
-        StudioSettingsStore.save(settings)
+        var stored = settings.sanitized()
+        stored.resetShot()
+        StudioSettingsStore.save(stored)
     }
 
     private func appendLog(_ message: String) {

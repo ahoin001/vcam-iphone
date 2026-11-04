@@ -4,13 +4,16 @@ struct CameraDeniedView: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        VStack {
+        VStack(spacing: 18) {
             Text(.permissionDenied)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(StudioTheme.ink2)
+                .multilineTextAlignment(.center)
             Button(.openSettings, systemImage: "gearshape", action: openSettings)
                 .buttonStyle(PressableButtonStyle(prominent: true))
         }
-        .padding()
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(StudioTheme.paper)
     }
 
     private func openSettings() {

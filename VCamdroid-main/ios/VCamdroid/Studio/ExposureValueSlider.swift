@@ -15,12 +15,12 @@ struct ExposureValueSlider: View {
                 Spacer(minLength: 8)
                 Text(readout)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(StudioTheme.accent)
                     .contentTransition(reduceMotion ? .identity : .numericText())
             }
             .font(.subheadline)
             Slider(value: unit, in: 0...1)
-                .tint(.yellow)
+                .tint(StudioTheme.accent)
                 .accessibilityValue(Text(readout))
         }
         .onChange(of: watched) {

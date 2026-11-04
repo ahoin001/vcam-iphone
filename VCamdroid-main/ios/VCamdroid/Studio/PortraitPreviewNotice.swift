@@ -9,7 +9,7 @@ struct PortraitPreviewNotice: View {
             VStack(spacing: 14) {
                 Image(systemName: "desktopcomputer")
                     .font(.title2)
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(StudioTheme.accent)
                     .accessibilityHidden(true)
                 Text(.portraitPreviewTitle)
                     .font(.title3.weight(.semibold))
@@ -20,7 +20,7 @@ struct PortraitPreviewNotice: View {
                     .multilineTextAlignment(.center)
                 Button(.portraitPreviewShow, action: showOnPhone)
                     .buttonStyle(.borderedProminent)
-                    .tint(.yellow)
+                    .tint(StudioTheme.accent)
                     .padding(.top, 4)
             }
             .padding(24)

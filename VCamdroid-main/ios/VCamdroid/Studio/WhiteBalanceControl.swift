@@ -23,8 +23,8 @@ struct WhiteBalanceControl: View {
                                 .frame(minHeight: 44)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(selected ? Color.black : Color.primary)
-                        .background(selected ? Color.yellow : Color.white.opacity(0.14), in: .capsule)
+                        .foregroundStyle(selected ? Color.white : Color.primary)
+                        .background(selected ? StudioTheme.accent : Color.white.opacity(0.14), in: .capsule)
                         .overlay {
                             Capsule().strokeBorder(.white.opacity(selected ? 0 : 0.18), lineWidth: 1)
                         }

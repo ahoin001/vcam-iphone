@@ -8,6 +8,8 @@ struct VCamdroidApp: App {
         WindowGroup {
             HomeView()
                 .environment(session)
+                .preferredColorScheme(.dark)
+                .tint(StudioTheme.accent)
         }
     }
 }

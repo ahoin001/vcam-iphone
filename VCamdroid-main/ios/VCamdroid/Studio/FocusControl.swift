@@ -24,7 +24,7 @@ struct FocusControl: View {
             }
             if session.settings.manualFocus {
                 Slider(value: StudioBindings.setting(\.lensPosition, on: session), in: 0...1)
-                    .tint(.yellow)
+                    .tint(StudioTheme.accent)
                     .onChange(of: session.settings.lensPosition) {
                         session.applyControls()
                     }

@@ -1,10 +1,64 @@
 {
   "version": 2,
-  "dgSpecHash": "Ysz9lsXSMxs=",
-  "success": true,
+  "dgSpecHash": "sCgvwJTnzmg=",
+  "success": false,
   "projectFilePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
-  "expectedPackageFiles": [
-    "C:\\Users\\ahoin\\AppData\\Local\\Temp\\cursor-sandbox-cache\\021219edc09e118187305e2e12e9e80c\\nuget\\microsoft.web.webview2\\1.0.4258.31\\microsoft.web.webview2.1.0.4258.31.nupkg.sha512"
-  ],
-  "logs": []
+  "expectedPackageFiles": [],
+  "logs": [
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.Web.WebView2 (>= 1.0.4258.31)' for 'native,Version=v0.0'.",
+      "projectPath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "filePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "libraryId": "Microsoft.Web.WebView2",
+      "targetGraphs": [
+        "native,Version=v0.0"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.Web.WebView2 (>= 1.0.4258.31)' for 'native,Version=v0.0/win'.",
+      "projectPath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "filePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "libraryId": "Microsoft.Web.WebView2",
+      "targetGraphs": [
+        "native,Version=v0.0/win"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.Web.WebView2 (>= 1.0.4258.31)' for 'native,Version=v0.0/win-arm64'.",
+      "projectPath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "filePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "libraryId": "Microsoft.Web.WebView2",
+      "targetGraphs": [
+        "native,Version=v0.0/win-arm64"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.Web.WebView2 (>= 1.0.4258.31)' for 'native,Version=v0.0/win-x64'.",
+      "projectPath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "filePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "libraryId": "Microsoft.Web.WebView2",
+      "targetGraphs": [
+        "native,Version=v0.0/win-x64"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.Web.WebView2 (>= 1.0.4258.31)' for 'native,Version=v0.0/win-x86'.",
+      "projectPath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "filePath": "C:\\Users\\ahoin\\Desktop\\vcam-iphone\\VCamdroid-main\\windows\\VCamPanel.vcxproj",
+      "libraryId": "Microsoft.Web.WebView2",
+      "targetGraphs": [
+        "native,Version=v0.0/win-x86"
+      ]
+    }
+  ]
 }

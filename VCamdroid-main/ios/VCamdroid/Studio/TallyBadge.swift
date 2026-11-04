@@ -23,8 +23,8 @@ struct TallyBadge: View {
 
     private var color: Color {
         switch tally {
-        case .program: .red
-        case .preview: .green
+        case .program: StudioTheme.danger
+        case .preview: StudioTheme.live
         case .idle: .secondary
         }
     }

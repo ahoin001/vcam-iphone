@@ -53,6 +53,20 @@ struct StudioSettings: Equatable, Sendable {
         copy.portraitStrength = min(max(copy.portraitStrength, 0), 1)
         return copy
     }
+
+    mutating func resetShot() {
+        zoom = 1
+        exposureBias = 0
+        manualExposure = false
+        iso = 100
+        shutterSeconds = 1.0 / 60.0
+        manualWhiteBalance = false
+        kelvin = 5200
+        manualFocus = false
+        lensPosition = 1
+        flip180 = false
+        torch = false
+    }
 }
 
 extension StudioSettings: Codable {

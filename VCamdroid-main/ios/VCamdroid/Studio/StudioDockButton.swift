@@ -11,7 +11,7 @@ struct StudioDockButton: View {
             Image(systemName: systemImage)
                 .font(.title3.weight(.semibold))
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.yellow) : AnyShapeStyle(.primary))
+                .foregroundStyle(isSelected ? AnyShapeStyle(StudioTheme.accent) : AnyShapeStyle(.primary))
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
         }

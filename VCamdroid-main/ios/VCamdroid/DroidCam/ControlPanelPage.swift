@@ -3,39 +3,53 @@ import Foundation
 enum ControlPanelPage {
     static let html = #"""
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-theme="dark">
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>VCamdroid</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
     <style>
       :root {
         color-scheme: dark;
-        --bg: #121416;
-        --bg-soft: #171a1d;
-        --card: #1a1e22;
-        --card-lift: #20252a;
-        --line: #2a3036;
-        --line-soft: #24292e;
-        --text: #f2efe8;
-        --muted: #9a958c;
-        --accent: #d9a04a;
-        --accent-soft: rgba(217, 160, 74, 0.18);
-        --accent-ink: #1a1408;
-        --stage: #0c0e10;
-        --radius: 16px;
-        --radius-sm: 12px;
+        --ink: #f5f5f7;
+        --ink-2: #c7c7cc;
+        --ink-3: #a8a8af;
+        --on-ink: #161618;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.06);
+        --paper: #161618;
+        --surface: #202024;
+        --surface-2: #1b1b1e;
+        --raised: #2a2a2e;
+        --raised-2: #36363c;
+        --card: linear-gradient(180deg, #202024 0%, #1b1b1e 100%);
+        --hair: rgba(255, 255, 255, 0.08);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.35);
+        --prism-a: #6d7bff;
+        --prism-b: #a77bff;
+        --mint: #30d158;
+        --amber: #ffb547;
+        --display: "Unbounded", system-ui, sans-serif;
+        --ui: "Onest", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+        --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --radius: 28px;
+        --rhythm: 18px;
       }
       * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
       html, body { height: 100%; }
       body {
         margin: 0;
         min-height: 100%;
         background:
-          radial-gradient(120% 80% at 50% -10%, rgba(217, 160, 74, 0.07), transparent 55%),
-          linear-gradient(180deg, var(--bg-soft), var(--bg));
-        color: var(--text);
-        font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+          radial-gradient(90% 60% at 80% -10%, rgba(109, 123, 255, 0.14), transparent 55%),
+          var(--paper);
+        color: var(--ink);
+        font: 14px/1.45 var(--ui);
         font-variant-numeric: tabular-nums;
         -webkit-font-smoothing: antialiased;
       }
@@ -44,56 +58,51 @@ enum ControlPanelPage {
         margin: 0 auto;
         padding: 16px 16px 28px;
         display: grid;
-        gap: 12px;
+        gap: var(--rhythm);
         align-content: start;
       }
       .controls {
         display: grid;
-        gap: 12px;
+        gap: 16px;
         align-content: start;
       }
       header {
         display: grid;
         gap: 4px;
-        padding: 2px 2px 4px;
-      }
-      h1 {
-        margin: 0;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--muted);
+        padding: 4px 4px 0;
       }
       #status-line {
         margin: 0;
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--text);
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: -0.03em;
+        color: var(--ink);
       }
       #hint-line {
         margin: 0;
-        color: var(--muted);
-        font-size: 12px;
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.5;
+        max-width: 560px;
       }
       section, .shot, .preview {
-        background: color-mix(in srgb, var(--card) 92%, transparent);
-        border: 1px solid var(--line-soft);
+        background: var(--card);
+        border: 1px solid rgba(255, 255, 255, 0.07);
         border-radius: var(--radius);
-        padding: 14px;
+        padding: 22px 24px;
         display: grid;
-        gap: 10px;
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+        gap: 12px;
+        box-shadow: inset 0 1px 0 var(--hair), var(--shadow);
       }
-      .preview { gap: 10px; }
+      .preview { gap: 12px; }
       .stage {
         position: relative;
         width: 100%;
         aspect-ratio: 16 / 9;
-        border-radius: var(--radius-sm);
-        background:
-          linear-gradient(180deg, #14181c, var(--stage));
-        border: 1px solid var(--line-soft);
+        border-radius: 18px;
+        background: #0c0c0e;
+        border: 1px solid var(--line);
         overflow: hidden;
         display: grid;
         place-items: center;
@@ -113,9 +122,9 @@ enum ControlPanelPage {
         place-items: center;
         padding: 16px;
         text-align: center;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.4;
+        color: var(--ink-3);
+        font-size: 13px;
+        line-height: 1.45;
         pointer-events: none;
       }
       .stage.live .stage-empty { display: none; }
@@ -124,31 +133,32 @@ enum ControlPanelPage {
       button, label.toggle {
         appearance: none;
         border: 1px solid var(--line);
-        background: var(--card-lift);
-        color: var(--text);
+        background: var(--raised);
+        color: var(--ink);
         border-radius: 999px;
-        padding: 8px 13px;
+        padding: 0 14px;
+        min-height: 36px;
         font: inherit;
+        font-weight: 550;
         cursor: pointer;
-        transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+        box-shadow: inset 0 1px 0 var(--hair);
+        transition: transform 0.2s var(--ease), background 0.2s var(--ease), box-shadow 0.25s var(--ease);
       }
-      button:hover, label.toggle:hover {
-        border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-      }
+      button:hover, label.toggle:hover { background: var(--raised-2); }
       button:active, label.toggle:active { transform: scale(0.98); }
       button.on, label.toggle.on {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: var(--accent-ink);
+        background: var(--raised-2);
+        border-color: transparent;
+        color: var(--ink);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1.5px rgba(169, 179, 255, 0.75), 0 6px 18px rgba(109, 123, 255, 0.24);
       }
-      /* Keep unselected choice buttons visually stable — no pulse/opacity flicker */
       .choices button:not(.on) {
-        background: var(--card-lift);
-        color: var(--text);
+        background: var(--raised);
+        color: var(--ink);
         opacity: 1;
       }
       .tools button { flex: 1; text-align: center; min-width: 64px; }
-      .stops button { flex: 1; min-width: 0; padding: 8px 0; }
+      .stops button { flex: 1; min-width: 0; padding: 0; }
       label.toggle {
         display: inline-flex;
         align-items: center;
@@ -156,18 +166,28 @@ enum ControlPanelPage {
         user-select: none;
       }
       label.toggle input { position: absolute; opacity: 0; pointer-events: none; }
-      .slider { display: grid; gap: 5px; }
+      .slider { display: grid; gap: 6px; }
       .slider span, .heading {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        color: var(--muted);
-        font-size: 12px;
+        color: var(--ink-3);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
-      .slider strong, .heading strong { color: var(--text); font-weight: 600; }
+      .slider strong, .heading strong {
+        color: var(--ink);
+        font-family: var(--ui);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-transform: none;
+      }
       input[type="range"] {
         width: 100%;
-        accent-color: var(--accent);
+        accent-color: var(--prism-a);
         height: 1.4rem;
       }
       .preview-bar {
@@ -179,30 +199,32 @@ enum ControlPanelPage {
       .preview-bar .heading { flex: 1; }
       .note {
         margin: 0;
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        background: var(--accent-soft);
-        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line-soft));
-        color: var(--text);
-        font-size: 12px;
-        line-height: 1.45;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        color: var(--ink-2);
+        font-size: 13px;
+        line-height: 1.5;
       }
       .note strong {
         display: block;
         margin-bottom: 4px;
+        font-family: var(--mono);
         font-size: 11px;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: var(--accent);
-        font-weight: 650;
+        color: var(--ink-3);
+        font-weight: 500;
       }
       p.quiet {
         margin: 0;
-        color: var(--muted);
-        font-size: 12px;
+        color: var(--ink-3);
+        font-size: 13px;
         line-height: 1.45;
       }
       [hidden] { display: none !important; }
+      html[data-embed="1"] header { display: none; }
       @media (min-width: 900px) {
         body { overflow: hidden; }
         main {
@@ -210,12 +232,13 @@ enum ControlPanelPage {
           min-height: 0;
           max-width: none;
           margin: 0;
-          padding: 16px 18px 18px;
+          padding: 18px 28px 24px 18px;
           grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
           grid-template-rows: auto minmax(0, 1fr);
           overflow: hidden;
         }
         header { grid-column: 1 / -1; }
+        html[data-embed="1"] main { grid-template-rows: minmax(0, 1fr); padding-top: 8px; }
         .preview {
           grid-column: 1;
           grid-row: 2;
@@ -223,6 +246,7 @@ enum ControlPanelPage {
           display: flex;
           flex-direction: column;
         }
+        html[data-embed="1"] .preview { grid-row: 1; }
         .stage {
           flex: 1 1 auto;
           aspect-ratio: auto;
@@ -236,14 +260,17 @@ enum ControlPanelPage {
           overflow: auto;
           padding-right: 4px;
         }
+        html[data-embed="1"] .controls { grid-row: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        button:active, label.toggle:active { transform: none; }
       }
     </style>
     </head>
     <body>
     <main>
       <header>
-        <h1>Camera desk</h1>
-        <p id="status-line">Waiting for the computer</p>
+        <h1 id="status-line">Waiting for the computer</h1>
         <p id="hint-line">1080p30 · Connect opens the picture</p>
       </header>
       <section class="preview">
@@ -343,7 +370,7 @@ enum ControlPanelPage {
       </section>
       <section>
         <div class="heading"><span>Stream</span><strong id="bitrate-value">4000 kbps</strong></div>
-        <p class="note">
+        <p class="note" id="stream-note">
           <strong>Suggested</strong>
           1080p30 and about 4 Mbps for live calls. Raise bitrate toward 6–8 Mbps if you record in OBS. Desk preview above is a glance only — judge smoothness in OBS or the meeting app.
         </p>
@@ -704,18 +731,24 @@ enum ControlPanelPage {
             session.fps = data.fps || session.fps;
             markMode();
             const live = data.streaming || data.status === "streaming";
+            const panel = !!data.panel;
+            const embed = document.documentElement.dataset.embed === "1";
             const battery = data.battery != null ? data.battery + "%" : "";
             const size = session.width + "×" + session.height + " @" + session.fps;
-            document.getElementById("status-line").textContent = [
-              live ? "Streaming" : "Waiting for the computer",
-              battery,
-              size
-            ].filter(Boolean).join(" · ");
+            const status = live ? "Streaming" : (embed ? "Connecting" : "Waiting for the computer");
+            document.getElementById("status-line").textContent = [status, battery, size].filter(Boolean).join(" · ");
             document.getElementById("hint-line").textContent = live
               ? (previewOn
                 ? "Desk preview is low-rate · apps that selected VCamdroid show the live picture"
                 : "Changes apply live · apps that selected VCamdroid show the picture")
-              : "The companion is connected. The picture is opening.";
+              : (embed
+                ? "The companion is connected. The picture is opening."
+                : "Connect in VCamPanel to open the picture.");
+            document.getElementById("resolution").hidden = panel;
+            document.getElementById("fps").hidden = panel;
+            document.getElementById("stream-note").innerHTML = panel
+              ? "<strong>VCamdroid camera</strong> Stays 1080p30 while VCamPanel is connected. Bitrate below is saved for a DroidCam OBS source after you Disconnect."
+              : "<strong>Suggested</strong> 1080p30 and about 4 Mbps for live calls. Raise bitrate toward 6–8 Mbps if you record in OBS. Desk preview above is a glance only — judge smoothness in OBS or the meeting app.";
           }
           if (catalog.ok) {
             const text = await catalog.text();
@@ -725,6 +758,11 @@ enum ControlPanelPage {
         }
       }
 
+      if (new URLSearchParams(location.search).has("embed")) {
+        document.documentElement.dataset.embed = "1";
+        document.getElementById("status-line").textContent = "Connecting";
+        document.getElementById("hint-line").textContent = "The companion is connected. The picture is opening.";
+      }
       showTool();
       setPreview(true);
       poll();

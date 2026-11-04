@@ -3,16 +3,15 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <commctrl.h>
 #include <wrl.h>
 #include <WebView2.h>
 
 #include "mdns_browse.h"
 #include "usbmux.h"
 #include "camera/Pipeline.h"
+#include "ui/panel_shell.h"
 
-#include <algorithm>
-#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
@@ -22,7 +21,6 @@
 #include <vector>
 
 #pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "ole32.lib")
 
 using Microsoft::WRL::Callback;
@@ -30,23 +28,8 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 
-constexpr int kTitleId = 1000;
-constexpr int kListId = 1001;
-constexpr int kRefreshId = 1002;
-constexpr int kAddressId = 1003;
-constexpr int kConnectId = 1004;
-constexpr int kDisconnectId = 1005;
-constexpr int kCopyId = 1006;
-constexpr int kStatusId = 1007;
-constexpr int kObsId = 1008;
-constexpr int kDevicesLabelId = 1009;
-constexpr int kLinkLabelId = 1010;
 constexpr UINT kStatusTimer = 1;
-
-constexpr COLORREF kBg = RGB(18, 20, 22);
-constexpr COLORREF kCard = RGB(28, 31, 34);
-constexpr COLORREF kText = RGB(242, 239, 232);
-constexpr COLORREF kMuted = RGB(154, 149, 140);
+constexpr COLORREF kBg = RGB(22, 22, 24);
 
 enum class Kind { Usb, Wifi };
 
@@ -59,30 +42,20 @@ struct Listed {
 };
 
 HWND g_window = nullptr;
-HWND g_title = nullptr;
-HWND g_devicesLabel = nullptr;
-HWND g_list = nullptr;
-HWND g_refresh = nullptr;
-HWND g_linkLabel = nullptr;
-HWND g_address = nullptr;
-HWND g_connect = nullptr;
-HWND g_disconnect = nullptr;
-HWND g_copy = nullptr;
-HWND g_status = nullptr;
-HWND g_obs = nullptr;
 HBRUSH g_background = nullptr;
-HBRUSH g_card = nullptr;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::wstring g_pendingUrl;
-std::vector<Listed> g_devices;
-bool g_usbConnected = false;
-std::string g_connectedHost = "127.0.0.1";
-int g_connectedPort = 4747;
+std::wstring g_statusText = L"Plug in the iPhone or pick a Wi-Fi phone, then Connect.";
+std::wstring g_addressText;
 std::wstring g_obsAddress = L"127.0.0.1:4747";
-HFONT g_titleFont = nullptr;
-HFONT g_uiFont = nullptr;
-HFONT g_smallFont = nullptr;
+std::vector<Listed> g_devices;
+int g_selected = -1;
+bool g_usbConnected = false;
+bool g_shellReady = false;
+bool g_sessionOpen = false;
+std::string g_connectedHost;
+int g_connectedPort = 4747;
 
 int Scale(HWND window, int pixels) {
     const UINT dpi = GetDpiForWindow(window);
@@ -122,6 +95,39 @@ std::string Narrow(const std::wstring& text) {
     std::string bytes(static_cast<size_t>(count), '\0');
     WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), bytes.data(), count, nullptr, nullptr);
     return bytes;
+}
+
+std::string EscapeJson(const std::string& text) {
+    std::string out;
+    out.reserve(text.size() + 8);
+    for (unsigned char c : text) {
+        switch (c) {
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default:
+            if (c < 0x20) {
+                char buf[8];
+                snprintf(buf, sizeof(buf), "\\u%04x", c);
+                out += buf;
+            } else {
+                out += static_cast<char>(c);
+            }
+        }
+    }
+    return out;
 }
 
 std::wstring EnvFolder(const wchar_t* name) {
@@ -178,103 +184,49 @@ void SaveAddress(const std::wstring& text) {
     output.write(encoded.data(), static_cast<std::streamsize>(encoded.size()));
 }
 
+void PushState();
+
 void SetStatus(const std::wstring& text) {
-    if (g_status) {
-        SetWindowTextW(g_status, text.c_str());
-    }
+    g_statusText = text;
+    PushState();
 }
 
 void SetObs(const std::wstring& text) {
     g_obsAddress = text;
-    if (g_obs) {
-        SetWindowTextW(g_obs, (L"VCamdroid    optional OBS  " + text).c_str());
-    }
+    PushState();
 }
 
-std::wstring IdleDeskHtml() {
-    return LR"HTML(<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  :root { color-scheme: dark; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    display: grid; place-items: center;
-    background:
-      radial-gradient(120% 80% at 50% -10%, rgba(217,160,74,0.08), transparent 55%),
-      linear-gradient(180deg, #171a1d, #121416);
-    color: #f2efe8;
-    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
-  }
-  .shell {
-    width: min(920px, 92vw);
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(260px, 340px);
-    gap: 28px;
-    align-items: center;
-    padding: 28px;
-  }
-  .stage {
-    min-height: 220px;
-    border-radius: 16px;
-    border: 1px solid #2a3036;
-    background:
-      linear-gradient(180deg, #14181c, #0c0e10);
-    display: grid;
-    place-items: center;
-    color: #9a958c;
-    font-size: 13px;
-  }
-  .copy h1 { margin: 0 0 10px; font-size: 28px; font-weight: 600; }
-  .copy p { margin: 0; color: #9a958c; font-size: 14px; }
-  .steps { margin: 18px 0 0; padding: 0; list-style: none; }
-  .steps li {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 8px 0; border-top: 1px solid #24292e;
-    color: #f2efe8; font-size: 13px;
-  }
-  .steps li:first-child { border-top: 0; }
-  .n {
-    flex: 0 0 22px; height: 22px; border-radius: 999px;
-    display: grid; place-items: center;
-    background: rgba(217,160,74,0.18); color: #d9a04a;
-    font-size: 11px; font-weight: 700;
-  }
-  @media (max-width: 720px) {
-    .shell { grid-template-columns: 1fr; padding: 20px 16px; }
-    .stage { min-height: 140px; }
-  }
-</style></head><body>
-  <div class="shell">
-    <div class="stage">Preview opens here after Connect</div>
-    <div class="copy">
-      <h1>Connect a phone</h1>
-      <p>This window receives the iPhone and publishes the VCamdroid camera. Shot controls sit beside the preview.</p>
-      <ol class="steps">
-        <li><span class="n">1</span><span>Click Refresh to find USB or Wi-Fi phones.</span></li>
-        <li><span class="n">2</span><span>Select a phone, or type the Wi-Fi IP.</span></li>
-        <li><span class="n">3</span><span>Click Connect. The picture opens in this window.</span></li>
-      </ol>
-    </div>
-  </div>
-</body></html>)HTML";
+void OpenDesk(const std::wstring& url) {
+    g_pendingUrl = url;
+    PushState();
 }
 
 void ShowIdleDesk() {
     g_pendingUrl.clear();
-    if (g_title) {
-        SetWindowTextW(g_title, L"VCamdroid");
-    }
-    if (g_webview) {
-        g_webview->NavigateToString(IdleDeskHtml().c_str());
-    }
+    PushState();
 }
 
-void Navigate(const std::wstring& url) {
-    g_pendingUrl = url;
-    if (g_webview) {
-        g_webview->Navigate(url.c_str());
+void PushState() {
+    if (!g_webview || !g_shellReady) {
+        return;
     }
+    std::ostringstream json;
+    json << "{\"devices\":[";
+    for (size_t i = 0; i < g_devices.size(); ++i) {
+        if (i) {
+            json << ',';
+        }
+        json << "{\"id\":" << i
+             << ",\"kind\":\"" << (g_devices[i].kind == Kind::Usb ? "usb" : "wifi")
+             << "\",\"label\":\"" << EscapeJson(Narrow(g_devices[i].label)) << "\"}";
+    }
+    json << "],\"selected\":" << g_selected
+         << ",\"address\":\"" << EscapeJson(Narrow(g_addressText)) << "\""
+         << ",\"status\":\"" << EscapeJson(Narrow(g_statusText)) << "\""
+         << ",\"obs\":\"" << EscapeJson(Narrow(g_obsAddress)) << "\""
+         << ",\"connected\":" << (g_sessionOpen ? "true" : "false")
+         << ",\"deskUrl\":\"" << EscapeJson(Narrow(g_pendingUrl)) << "\"}";
+    g_webview->PostWebMessageAsJson(Wide(json.str()).c_str());
 }
 
 bool ParseHostPort(const std::wstring& text, std::string& host, int& port) {
@@ -301,22 +253,33 @@ bool ParseHostPort(const std::wstring& text, std::string& host, int& port) {
     return !host.empty() && port > 0 && port <= 65535;
 }
 
-int JsonInt(const std::string& json, const char* key, int fallback) {
+size_t JsonValueAt(const std::string& json, const char* key) {
     const std::string needle = std::string("\"") + key + "\":";
-    const auto at = json.find(needle);
+    auto at = json.find(needle);
+    if (at == std::string::npos) {
+        return std::string::npos;
+    }
+    at += needle.size();
+    while (at < json.size() && (json[at] == ' ' || json[at] == '\t')) {
+        ++at;
+    }
+    return at;
+}
+
+int JsonInt(const std::string& json, const char* key, int fallback) {
+    const auto at = JsonValueAt(json, key);
     if (at == std::string::npos) {
         return fallback;
     }
-    return atoi(json.c_str() + at + needle.size());
+    return atoi(json.c_str() + at);
 }
 
 std::string JsonString(const std::string& json, const char* key) {
-    const std::string needle = std::string("\"") + key + "\":\"";
-    const auto at = json.find(needle);
-    if (at == std::string::npos) {
+    const auto at = JsonValueAt(json, key);
+    if (at == std::string::npos || at >= json.size() || json[at] != '"') {
         return {};
     }
-    const auto start = at + needle.size();
+    const auto start = at + 1;
     const auto end = json.find('"', start);
     if (end == std::string::npos) {
         return {};
@@ -325,12 +288,11 @@ std::string JsonString(const std::string& json, const char* key) {
 }
 
 bool JsonBool(const std::string& json, const char* key) {
-    const std::string needle = std::string("\"") + key + "\":";
-    const auto at = json.find(needle);
+    const auto at = JsonValueAt(json, key);
     if (at == std::string::npos) {
         return false;
     }
-    return json.compare(at + needle.size(), 4, "true") == 0;
+    return json.compare(at, 4, "true") == 0;
 }
 
 bool HttpGet(const std::string& host, int port, const char* path, std::string& body) {
@@ -399,50 +361,13 @@ void CopyText(const std::wstring& text) {
 }
 
 void Layout() {
-    if (!g_window) {
+    if (!g_window || !g_controller) {
         return;
     }
     RECT client{};
     GetClientRect(g_window, &client);
-    const int margin = Scale(g_window, 12);
-    const int gap = Scale(g_window, 8);
-    const int titleH = Scale(g_window, 22);
-    const int bar = Scale(g_window, 56);
-    const int row = Scale(g_window, 30);
-    const int label = Scale(g_window, 16);
-    const int copyW = Scale(g_window, 72);
-    const int refreshW = Scale(g_window, 80);
-    const int connectW = Scale(g_window, 88);
-    const int disconnectW = Scale(g_window, 100);
-    const int listW = Scale(g_window, 260);
-    const int width = client.right - client.left;
-    const int inner = width - margin * 2;
-    int y = margin;
-    const int titleW = Scale(g_window, 200);
-    MoveWindow(g_title, margin, y, titleW, titleH, TRUE);
-    MoveWindow(g_status, margin + titleW + gap, y, inner - titleW - copyW - gap * 2, titleH, TRUE);
-    MoveWindow(g_copy, width - margin - copyW, y, copyW, titleH, TRUE);
-    y += titleH + gap;
-    MoveWindow(g_devicesLabel, 0, 0, 0, 0, TRUE);
-    MoveWindow(g_linkLabel, 0, 0, 0, 0, TRUE);
-    MoveWindow(g_list, margin, y, listW, bar, TRUE);
-    int x = margin + listW + gap;
-    MoveWindow(g_refresh, x, y, refreshW, bar, TRUE);
-    x += refreshW + gap;
-    const int actions = connectW + disconnectW + gap;
-    const int addressW = (width - margin) - x - actions - gap;
-    MoveWindow(g_address, x, y + (bar - row) / 2, (std::max)(Scale(g_window, 140), addressW), row, TRUE);
-    x += (std::max)(Scale(g_window, 140), addressW) + gap;
-    MoveWindow(g_connect, x, y + (bar - row) / 2, connectW, row, TRUE);
-    x += connectW + gap;
-    MoveWindow(g_disconnect, x, y + (bar - row) / 2, disconnectW, row, TRUE);
-    y += bar + Scale(g_window, 4);
-    MoveWindow(g_obs, margin, y, inner, label, TRUE);
-    y += label + gap;
-    if (g_controller) {
-        RECT bounds{0, y, client.right, client.bottom};
-        g_controller->put_Bounds(bounds);
-    }
+    RECT bounds{0, 0, client.right, client.bottom};
+    g_controller->put_Bounds(bounds);
 }
 
 void ShowWebViewError() {
@@ -453,6 +378,12 @@ void ShowWebViewError() {
         MB_OK | MB_ICONERROR
     );
 }
+
+void HandleWebMessage(const std::string& json);
+void RefreshDevices();
+void ConnectSelected();
+void Disconnect();
+void UpdateSessionStatus();
 
 void StartWebView() {
     const std::wstring folder = WebViewFolder();
@@ -481,15 +412,26 @@ void StartWebView() {
                             }
                             ComPtr<ICoreWebView2Controller2> controller2;
                             if (SUCCEEDED(g_controller.As(&controller2)) && controller2) {
-                                const COREWEBVIEW2_COLOR background{255, 18, 20, 22};
+                                const COREWEBVIEW2_COLOR background{255, 22, 22, 24};
                                 controller2->put_DefaultBackgroundColor(background);
                             }
+                            EventRegistrationToken messageToken{};
+                            g_webview->add_WebMessageReceived(
+                                Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                                    [](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                                        LPWSTR json = nullptr;
+                                        if (SUCCEEDED(args->get_WebMessageAsJson(&json)) && json) {
+                                            HandleWebMessage(Narrow(json));
+                                            CoTaskMemFree(json);
+                                        }
+                                        return S_OK;
+                                    }
+                                ).Get(),
+                                &messageToken
+                            );
                             Layout();
-                            if (!g_pendingUrl.empty()) {
-                                g_webview->Navigate(g_pendingUrl.c_str());
-                            } else {
-                                ShowIdleDesk();
-                            }
+                            const std::wstring html = Wide(PanelShellHtml());
+                            g_webview->NavigateToString(html.c_str());
                             return S_OK;
                         }
                     ).Get()
@@ -503,17 +445,15 @@ void StartWebView() {
     }
 }
 
-void AddDevice(Listed device) {
-    const int index = static_cast<int>(g_devices.size());
-    g_devices.push_back(std::move(device));
-    SendMessageW(g_list, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(g_devices.back().label.c_str()));
-    SendMessageW(g_list, LB_SETITEMDATA, static_cast<WPARAM>(index), static_cast<LPARAM>(index));
-}
-
 void RefreshDevices() {
     HCURSOR previous = SetCursor(LoadCursorW(nullptr, IDC_WAIT));
-    SendMessageW(g_list, LB_RESETCONTENT, 0, 0);
+    Listed previousDevice;
+    const bool hadSelection = g_selected >= 0 && g_selected < static_cast<int>(g_devices.size());
+    if (hadSelection) {
+        previousDevice = g_devices[static_cast<size_t>(g_selected)];
+    }
     g_devices.clear();
+    g_selected = -1;
 
     const usbmux::ListResult usb = usbmux::listDevices();
     for (const usbmux::Device& device : usb.devices) {
@@ -522,11 +462,11 @@ void RefreshDevices() {
         row.usbId = device.id;
         row.port = 4747;
         std::string suffix = device.serial.size() > 4 ? device.serial.substr(device.serial.size() - 4) : device.serial;
-        row.label = L"USB  " + Wide(device.name);
+        row.label = Wide(device.name);
         if (!suffix.empty()) {
             row.label += L"  " + Wide(suffix);
         }
-        AddDevice(std::move(row));
+        g_devices.push_back(std::move(row));
     }
 
     const std::vector<mdns::Service> wifi = mdns::browse(1000);
@@ -535,19 +475,42 @@ void RefreshDevices() {
         row.kind = Kind::Wifi;
         row.ipv4 = service.ipv4;
         row.port = service.port > 0 ? service.port : 4747;
-        row.label = L"Wi-Fi  " + Wide(service.name) + L"  " + Wide(service.ipv4);
-        AddDevice(std::move(row));
+        row.label = Wide(service.name);
+        if (!service.ipv4.empty()) {
+            if (!row.label.empty()) {
+                row.label += L"  ";
+            }
+            row.label += Wide(service.ipv4);
+        }
+        g_devices.push_back(std::move(row));
     }
 
-    if (!g_devices.empty()) {
-        SendMessageW(g_list, LB_SETCURSEL, 0, 0);
-        SetStatus(L"Select a phone, then Connect.");
-    } else if (!usb.error.empty()) {
-        SetStatus(Wide(usb.error));
-    } else {
-        SetStatus(L"No phone found. Plug in a data cable, tap Trust This Computer, or type the Wi-Fi IP.");
+    if (hadSelection) {
+        for (size_t index = 0; index < g_devices.size(); ++index) {
+            const Listed& row = g_devices[index];
+            const bool sameUsb = previousDevice.kind == Kind::Usb && row.kind == Kind::Usb && row.usbId == previousDevice.usbId;
+            const bool sameWifi = previousDevice.kind == Kind::Wifi && row.kind == Kind::Wifi && row.ipv4 == previousDevice.ipv4;
+            if (sameUsb || sameWifi) {
+                g_selected = static_cast<int>(index);
+                break;
+            }
+        }
+    }
+    if (g_selected < 0 && !g_devices.empty()) {
+        g_selected = 0;
+    }
+
+    if (!g_sessionOpen) {
+        if (!g_devices.empty()) {
+            SetStatus(L"Select a phone, then Connect.");
+        } else if (!usb.error.empty()) {
+            SetStatus(Wide(usb.error));
+        } else {
+            SetStatus(L"No phone found. Plug in a data cable, tap Trust This Computer, or type the Wi-Fi IP.");
+        }
     }
     SetCursor(previous);
+    PushState();
 }
 
 void UpdateSessionStatus() {
@@ -609,19 +572,19 @@ void NoteConnected(const std::wstring& address) {
     SetStatus(L"Connected. Opening the picture. Optional OBS address " + address + L".");
 }
 
+std::wstring DeskUrl(const std::wstring& hostPort) {
+    return L"http://" + hostPort + L"/panel?embed=1";
+}
+
 void ConnectSelected() {
-    const int selection = static_cast<int>(SendMessageW(g_list, LB_GETCURSEL, 0, 0));
     Listed chosen;
-    bool have = false;
-    if (selection >= 0 && selection < static_cast<int>(g_devices.size())) {
-        chosen = g_devices[static_cast<size_t>(selection)];
-        have = true;
+    bool have = g_selected >= 0 && g_selected < static_cast<int>(g_devices.size());
+    if (have) {
+        chosen = g_devices[static_cast<size_t>(g_selected)];
     }
-    wchar_t typed[256] = {};
-    GetWindowTextW(g_address, typed, 256);
     std::string typedHost;
     int typedPort = 4747;
-    const bool haveTyped = ParseHostPort(typed, typedHost, typedPort);
+    const bool haveTyped = ParseHostPort(g_addressText, typedHost, typedPort);
 
     if (!have) {
         if (!haveTyped) {
@@ -636,23 +599,22 @@ void ConnectSelected() {
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
     g_usbConnected = false;
+    g_sessionOpen = false;
     KillTimer(g_window, kStatusTimer);
 
     if (chosen.kind == Kind::Usb) {
         std::string error;
-        const int port = haveTyped ? typedPort : 4747;
+        const int port = (haveTyped && typedHost == "127.0.0.1") ? typedPort : 4747;
         if (!usbmux::start(port, chosen.usbId, error)) {
             SetStatus(Wide(error));
             return;
         }
         g_usbConnected = true;
+        g_sessionOpen = true;
         g_connectedHost = "127.0.0.1";
         g_connectedPort = port;
         SetObs(L"127.0.0.1:" + std::to_wstring(port));
-        Navigate(L"http://127.0.0.1:" + std::to_wstring(port) + L"/panel");
-        if (g_title) {
-            SetWindowTextW(g_title, L"VCamdroid  ·  USB");
-        }
+        OpenDesk(DeskUrl(L"127.0.0.1:" + std::to_wstring(port)));
         NoteConnected(L"127.0.0.1:" + std::to_wstring(port));
     } else {
         if (chosen.ipv4.empty() && haveTyped) {
@@ -663,16 +625,14 @@ void ConnectSelected() {
             SetStatus(L"Type the Wi-Fi IP from the phone.");
             return;
         }
+        g_sessionOpen = true;
         g_connectedHost = chosen.ipv4;
         g_connectedPort = chosen.port;
         const std::wstring host = Wide(chosen.ipv4) + L":" + std::to_wstring(chosen.port);
-        SetWindowTextW(g_address, host.c_str());
+        g_addressText = host;
         SaveAddress(host);
         SetObs(host);
-        Navigate(L"http://" + host + L"/panel");
-        if (g_title) {
-            SetWindowTextW(g_title, L"VCamdroid  ·  Wi-Fi");
-        }
+        OpenDesk(DeskUrl(host));
         NoteConnected(host);
     }
     SetTimer(g_window, kStatusTimer, 1000, nullptr);
@@ -684,133 +644,87 @@ void Disconnect() {
     vcam::Pipeline::Shared().Stop();
     usbmux::stop();
     g_usbConnected = false;
+    g_sessionOpen = false;
     g_connectedHost.clear();
     ShowIdleDesk();
     SetStatus(L"Disconnected. Connect again to use the iPhone as a camera.");
 }
 
-void LayoutFont(HWND window, HFONT font) {
-    SendMessageW(window, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+void SelectDevice(int index) {
+    if (index < 0 || index >= static_cast<int>(g_devices.size())) {
+        return;
+    }
+    g_selected = index;
+    const Listed& chosen = g_devices[static_cast<size_t>(index)];
+    if (chosen.kind == Kind::Wifi && !chosen.ipv4.empty()) {
+        g_addressText = Wide(chosen.ipv4) + L":" + std::to_wstring(chosen.port);
+    }
+    PushState();
+}
+
+void HandleWebMessage(const std::string& json) {
+    const std::string cmd = JsonString(json, "cmd");
+    if (cmd == "ready") {
+        g_shellReady = true;
+        PushState();
+        return;
+    }
+    if (cmd == "refresh") {
+        RefreshDevices();
+        return;
+    }
+    if (cmd == "select") {
+        SelectDevice(JsonInt(json, "id", g_selected));
+        return;
+    }
+    if (cmd == "address") {
+        g_addressText = Wide(JsonString(json, "value"));
+        return;
+    }
+    if (cmd == "connect") {
+        const int id = JsonInt(json, "id", g_selected);
+        if (id >= 0 && id < static_cast<int>(g_devices.size())) {
+            g_selected = id;
+        }
+        const std::string address = JsonString(json, "value");
+        const std::string typed = address.empty() ? JsonString(json, "address") : address;
+        if (!typed.empty()) {
+            g_addressText = Wide(typed);
+        }
+        ConnectSelected();
+        return;
+    }
+    if (cmd == "disconnect") {
+        Disconnect();
+        return;
+    }
+    if (cmd == "copy") {
+        CopyText(g_obsAddress);
+        SetStatus(L"Copied the optional OBS address.");
+    }
 }
 
 void AutoConnect() {
     for (size_t index = 0; index < g_devices.size(); ++index) {
         if (g_devices[index].kind == Kind::Usb) {
-            SendMessageW(g_list, LB_SETCURSEL, static_cast<WPARAM>(index), 0);
+            g_selected = static_cast<int>(index);
             ConnectSelected();
             return;
         }
     }
-    wchar_t typed[256] = {};
-    GetWindowTextW(g_address, typed, 256);
-    if (typed[0] != L'\0') {
-        SendMessageW(g_list, LB_SETCURSEL, static_cast<WPARAM>(-1), 0);
+    if (!g_addressText.empty()) {
+        g_selected = -1;
         ConnectSelected();
     }
 }
 
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
-    case WM_CREATE: {
-        const DWORD child = WS_CHILD | WS_VISIBLE;
-        g_title = CreateWindowExW(0, L"STATIC", L"VCamdroid",
-            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kTitleId)), nullptr, nullptr);
-        g_devicesLabel = CreateWindowExW(0, L"STATIC", L"Phones",
-            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kDevicesLabelId)), nullptr, nullptr);
-        g_list = CreateWindowExW(0, L"LISTBOX", L"", child | WS_VSCROLL | WS_BORDER | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kListId)), nullptr, nullptr);
-        g_refresh = CreateWindowExW(0, L"BUTTON", L"Refresh", child | BS_PUSHBUTTON,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kRefreshId)), nullptr, nullptr);
-        g_linkLabel = CreateWindowExW(0, L"STATIC", L"Address",
-            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kLinkLabelId)), nullptr, nullptr);
-        g_address = CreateWindowExW(0, L"EDIT", L"", child | WS_BORDER | ES_AUTOHSCROLL,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kAddressId)), nullptr, nullptr);
-        g_connect = CreateWindowExW(0, L"BUTTON", L"Connect", child | BS_DEFPUSHBUTTON,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kConnectId)), nullptr, nullptr);
-        g_disconnect = CreateWindowExW(0, L"BUTTON", L"Disconnect", child | BS_PUSHBUTTON,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kDisconnectId)), nullptr, nullptr);
-        g_status = CreateWindowExW(0, L"STATIC", L"Plug in the iPhone or pick a Wi-Fi phone, then Connect.",
-            child | SS_LEFT | SS_WORDELLIPSIS, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kStatusId)), nullptr, nullptr);
-        g_copy = CreateWindowExW(0, L"BUTTON", L"Copy", child | BS_PUSHBUTTON,
-            0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCopyId)), nullptr, nullptr);
-        g_obs = CreateWindowExW(0, L"STATIC", L"VCamdroid    optional OBS  127.0.0.1:4747",
-            child | SS_LEFT, 0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kObsId)), nullptr, nullptr);
-        SendMessageW(g_address, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Wi-Fi IP, if the list is empty"));
-        NONCLIENTMETRICSW metrics{};
-        metrics.cbSize = sizeof(metrics);
-        SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0);
-        g_uiFont = CreateFontIndirectW(&metrics.lfMessageFont);
-        const HDC screen = GetDC(window);
-        const int dpiY = GetDeviceCaps(screen, LOGPIXELSY);
-        ReleaseDC(window, screen);
-        LOGFONTW titleFont = metrics.lfMessageFont;
-        titleFont.lfWeight = FW_SEMIBOLD;
-        titleFont.lfHeight = -MulDiv(16, dpiY, 72);
-        g_titleFont = CreateFontIndirectW(&titleFont);
-        LOGFONTW smallFont = metrics.lfMessageFont;
-        smallFont.lfHeight = -MulDiv(11, dpiY, 72);
-        g_smallFont = CreateFontIndirectW(&smallFont);
-        LayoutFont(g_title, g_titleFont);
-        LayoutFont(g_devicesLabel, g_smallFont);
-        LayoutFont(g_linkLabel, g_smallFont);
-        LayoutFont(g_list, g_uiFont);
-        LayoutFont(g_refresh, g_uiFont);
-        LayoutFont(g_address, g_uiFont);
-        LayoutFont(g_connect, g_uiFont);
-        LayoutFont(g_disconnect, g_uiFont);
-        LayoutFont(g_status, g_uiFont);
-        LayoutFont(g_copy, g_uiFont);
-        LayoutFont(g_obs, g_smallFont);
-        return 0;
-    }
-    case WM_COMMAND:
-        switch (LOWORD(wparam)) {
-        case kRefreshId:
-            RefreshDevices();
-            return 0;
-        case kConnectId:
-            ConnectSelected();
-            return 0;
-        case kDisconnectId:
-            Disconnect();
-            return 0;
-        case kCopyId:
-            CopyText(g_obsAddress);
-            SetStatus(L"Copied the optional OBS address.");
-            return 0;
-        case kListId:
-            if (HIWORD(wparam) == LBN_DBLCLK) {
-                ConnectSelected();
-            }
-            return 0;
-        default:
-            return 0;
-        }
     case WM_TIMER:
         if (wparam == kStatusTimer) {
             UpdateSessionStatus();
         }
         return 0;
-    case WM_CTLCOLORSTATIC: {
-        const HDC dc = reinterpret_cast<HDC>(wparam);
-        const HWND child = reinterpret_cast<HWND>(lparam);
-        if (child == g_devicesLabel || child == g_linkLabel || child == g_obs) {
-            SetTextColor(dc, kMuted);
-        } else if (child == g_title) {
-            SetTextColor(dc, kText);
-        } else {
-            SetTextColor(dc, kText);
-        }
-        SetBkColor(dc, kBg);
-        return reinterpret_cast<LRESULT>(g_background);
-    }
-    case WM_CTLCOLORLISTBOX:
-    case WM_CTLCOLOREDIT: {
-        const HDC dc = reinterpret_cast<HDC>(wparam);
-        SetTextColor(dc, kText);
-        SetBkColor(dc, kCard);
-        return reinterpret_cast<LRESULT>(g_card);
-    }
     case WM_ERASEBKGND: {
         RECT client{};
         GetClientRect(window, &client);
@@ -838,18 +752,6 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
         KillTimer(window, kStatusTimer);
         vcam::Pipeline::Shared().Stop();
         usbmux::stop();
-        if (g_titleFont) {
-            DeleteObject(g_titleFont);
-            g_titleFont = nullptr;
-        }
-        if (g_uiFont) {
-            DeleteObject(g_uiFont);
-            g_uiFont = nullptr;
-        }
-        if (g_smallFont) {
-            DeleteObject(g_smallFont);
-            g_smallFont = nullptr;
-        }
         PostQuitMessage(0);
         return 0;
     }
@@ -862,10 +764,6 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    INITCOMMONCONTROLSEX controls{};
-    controls.dwSize = sizeof(controls);
-    controls.dwICC = ICC_STANDARD_CLASSES;
-    InitCommonControlsEx(&controls);
 
     WSADATA data{};
     WSAStartup(MAKEWORD(2, 2), &data);
@@ -877,7 +775,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     const bool ownsCom = SUCCEEDED(com);
     g_background = CreateSolidBrush(kBg);
-    g_card = CreateSolidBrush(kCard);
 
     WNDCLASSW windowClass{};
     windowClass.lpfnWndProc = WindowProc;
@@ -903,11 +800,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     );
     const std::wstring saved = LoadAddress();
     if (!saved.empty()) {
-        SetWindowTextW(g_address, saved.c_str());
+        g_addressText = saved;
     }
     ShowWindow(g_window, show);
     UpdateWindow(g_window);
-    Layout();
     StartWebView();
     const std::wstring cameraWarning = vcam::Pipeline::Shared().Prepare();
     RefreshDevices();
@@ -918,13 +814,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
 
     MSG message{};
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
-        if (message.message == WM_KEYDOWN && message.wParam == VK_RETURN) {
-            const HWND focus = GetFocus();
-            if (focus == g_address || focus == g_list) {
-                ConnectSelected();
-                continue;
-            }
-        }
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
@@ -932,9 +821,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     usbmux::stop();
     if (g_background) {
         DeleteObject(g_background);
-    }
-    if (g_card) {
-        DeleteObject(g_card);
     }
     if (ownsCom) {
         CoUninitialize();

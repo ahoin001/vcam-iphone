@@ -10,7 +10,7 @@ struct ConnectionBanner: View {
             Text(session.statusMessage)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2)
-                .foregroundStyle(session.isThermalHot ? .yellow : .primary)
+                .foregroundStyle(session.isThermalHot ? StudioTheme.warn : .primary)
             HStack(spacing: 6) {
                 Text(session.addressLine)
                     .textSelection(.enabled)

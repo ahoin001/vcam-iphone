@@ -113,10 +113,17 @@
       <DelayLoadDLLs>mfsensorgroup.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
+  <PropertyGroup>
+    <WebView2Native Condition="Exists('$(ProjectDir)packages\Microsoft.Web.WebView2.1.0.4258.31\build\native')">$(ProjectDir)packages\Microsoft.Web.WebView2.1.0.4258.31\build\native</WebView2Native>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(WebView2Native)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories Condition="'$(WebView2Native)' != ''">$(WebView2Native)\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(WebView2Native)' != ''">WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\panel_main.cpp" />
@@ -137,6 +144,7 @@
     <ClInclude Include="src\camera\VirtualCameraHost.h" />
     <ClInclude Include="src\camera\Pipeline.h" />
     <ClInclude Include="src\camera\CameraIds.h" />
+    <ClInclude Include="src\ui\panel_shell.h" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

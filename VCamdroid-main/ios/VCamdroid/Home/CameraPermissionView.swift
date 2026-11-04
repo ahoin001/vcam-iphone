@@ -6,16 +6,19 @@ struct CameraPermissionView: View {
     @Environment(StudioSession.self) private var session
 
     var body: some View {
-        VStack {
+        VStack(spacing: 18) {
             Text(.cameraNeededTitle)
-                .font(.title2)
-                .bold()
+                .font(.system(size: 28, weight: .medium, design: .rounded))
+                .tracking(-0.4)
             Text(.cameraNeededBody)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(StudioTheme.ink2)
+                .multilineTextAlignment(.center)
             Button(.continueAction, systemImage: "camera", action: request)
                 .buttonStyle(PressableButtonStyle(prominent: true))
         }
-        .padding()
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(StudioTheme.paper)
     }
 
     private func request() {

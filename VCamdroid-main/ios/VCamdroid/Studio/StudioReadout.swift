@@ -22,7 +22,7 @@ struct StudioReadout: View {
             Spacer(minLength: 8)
             value
                 .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.yellow)
+                .foregroundStyle(StudioTheme.accent)
                 .contentTransition(reduceMotion ? .identity : .numericText())
         }
     }

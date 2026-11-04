@@ -14,7 +14,7 @@ import Testing
         batteryPercent: 80,
         tally: .program
     )
-    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\"}")
+    #expect(snapshot.json() == "{\"status\":\"streaming\",\"streaming\":true,\"width\":1920,\"height\":1080,\"fps\":30,\"format\":\"avc\",\"lens\":\"back\",\"battery\":80,\"tally\":\"program\",\"panel\":false}")
     #expect(snapshot.json(success: true).contains("\"success\":true"))
 }
 
@@ -60,6 +60,47 @@ import Testing
     var stored = StudioSettings()
     stored.bitrateKbps = usb.bitrateKbps
     #expect(stored.sanitized().bitrateKbps == 16_000)
+}
+
+@Test func resetShotClearsTheTakeAndKeepsStudioPrefs() {
+    var settings = StudioSettings()
+    settings.zoom = 3
+    settings.torch = true
+    settings.flip180 = true
+    settings.manualExposure = true
+    settings.iso = 800
+    settings.shutterSeconds = 0.01
+    settings.exposureBias = 1
+    settings.manualWhiteBalance = true
+    settings.kelvin = 3200
+    settings.manualFocus = true
+    settings.lensPosition = 0.2
+    settings.portraitEnabled = true
+    settings.port = 4800
+    settings.bitrateKbps = 8000
+    settings.width = 1280
+    settings.height = 720
+    settings.curtainMode = .on
+    settings.lens = .front
+    settings.resetShot()
+    #expect(settings.zoom == 1)
+    #expect(settings.torch == false)
+    #expect(settings.flip180 == false)
+    #expect(settings.manualExposure == false)
+    #expect(settings.iso == 100)
+    #expect(settings.shutterSeconds == 1.0 / 60.0)
+    #expect(settings.exposureBias == 0)
+    #expect(settings.manualWhiteBalance == false)
+    #expect(settings.kelvin == 5200)
+    #expect(settings.manualFocus == false)
+    #expect(settings.lensPosition == 1)
+    #expect(settings.portraitEnabled == true)
+    #expect(settings.port == 4800)
+    #expect(settings.bitrateKbps == 8000)
+    #expect(settings.width == 1280)
+    #expect(settings.height == 720)
+    #expect(settings.curtainMode == .on)
+    #expect(settings.lens == .front)
 }
 
 @Test func studioControlRangesClamp() {

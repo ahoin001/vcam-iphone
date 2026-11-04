@@ -18,13 +18,13 @@ struct ZoomControl: View {
                             .frame(maxWidth: .infinity, minHeight: 36)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(isSelected(stop) ? Color.black : Color.primary)
-                    .background(isSelected(stop) ? Color.yellow : Color.white.opacity(0.14), in: .capsule)
+                    .foregroundStyle(isSelected(stop) ? Color.white : Color.primary)
+                    .background(isSelected(stop) ? StudioTheme.accent : Color.white.opacity(0.14), in: .capsule)
                     .accessibilityAddTraits(isSelected(stop) ? .isSelected : [])
                 }
             }
             Slider(value: StudioBindings.setting(\.zoom, on: session), in: 1...10)
-                .tint(.yellow)
+                .tint(StudioTheme.accent)
         }
         .onChange(of: session.settings.zoom) {
             session.applyControls()

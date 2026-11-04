@@ -14,7 +14,6 @@ struct SettingsView: View {
                 .onChange(of: session.settings.curtainMode) {
                     session.setCurtainMode(session.settings.curtainMode)
                 }
-                Toggle(.showTally, isOn: StudioBindings.setting(\.showTally, on: session))
                 Toggle(.confirmStopToggle, isOn: StudioBindings.setting(\.confirmStop, on: session))
                 NavigationLink(value: AppRoute.log) {
                     Label {
@@ -27,6 +26,29 @@ struct SettingsView: View {
                 Text(.sessionSection)
             } footer: {
                 Text(.sessionSettingsFooter)
+            }
+
+            Section {
+                Toggle(.showTally, isOn: StudioBindings.setting(\.showTally, on: session))
+            } header: {
+                Text(.showTally)
+            } footer: {
+                Text(.tallyFooter)
+            }
+
+            Section {
+                Toggle(.wifiDiscovery, isOn: StudioBindings.setting(\.discoveryEnabled, on: session))
+                TextField(
+                    .port,
+                    value: StudioBindings.setting(\.port, on: session),
+                    format: .number
+                )
+                .keyboardType(.numberPad)
+                .disabled(session.isRunning)
+            } header: {
+                Text(.networkSection)
+            } footer: {
+                Text(session.isRunning ? .portRunningFooter : .portSettingsFooter)
             }
 
             Section {
@@ -53,22 +75,6 @@ struct SettingsView: View {
                 Text(.portrait)
             } footer: {
                 Text(.portraitSettingsFooter)
-            }
-
-            Section {
-                TextField(
-                    .port,
-                    value: StudioBindings.setting(\.port, on: session),
-                    format: .number
-                )
-                .keyboardType(.numberPad)
-                .onChange(of: session.settings.port) {
-                    session.applyControls()
-                }
-            } header: {
-                Text(.port)
-            } footer: {
-                Text(.portSettingsFooter)
             }
 
             Section {
@@ -105,12 +111,13 @@ struct SettingsView: View {
             } header: {
                 Text(.obsOutputSection)
             } footer: {
-                Text(.outputSettingsFooter)
+                Text(session.panelStream ? .outputPanelFooter : .outputSettingsFooter)
             }
+            .disabled(session.panelStream)
         }
         .navigationTitle(Text(.settingsTitle))
         .onChange(of: session.settings) {
-            StudioSettingsStore.save(session.settings)
+            session.persistPreferences()
         }
     }
 
@@ -123,6 +130,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
-        .tint(selected ? Color.accentColor : Color.secondary)
+        .tint(selected ? StudioTheme.accent : Color.secondary)
+        .disabled(session.panelStream)
     }
 }

@@ -20,7 +20,7 @@ struct ExposureControl: View {
                 ExposureValueSlider(title: .shutter, readout: shutterReadout, unit: shutterUnit, watched: session.settings.shutterSeconds)
             } else {
                 Slider(value: StudioBindings.setting(\.exposureBias, on: session), in: -3...3)
-                    .tint(.yellow)
+                    .tint(StudioTheme.accent)
                     .onChange(of: session.settings.exposureBias) {
                         session.applyControls()
                     }

@@ -4,9 +4,9 @@ VCamdroid Windows companion
 1. Unzip this folder somewhere permanent (for example Documents\VCamdroid).
    Keep VCamPanel.exe and VCamSource.dll in the same folder.
 2. For USB: install Apple Devices (or iTunes) from the Microsoft Store and open it once.
-3. On the iPhone, open VCamdroid, tap OBS Studio, and leave that screen in front.
+3. On the iPhone, open VCamdroid, tap Open studio, and leave that screen in front.
    The status reads Waiting for the computer.
-4. Run VCamPanel.exe. Click Refresh, select the phone, then Connect.
+4. Run VCamPanel.exe. Phones are in the left column. Click Refresh, select the phone, then Connect.
    Connect starts the picture. The desk shows a large preview with shot controls on the side.
 5. Windows 11: choose the camera named VCamdroid in NVIDIA Broadcast, OBS (Video Capture Device), Zoom, Teams, or another app.
    Leave VCamPanel running. Closing it turns the picture black.

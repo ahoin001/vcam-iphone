@@ -20,7 +20,7 @@ struct StudioSessionDock: View {
             }
             .padding(.horizontal, 4)
             .glassEffect(.regular, in: .capsule)
-            StudioGlassIcon(systemImage: "stop.fill", label: .stop, tint: .red, action: onStop)
+            StudioGlassIcon(systemImage: "stop.fill", label: .stop, tint: StudioTheme.danger, action: onStop)
         }
     }
 

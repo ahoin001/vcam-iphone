@@ -20,7 +20,7 @@ struct PortraitCareBanner: View {
     private var tone: Color {
         switch session.portraitCare {
         case .eased, .paused, .lowBattery, .heavierAndBattery:
-            .yellow
+            StudioTheme.warn
         default:
             .primary
         }

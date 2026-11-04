@@ -18,8 +18,8 @@ struct StudioView: View {
             StudioChrome(
                 tool: $tool,
                 isCompactHeight: verticalSizeClass == .compact,
-                onBack: goBack,
-                onStop: requestStop
+                onBack: requestLeave,
+                onStop: requestLeave
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
@@ -45,7 +45,7 @@ struct StudioView: View {
             }
         )
         .confirmationDialog(Text(.confirmStopTitle), isPresented: $confirmingStop, titleVisibility: .visible) {
-            Button(.stop, role: .destructive, action: stop)
+            Button(.stop, role: .destructive, action: leaveStudio)
             Button(.notNow, role: .cancel, action: dismissStop)
         } message: {
             Text(.confirmStopBody)
@@ -56,24 +56,23 @@ struct StudioView: View {
         reduceMotion ? .easeOut(duration: 0.2) : .timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
     }
 
-    private func goBack() {
-        dismiss()
-    }
-
     private func dismissTool() {
         tool = nil
     }
 
-    private func requestStop() {
-        if session.confirmStopIfNeeded() {
+    private func requestLeave() {
+        if session.isRunning, session.confirmStopIfNeeded() {
             confirmingStop = true
         } else {
-            stop()
+            leaveStudio()
         }
     }
 
-    private func stop() {
-        Task { await session.stop() }
+    private func leaveStudio() {
+        Task {
+            await session.stop()
+            dismiss()
+        }
     }
 
     private func dismissStop() {

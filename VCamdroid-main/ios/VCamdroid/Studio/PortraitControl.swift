@@ -12,7 +12,7 @@ struct PortraitControl: View {
                 StudioReadout(title: .portrait, value: .portraitOff)
             }
             Toggle(.portrait, isOn: StudioBindings.setting(\.portraitEnabled, on: session))
-                .tint(.yellow)
+                .tint(StudioTheme.accent)
                 .onChange(of: session.settings.portraitEnabled) {
                     session.applyPortrait()
                 }
@@ -26,12 +26,12 @@ struct PortraitControl: View {
                 .fixedSize(horizontal: false, vertical: true)
             if session.settings.portraitEnabled {
                 Slider(value: StudioBindings.setting(\.portraitStrength, on: session), in: 0...1)
-                    .tint(.yellow)
+                    .tint(StudioTheme.accent)
                     .onChange(of: session.settings.portraitStrength) {
                         session.applyPortrait()
                     }
                 Toggle(.portraitPhonePreview, isOn: StudioBindings.setting(\.portraitPhonePreview, on: session))
-                    .tint(.yellow)
+                    .tint(StudioTheme.accent)
                     .onChange(of: session.settings.portraitPhonePreview) {
                         session.applyPortrait()
                     }

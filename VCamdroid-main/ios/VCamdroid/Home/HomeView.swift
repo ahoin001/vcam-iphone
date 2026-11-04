@@ -8,18 +8,38 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            VStack {
-                Text(.homeTitle)
-                    .font(.largeTitle)
-                    .bold()
-                Text(.homeSubtitle)
-                    .foregroundStyle(.secondary)
-                Button(.obsMode, systemImage: "video", action: openStudio)
-                    .buttonStyle(PressableButtonStyle(prominent: true))
-                Button(.howToConnect, systemImage: "questionmark.circle", action: openHelp)
-                    .buttonStyle(PressableButtonStyle())
+            ZStack {
+                StudioTheme.paper.ignoresSafeArea()
+                Circle()
+                    .fill(StudioTheme.prism.opacity(0.22))
+                    .blur(radius: 80)
+                    .frame(width: 280, height: 280)
+                    .offset(x: 120, y: -220)
+                    .allowsHitTesting(false)
+                Circle()
+                    .fill(StudioTheme.accent.opacity(0.16))
+                    .blur(radius: 90)
+                    .frame(width: 240, height: 240)
+                    .offset(x: -140, y: 260)
+                    .allowsHitTesting(false)
+                VStack(spacing: 18) {
+                    Image(systemName: "sparkle")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(StudioTheme.prismFill)
+                    Text(.homeTitle)
+                        .font(.system(size: 34, weight: .medium, design: .rounded))
+                        .tracking(-0.6)
+                    Text(.homeSubtitle)
+                        .font(.body)
+                        .foregroundStyle(StudioTheme.ink2)
+                        .multilineTextAlignment(.center)
+                    Button(.openStudio, systemImage: "video", action: openStudio)
+                        .buttonStyle(PressableButtonStyle(prominent: true))
+                    Button(.howToConnect, systemImage: "questionmark.circle", action: openHelp)
+                        .buttonStyle(PressableButtonStyle())
+                }
+                .padding(28)
             }
-            .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationDestination(for: AppRoute.self) { route in
                 RouteDestination(route: route, path: $path)
