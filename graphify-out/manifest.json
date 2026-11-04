@@ -1,0 +1,607 @@
+{
+  "ios/VCamdroid/Assets.xcassets/AccentColor.colorset/Contents.json": {
+    "mtime": 1792081887.2574935,
+    "ast_hash": "52ab7ae8dbecfb7ccce55200ca79b7dd",
+    "semantic_hash": "52ab7ae8dbecfb7ccce55200ca79b7dd"
+  },
+  "ios/VCamdroid/Assets.xcassets/Contents.json": {
+    "mtime": 1792081887.2576342,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "ios/VCamdroid/Capture/CameraPreview.swift": {
+    "mtime": 1792097847.8619123,
+    "ast_hash": "4b382a1af417f1458d9a2349b10f5c77",
+    "semantic_hash": "4b382a1af417f1458d9a2349b10f5c77"
+  },
+  "ios/VCamdroid/Capture/CameraPreviewView.swift": {
+    "mtime": 1792097846.8746681,
+    "ast_hash": "8a5c1ee99e50fdcd71f745b123084517",
+    "semantic_hash": "8a5c1ee99e50fdcd71f745b123084517"
+  },
+  "ios/VCamdroid/Capture/CaptureConfiguration.swift": {
+    "mtime": 1792261061.295982,
+    "ast_hash": "b39d8659b3830a4ba463389c4e03c5d1",
+    "semantic_hash": "b39d8659b3830a4ba463389c4e03c5d1"
+  },
+  "ios/VCamdroid/Capture/CaptureCore.swift": {
+    "mtime": 1792277199.0426867,
+    "ast_hash": "ab089a6b7c9461c1fed25d19360a41a0",
+    "semantic_hash": "ab089a6b7c9461c1fed25d19360a41a0"
+  },
+  "ios/VCamdroid/Capture/CaptureEngine.swift": {
+    "mtime": 1792261062.3930464,
+    "ast_hash": "b2856f8c0391d2a1baf47f92b858b7a4",
+    "semantic_hash": "b2856f8c0391d2a1baf47f92b858b7a4"
+  },
+  "ios/VCamdroid/Capture/CaptureEngineError.swift": {
+    "mtime": 1792081887.258691,
+    "ast_hash": "5238a3b54dad54126a8accc73a5716c0",
+    "semantic_hash": "5238a3b54dad54126a8accc73a5716c0"
+  },
+  "ios/VCamdroid/Capture/CaptureVideoSink.swift": {
+    "mtime": 1792081887.2588336,
+    "ast_hash": "941f59382a346abc87cb597310abb6a9",
+    "semantic_hash": "941f59382a346abc87cb597310abb6a9"
+  },
+  "ios/VCamdroid/Capture/PortraitCommand.swift": {
+    "mtime": 1792089331.561611,
+    "ast_hash": "05d27ed3432c536d1cf36a6e56c29fb3",
+    "semantic_hash": "05d27ed3432c536d1cf36a6e56c29fb3"
+  },
+  "ios/VCamdroid/Capture/PortraitPreviewSink.swift": {
+    "mtime": 1792088381.288287,
+    "ast_hash": "f4820d7444557943f44a2acdcdd29d2a",
+    "semantic_hash": "f4820d7444557943f44a2acdcdd29d2a"
+  },
+  "ios/VCamdroid/Capture/PortraitProcessor.swift": {
+    "mtime": 1792169291.6433108,
+    "ast_hash": "39d37155d9db72b40966dce217d64445",
+    "semantic_hash": "39d37155d9db72b40966dce217d64445"
+  },
+  "ios/VCamdroid/Capture/PreviewJPEGSink.swift": {
+    "mtime": 1792169229.7846491,
+    "ast_hash": "cd803ea9bc1b66dc993abe91c749ca0b",
+    "semantic_hash": "cd803ea9bc1b66dc993abe91c749ca0b"
+  },
+  "ios/VCamdroid/Capture/PreviewSession.swift": {
+    "mtime": 1792081887.2589707,
+    "ast_hash": "819897ccacc331786e59fc53bdc56348",
+    "semantic_hash": "819897ccacc331786e59fc53bdc56348"
+  },
+  "ios/VCamdroid/Discovery/DiscoveryAdvertiser.swift": {
+    "mtime": 1792081887.2591758,
+    "ast_hash": "74c299fa29691cf35a5a1488737c8bf2",
+    "semantic_hash": "74c299fa29691cf35a5a1488737c8bf2"
+  },
+  "ios/VCamdroid/DroidCam/ControlPanelPage.swift": {
+    "mtime": 1792272467.1075594,
+    "ast_hash": "efa00cb9ec65cee254d74586326fb563",
+    "semantic_hash": "efa00cb9ec65cee254d74586326fb563"
+  },
+  "ios/VCamdroid/DroidCam/DroidCamHTTP.swift": {
+    "mtime": 1792272421.659073,
+    "ast_hash": "180cdda840a579a04713e8670c6e1d7e",
+    "semantic_hash": "180cdda840a579a04713e8670c6e1d7e"
+  },
+  "ios/VCamdroid/DroidCam/DroidCamPacketFramer.swift": {
+    "mtime": 1792081887.2595925,
+    "ast_hash": "5bb62f2039fae8ae3856fe98c1ba795d",
+    "semantic_hash": "5bb62f2039fae8ae3856fe98c1ba795d"
+  },
+  "ios/VCamdroid/DroidCam/DroidCamRequest.swift": {
+    "mtime": 1792272413.883821,
+    "ast_hash": "a043013858ccf4f379e6f593787ebcf5",
+    "semantic_hash": "a043013858ccf4f379e6f593787ebcf5"
+  },
+  "ios/VCamdroid/DroidCam/DroidCamServer.swift": {
+    "mtime": 1792272424.1793544,
+    "ast_hash": "a745c1428d732b3e6de60da0a2ad36c7",
+    "semantic_hash": "a745c1428d732b3e6de60da0a2ad36c7"
+  },
+  "ios/VCamdroid/DroidCam/DroidCamServerError.swift": {
+    "mtime": 1792081887.260093,
+    "ast_hash": "d58348c7bf30410d40f2fcce0ddde2c1",
+    "semantic_hash": "d58348c7bf30410d40f2fcce0ddde2c1"
+  },
+  "ios/VCamdroid/DroidCam/ResolutionCatalog.swift": {
+    "mtime": 1792081887.2602403,
+    "ast_hash": "a599fb176fdd2b0967c5cb383527a94d",
+    "semantic_hash": "a599fb176fdd2b0967c5cb383527a94d"
+  },
+  "ios/VCamdroid/DroidCam/VideoRequestParser.swift": {
+    "mtime": 1792163769.6942973,
+    "ast_hash": "61accd537a5746efb8980bb7bb37c5c9",
+    "semantic_hash": "61accd537a5746efb8980bb7bb37c5c9"
+  },
+  "ios/VCamdroid/Encode/AnnexB.swift": {
+    "mtime": 1792081887.260598,
+    "ast_hash": "6f9a754d2885aa301caa65ce091a8989",
+    "semantic_hash": "6f9a754d2885aa301caa65ce091a8989"
+  },
+  "ios/VCamdroid/Encode/Encoder.swift": {
+    "mtime": 1792163769.6950674,
+    "ast_hash": "1cb7a37b60e902885973fd691938bada",
+    "semantic_hash": "1cb7a37b60e902885973fd691938bada"
+  },
+  "ios/VCamdroid/Encode/EncoderCore.swift": {
+    "mtime": 1792163769.6962976,
+    "ast_hash": "62e5565e87bc6dc2ed765942984f5cd0",
+    "semantic_hash": "62e5565e87bc6dc2ed765942984f5cd0"
+  },
+  "ios/VCamdroid/Encode/EncoderError.swift": {
+    "mtime": 1792081887.2611017,
+    "ast_hash": "10d5a43783bc86b3b8a095a71ace083d",
+    "semantic_hash": "10d5a43783bc86b3b8a095a71ace083d"
+  },
+  "ios/VCamdroid/Home/AppRoute.swift": {
+    "mtime": 1792081887.261337,
+    "ast_hash": "9b7f7f7fa0222ee9c2351b03af7afebf",
+    "semantic_hash": "9b7f7f7fa0222ee9c2351b03af7afebf"
+  },
+  "ios/VCamdroid/Home/CameraDeniedView.swift": {
+    "mtime": 1792089319.128831,
+    "ast_hash": "500404844496ea949f72ad8a671f9aae",
+    "semantic_hash": "500404844496ea949f72ad8a671f9aae"
+  },
+  "ios/VCamdroid/Home/CameraPermissionView.swift": {
+    "mtime": 1792089317.8259668,
+    "ast_hash": "ce32735fc1d82d8be727b77e9dfe60c0",
+    "semantic_hash": "ce32735fc1d82d8be727b77e9dfe60c0"
+  },
+  "ios/VCamdroid/Home/HomeView.swift": {
+    "mtime": 1792274631.926151,
+    "ast_hash": "be2de08857f07bf04c15d580fd743cd2",
+    "semantic_hash": "be2de08857f07bf04c15d580fd743cd2"
+  },
+  "ios/VCamdroid/Home/HowToConnectView.swift": {
+    "mtime": 1792274613.1945457,
+    "ast_hash": "ef46e22e73e33c025aa2b762af4ae35d",
+    "semantic_hash": "ef46e22e73e33c025aa2b762af4ae35d"
+  },
+  "ios/VCamdroid/Home/LocalNetworkPermissionView.swift": {
+    "mtime": 1792089318.4110107,
+    "ast_hash": "327546bbcbb121b378a7355db3305c5d",
+    "semantic_hash": "327546bbcbb121b378a7355db3305c5d"
+  },
+  "ios/VCamdroid/Home/PressableButtonStyle.swift": {
+    "mtime": 1792081887.2623723,
+    "ast_hash": "f100ff2b13666eb1affa3261654998f4",
+    "semantic_hash": "f100ff2b13666eb1affa3261654998f4"
+  },
+  "ios/VCamdroid/Home/RouteDestination.swift": {
+    "mtime": 1792274723.8624945,
+    "ast_hash": "3a53be34a7b181fa5d39a5a18e84a2c4",
+    "semantic_hash": "3a53be34a7b181fa5d39a5a18e84a2c4"
+  },
+  "ios/VCamdroid/Log/LogEntry.swift": {
+    "mtime": 1792081887.2660127,
+    "ast_hash": "1ec8468c3411a79bbe2aa10c5376060e",
+    "semantic_hash": "1ec8468c3411a79bbe2aa10c5376060e"
+  },
+  "ios/VCamdroid/Log/LogRow.swift": {
+    "mtime": 1792081887.266172,
+    "ast_hash": "e358533eecab075ae2e3a7163d609a36",
+    "semantic_hash": "e358533eecab075ae2e3a7163d609a36"
+  },
+  "ios/VCamdroid/Log/LogView.swift": {
+    "mtime": 1792081887.2663226,
+    "ast_hash": "0713c79f9f49b89f7927cb67dd316a60",
+    "semantic_hash": "0713c79f9f49b89f7927cb67dd316a60"
+  },
+  "ios/VCamdroid/Onboarding/OnboardingView.swift": {
+    "mtime": 1792274602.6486864,
+    "ast_hash": "6277d62af8417142f285507f0ef22474",
+    "semantic_hash": "6277d62af8417142f285507f0ef22474"
+  },
+  "ios/VCamdroid/Session/BatteryPercent.swift": {
+    "mtime": 1792081887.2665331,
+    "ast_hash": "078536bd887cc4d0c59ca1ab8646ba5f",
+    "semantic_hash": "078536bd887cc4d0c59ca1ab8646ba5f"
+  },
+  "ios/VCamdroid/Session/CurtainMode.swift": {
+    "mtime": 1792081887.2666736,
+    "ast_hash": "5e6ef3f0f2bf4ebc73aafda68fadebf9",
+    "semantic_hash": "5e6ef3f0f2bf4ebc73aafda68fadebf9"
+  },
+  "ios/VCamdroid/Session/DeviceAcceptance.swift": {
+    "mtime": 1792081887.26682,
+    "ast_hash": "59af652de1ec3954ca2d5af53587a616",
+    "semantic_hash": "59af652de1ec3954ca2d5af53587a616"
+  },
+  "ios/VCamdroid/Session/DeviceName.swift": {
+    "mtime": 1792081887.2669623,
+    "ast_hash": "10e7924b45b4e95e6d683b27fdd03e4b",
+    "semantic_hash": "10e7924b45b4e95e6d683b27fdd03e4b"
+  },
+  "ios/VCamdroid/Session/Lens.swift": {
+    "mtime": 1792081887.267106,
+    "ast_hash": "e47018ffd44ac8bc39b4dcf6efbbb52c",
+    "semantic_hash": "e47018ffd44ac8bc39b4dcf6efbbb52c"
+  },
+  "ios/VCamdroid/Session/LocalAddress.swift": {
+    "mtime": 1792081887.2672644,
+    "ast_hash": "ff4d061df5d42599c8c739f2344cab07",
+    "semantic_hash": "ff4d061df5d42599c8c739f2344cab07"
+  },
+  "ios/VCamdroid/Session/OrderedPacketForwarder.swift": {
+    "mtime": 1792274335.3934157,
+    "ast_hash": "512b0eeaaa7420e8c5e3266b30707f13",
+    "semantic_hash": "512b0eeaaa7420e8c5e3266b30707f13"
+  },
+  "ios/VCamdroid/Session/SessionSnapshot.swift": {
+    "mtime": 1792274959.3362134,
+    "ast_hash": "e5139fd5d2606f3e2b5c292f77f0501c",
+    "semantic_hash": "e5139fd5d2606f3e2b5c292f77f0501c"
+  },
+  "ios/VCamdroid/Session/ShotPreset.swift": {
+    "mtime": 1792263321.7629461,
+    "ast_hash": "eda2a0486ff18c3fe38c59a6f6d47273",
+    "semantic_hash": "eda2a0486ff18c3fe38c59a6f6d47273"
+  },
+  "ios/VCamdroid/Session/StreamFormat.swift": {
+    "mtime": 1792081887.2675443,
+    "ast_hash": "9d556b482958b877c59a90b48399865e",
+    "semantic_hash": "9d556b482958b877c59a90b48399865e"
+  },
+  "ios/VCamdroid/Session/StreamQuality.swift": {
+    "mtime": 1792163769.6975524,
+    "ast_hash": "f8941292de3a6e33ecf3127af6849c99",
+    "semantic_hash": "f8941292de3a6e33ecf3127af6849c99"
+  },
+  "ios/VCamdroid/Session/StudioBindings.swift": {
+    "mtime": 1792081887.2676804,
+    "ast_hash": "d15d833791d0a8089c80e2dbefd0755a",
+    "semantic_hash": "d15d833791d0a8089c80e2dbefd0755a"
+  },
+  "ios/VCamdroid/Session/StudioSession+Controls.swift": {
+    "mtime": 1792099858.8622553,
+    "ast_hash": "b604b44cf854bb5d243141efe63201d6",
+    "semantic_hash": "b604b44cf854bb5d243141efe63201d6"
+  },
+  "ios/VCamdroid/Session/StudioSession.swift": {
+    "mtime": 1792275058.3828075,
+    "ast_hash": "f3f331246dcaeeeba3463f8f074e85a0",
+    "semantic_hash": "f3f331246dcaeeeba3463f8f074e85a0"
+  },
+  "ios/VCamdroid/Session/StudioSettings.swift": {
+    "mtime": 1792274341.8453858,
+    "ast_hash": "b8ed849d50ea9db18474835350b7dd24",
+    "semantic_hash": "b8ed849d50ea9db18474835350b7dd24"
+  },
+  "ios/VCamdroid/Session/StudioSettingsStore.swift": {
+    "mtime": 1792081887.268352,
+    "ast_hash": "1e8001a1da2dba77d231a21b985915ec",
+    "semantic_hash": "1e8001a1da2dba77d231a21b985915ec"
+  },
+  "ios/VCamdroid/Session/TallyState.swift": {
+    "mtime": 1792081887.2684865,
+    "ast_hash": "8e73cec170ec286991801b6d1e5cda9f",
+    "semantic_hash": "8e73cec170ec286991801b6d1e5cda9f"
+  },
+  "ios/VCamdroid/Session/VideoMode.swift": {
+    "mtime": 1792081887.2706916,
+    "ast_hash": "d70ba9a359115ba3c7d0a456bb9972bc",
+    "semantic_hash": "d70ba9a359115ba3c7d0a456bb9972bc"
+  },
+  "ios/VCamdroid/Session/WhiteBalancePreset.swift": {
+    "mtime": 1792263713.1232448,
+    "ast_hash": "cae670302b96365adade2f176a7d8130",
+    "semantic_hash": "cae670302b96365adade2f176a7d8130"
+  },
+  "ios/VCamdroid/Settings/SettingsView.swift": {
+    "mtime": 1792274724.2119298,
+    "ast_hash": "55df280a6701ef978d164c533e6c8b32",
+    "semantic_hash": "55df280a6701ef978d164c533e6c8b32"
+  },
+  "ios/VCamdroid/Studio/ConnectionBanner.swift": {
+    "mtime": 1792274658.135556,
+    "ast_hash": "9e67a838c5a017d9d2c9c9c87454056f",
+    "semantic_hash": "9e67a838c5a017d9d2c9c9c87454056f"
+  },
+  "ios/VCamdroid/Studio/ControlRack.swift": {
+    "mtime": 1792088423.540377,
+    "ast_hash": "ca90158ac298104c91dedbb75f890cf2",
+    "semantic_hash": "ca90158ac298104c91dedbb75f890cf2"
+  },
+  "ios/VCamdroid/Studio/CurtainOverlay.swift": {
+    "mtime": 1792086995.1418576,
+    "ast_hash": "f692449beb1551c065b96a7e44cc3e86",
+    "semantic_hash": "f692449beb1551c065b96a7e44cc3e86"
+  },
+  "ios/VCamdroid/Studio/ExposureControl.swift": {
+    "mtime": 1792169233.134976,
+    "ast_hash": "b80bcad92fda9bd94087812f278a0144",
+    "semantic_hash": "b80bcad92fda9bd94087812f278a0144"
+  },
+  "ios/VCamdroid/Studio/ExposureValueSlider.swift": {
+    "mtime": 1792089271.5433314,
+    "ast_hash": "c0e5a28feb4f65bf57e7d8b7494eeeca",
+    "semantic_hash": "c0e5a28feb4f65bf57e7d8b7494eeeca"
+  },
+  "ios/VCamdroid/Studio/FocusControl.swift": {
+    "mtime": 1792089293.9920816,
+    "ast_hash": "df7431668eecff46925309cdd80c0c8f",
+    "semantic_hash": "df7431668eecff46925309cdd80c0c8f"
+  },
+  "ios/VCamdroid/Studio/PortraitCareBanner.swift": {
+    "mtime": 1792089272.8752642,
+    "ast_hash": "617340f92ad2873f0b90f85adb2277a2",
+    "semantic_hash": "617340f92ad2873f0b90f85adb2277a2"
+  },
+  "ios/VCamdroid/Studio/PortraitControl.swift": {
+    "mtime": 1792169277.991809,
+    "ast_hash": "b070e35b0aa0a598945bb09866c06656",
+    "semantic_hash": "b070e35b0aa0a598945bb09866c06656"
+  },
+  "ios/VCamdroid/Studio/PortraitPreviewNotice.swift": {
+    "mtime": 1792097849.2787497,
+    "ast_hash": "b5d889f2ff32d1f92d38f42bc0c9a45f",
+    "semantic_hash": "b5d889f2ff32d1f92d38f42bc0c9a45f"
+  },
+  "ios/VCamdroid/Studio/PreviewStage.swift": {
+    "mtime": 1792261078.8507526,
+    "ast_hash": "39a673f110d20da76d93aeb85394e9df",
+    "semantic_hash": "39a673f110d20da76d93aeb85394e9df"
+  },
+  "ios/VCamdroid/Studio/ScreenCurtainController.swift": {
+    "mtime": 1792081887.2726867,
+    "ast_hash": "b7d3df1ea84653dbe9d585ecb7d9962f",
+    "semantic_hash": "b7d3df1ea84653dbe9d585ecb7d9962f"
+  },
+  "ios/VCamdroid/Studio/StudioChrome.swift": {
+    "mtime": 1792274640.8934484,
+    "ast_hash": "2e1d4d4c58ab7f8d9bee016319d3358d",
+    "semantic_hash": "2e1d4d4c58ab7f8d9bee016319d3358d"
+  },
+  "ios/VCamdroid/Studio/StudioCompactDock.swift": {
+    "mtime": 1792089261.0507393,
+    "ast_hash": "b20cf0ca2a014333ff5856bf624e360f",
+    "semantic_hash": "b20cf0ca2a014333ff5856bf624e360f"
+  },
+  "ios/VCamdroid/Studio/StudioDockButton.swift": {
+    "mtime": 1792089267.774532,
+    "ast_hash": "cb4cfeac514493288d2a0818a9e63ab3",
+    "semantic_hash": "cb4cfeac514493288d2a0818a9e63ab3"
+  },
+  "ios/VCamdroid/Studio/StudioDockButtonStyle.swift": {
+    "mtime": 1792089269.284001,
+    "ast_hash": "605fa6cf32223e3b84f4ad977c789987",
+    "semantic_hash": "605fa6cf32223e3b84f4ad977c789987"
+  },
+  "ios/VCamdroid/Studio/StudioDockSymbol.swift": {
+    "mtime": 1792089266.848562,
+    "ast_hash": "2545cc5ba44d147fc148286edf0ca9b1",
+    "semantic_hash": "2545cc5ba44d147fc148286edf0ca9b1"
+  },
+  "ios/VCamdroid/Studio/StudioGlassIcon.swift": {
+    "mtime": 1792089268.5717611,
+    "ast_hash": "5f362f99e79ecb46ef4689eff4bc9485",
+    "semantic_hash": "5f362f99e79ecb46ef4689eff4bc9485"
+  },
+  "ios/VCamdroid/Studio/StudioOrientation.swift": {
+    "mtime": 1792261095.2398825,
+    "ast_hash": "721d80c8609bace89fddc36bc6abb4cf",
+    "semantic_hash": "721d80c8609bace89fddc36bc6abb4cf"
+  },
+  "ios/VCamdroid/Studio/StudioReadout.swift": {
+    "mtime": 1792089271.0498617,
+    "ast_hash": "28f1d03423fa121073959f81a366eb62",
+    "semantic_hash": "28f1d03423fa121073959f81a366eb62"
+  },
+  "ios/VCamdroid/Studio/StudioScrim.swift": {
+    "mtime": 1792089258.244508,
+    "ast_hash": "7706a371048b5d0a47826d5d8a732445",
+    "semantic_hash": "7706a371048b5d0a47826d5d8a732445"
+  },
+  "ios/VCamdroid/Studio/StudioSessionDock.swift": {
+    "mtime": 1792193120.1801395,
+    "ast_hash": "8b502cccab51ca9ac603be9d92a4d203",
+    "semantic_hash": "8b502cccab51ca9ac603be9d92a4d203"
+  },
+  "ios/VCamdroid/Studio/StudioStatusBar.swift": {
+    "mtime": 1792274638.8505967,
+    "ast_hash": "c5c4ef17391b12fe35f2c0b8faa4422d",
+    "semantic_hash": "c5c4ef17391b12fe35f2c0b8faa4422d"
+  },
+  "ios/VCamdroid/Studio/StudioTool.swift": {
+    "mtime": 1792089257.9166045,
+    "ast_hash": "efd9c64a5488697c8adf5fb60b666cda",
+    "semantic_hash": "efd9c64a5488697c8adf5fb60b666cda"
+  },
+  "ios/VCamdroid/Studio/StudioToolDock.swift": {
+    "mtime": 1792089264.875472,
+    "ast_hash": "cdfda5392e55d295eca268d0f14038a2",
+    "semantic_hash": "cdfda5392e55d295eca268d0f14038a2"
+  },
+  "ios/VCamdroid/Studio/StudioToolDockScroller.swift": {
+    "mtime": 1792089261.713825,
+    "ast_hash": "43a6e06093f2a6fea3c9b2f7b3739ab2",
+    "semantic_hash": "43a6e06093f2a6fea3c9b2f7b3739ab2"
+  },
+  "ios/VCamdroid/Studio/StudioView.swift": {
+    "mtime": 1792274651.0939267,
+    "ast_hash": "92cf2ec8a1a7db20aedf3650c2dddc48",
+    "semantic_hash": "92cf2ec8a1a7db20aedf3650c2dddc48"
+  },
+  "ios/VCamdroid/Studio/TallyBadge.swift": {
+    "mtime": 1792089281.1265051,
+    "ast_hash": "af1652ad3abeb16937b974a63e46eac0",
+    "semantic_hash": "af1652ad3abeb16937b974a63e46eac0"
+  },
+  "ios/VCamdroid/Studio/WhiteBalanceControl.swift": {
+    "mtime": 1792089295.7367678,
+    "ast_hash": "66c7be3521cae869c54b350ef08c7754",
+    "semantic_hash": "66c7be3521cae869c54b350ef08c7754"
+  },
+  "ios/VCamdroid/Studio/ZoomControl.swift": {
+    "mtime": 1792086985.063399,
+    "ast_hash": "7b9d4ed7181856d30f585277ba8c26f0",
+    "semantic_hash": "7b9d4ed7181856d30f585277ba8c26f0"
+  },
+  "ios/VCamdroid/VCamdroidApp.swift": {
+    "mtime": 1792261096.678734,
+    "ast_hash": "f96f62409fc0f04ad8f81b0bae1ab463",
+    "semantic_hash": "f96f62409fc0f04ad8f81b0bae1ab463"
+  },
+  "ios/VCamdroidTests/DroidCamHTTPTests.swift": {
+    "mtime": 1792274726.432518,
+    "ast_hash": "36e57d8ee2ac0c41d31730f460d45dfb",
+    "semantic_hash": "36e57d8ee2ac0c41d31730f460d45dfb"
+  },
+  "ios/VCamdroidTests/DroidCamPacketFramerTests.swift": {
+    "mtime": 1792081887.276113,
+    "ast_hash": "1465e7c56cfe179d39504f8b96027339",
+    "semantic_hash": "1465e7c56cfe179d39504f8b96027339"
+  },
+  "ios/VCamdroidTests/V1AcceptanceTests.swift": {
+    "mtime": 1792274958.2710218,
+    "ast_hash": "c401f88ca89af845b27c6d942a1613ae",
+    "semantic_hash": "c401f88ca89af845b27c6d942a1613ae"
+  },
+  "scripts/embed-guide-photos.py": {
+    "mtime": 1792272380.2928934,
+    "ast_hash": "111efe76b9f9398dde17a5caad1a3175",
+    "semantic_hash": "111efe76b9f9398dde17a5caad1a3175"
+  },
+  "scripts/release": {
+    "mtime": 1792109948.65561,
+    "ast_hash": "094ab2be601d60ec1d3b36504a2237ac",
+    "semantic_hash": "094ab2be601d60ec1d3b36504a2237ac"
+  },
+  "windows/VCamdroid.sln": {
+    "mtime": 1792259980.9991167,
+    "ast_hash": "bf33e17eaa8e2b22dd7bfa437bca8aba",
+    "semantic_hash": "bf33e17eaa8e2b22dd7bfa437bca8aba"
+  },
+  "windows/src/camera/CameraIds.h": {
+    "mtime": 1792163769.7054052,
+    "ast_hash": "e147cc60176e21759eeb64318f54f3c2",
+    "semantic_hash": "e147cc60176e21759eeb64318f54f3c2"
+  },
+  "windows/src/camera/FrameBus.cpp": {
+    "mtime": 1792259289.7522798,
+    "ast_hash": "03fddf871150e4b77496c5a9f14bb69b",
+    "semantic_hash": "03fddf871150e4b77496c5a9f14bb69b"
+  },
+  "windows/src/camera/FrameBus.h": {
+    "mtime": 1792259288.472226,
+    "ast_hash": "49e7bcbc84db3cd8024c83b5a1a981a4",
+    "semantic_hash": "49e7bcbc84db3cd8024c83b5a1a981a4"
+  },
+  "windows/src/camera/H264Decoder.cpp": {
+    "mtime": 1792274314.6103196,
+    "ast_hash": "85c7540a3497c0b5f0f26d6aecc76fb0",
+    "semantic_hash": "85c7540a3497c0b5f0f26d6aecc76fb0"
+  },
+  "windows/src/camera/H264Decoder.h": {
+    "mtime": 1792274157.434568,
+    "ast_hash": "7e1a47a67227c0b433bfd7d5db702b62",
+    "semantic_hash": "7e1a47a67227c0b433bfd7d5db702b62"
+  },
+  "windows/src/camera/Pipeline.cpp": {
+    "mtime": 1792274225.0009315,
+    "ast_hash": "24e867a6062cbb08b332ed07d221ba55",
+    "semantic_hash": "24e867a6062cbb08b332ed07d221ba55"
+  },
+  "windows/src/camera/Pipeline.h": {
+    "mtime": 1792274223.8314598,
+    "ast_hash": "446a8ad168d784d0653abd9730553534",
+    "semantic_hash": "446a8ad168d784d0653abd9730553534"
+  },
+  "windows/src/camera/PreviewSurface.cpp": {
+    "mtime": 1792279169.8445346,
+    "ast_hash": "601b81223040e49512335bb687f5d078",
+    "semantic_hash": "601b81223040e49512335bb687f5d078"
+  },
+  "windows/src/camera/PreviewSurface.h": {
+    "mtime": 1792279150.4444323,
+    "ast_hash": "029b9750e6a67a1a3be8f8bc7c0a42b1",
+    "semantic_hash": "029b9750e6a67a1a3be8f8bc7c0a42b1"
+  },
+  "windows/src/camera/VideoClient.cpp": {
+    "mtime": 1792274258.7650986,
+    "ast_hash": "2231745b07522e93e6876256c765726b",
+    "semantic_hash": "2231745b07522e93e6876256c765726b"
+  },
+  "windows/src/camera/VideoClient.h": {
+    "mtime": 1792274256.1995323,
+    "ast_hash": "825d0e905a7da95a9a9bfd48f35274a8",
+    "semantic_hash": "825d0e905a7da95a9a9bfd48f35274a8"
+  },
+  "windows/src/camera/VirtualCameraHost.cpp": {
+    "mtime": 1792271616.0568023,
+    "ast_hash": "cee06dede81b8930e31adcb14b0221f2",
+    "semantic_hash": "cee06dede81b8930e31adcb14b0221f2"
+  },
+  "windows/src/camera/VirtualCameraHost.h": {
+    "mtime": 1792271585.048755,
+    "ast_hash": "d36c2e7df74b1a74834dfaa029249064",
+    "semantic_hash": "d36c2e7df74b1a74834dfaa029249064"
+  },
+  "windows/src/guide_photos.h": {
+    "mtime": 1792272382.1232815,
+    "ast_hash": "962c8b15f00eeca1ddcd7a9bdbfa54a9",
+    "semantic_hash": "962c8b15f00eeca1ddcd7a9bdbfa54a9"
+  },
+  "windows/src/mdns_browse.cpp": {
+    "mtime": 1792099276.945536,
+    "ast_hash": "60853c8105e0ef116284edb9217cca36",
+    "semantic_hash": "60853c8105e0ef116284edb9217cca36"
+  },
+  "windows/src/mdns_browse.h": {
+    "mtime": 1792098821.9451556,
+    "ast_hash": "1ecb43a58bc51fc5f86aff89600067ad",
+    "semantic_hash": "1ecb43a58bc51fc5f86aff89600067ad"
+  },
+  "windows/src/panel_main.cpp": {
+    "mtime": 1792274827.382386,
+    "ast_hash": "ab2f3c79bd1cdec321e33ebcfed02ed1",
+    "semantic_hash": "ab2f3c79bd1cdec321e33ebcfed02ed1"
+  },
+  "windows/src/panel_shell.h": {
+    "mtime": 1792274322.3660955,
+    "ast_hash": "ea336359f7aa5de98e9c4645f28ffe39",
+    "semantic_hash": "ea336359f7aa5de98e9c4645f28ffe39"
+  },
+  "windows/src/source/MediaSource.cpp": {
+    "mtime": 1792267161.6312456,
+    "ast_hash": "7273a07dfb29332f78ae3c6624a05869",
+    "semantic_hash": "7273a07dfb29332f78ae3c6624a05869"
+  },
+  "windows/src/source/MediaSource.h": {
+    "mtime": 1792267134.8169038,
+    "ast_hash": "11c56d1d7b2d451a86716ecff4ad89ec",
+    "semantic_hash": "11c56d1d7b2d451a86716ecff4ad89ec"
+  },
+  "windows/src/source/SourceActivate.cpp": {
+    "mtime": 1792267146.2320027,
+    "ast_hash": "055309f9daf79d79ed5fa312eb45b110",
+    "semantic_hash": "055309f9daf79d79ed5fa312eb45b110"
+  },
+  "windows/src/source/SourceActivate.h": {
+    "mtime": 1792267103.90294,
+    "ast_hash": "e5badb24e55ec2f7abbd1fdfe94981f3",
+    "semantic_hash": "e5badb24e55ec2f7abbd1fdfe94981f3"
+  },
+  "windows/src/source/dllmain.cpp": {
+    "mtime": 1792271698.748478,
+    "ast_hash": "fc1db5a906fac9e58e7475efdb5542f1",
+    "semantic_hash": "fc1db5a906fac9e58e7475efdb5542f1"
+  },
+  "windows/src/usbmux.cpp": {
+    "mtime": 1792262850.1267452,
+    "ast_hash": "00847db4c9860398f979e60a3f443441",
+    "semantic_hash": "00847db4c9860398f979e60a3f443441"
+  },
+  "windows/src/usbmux.h": {
+    "mtime": 1792262649.4355419,
+    "ast_hash": "1a4f07107c5b6b82a239d92afd5764da",
+    "semantic_hash": "1a4f07107c5b6b82a239d92afd5764da"
+  },
+  "windows/src/usbmux_forward_main.cpp": {
+    "mtime": 1792081887.3155081,
+    "ast_hash": "fa4cad0a386d5f883984cdd9eb5042ad",
+    "semantic_hash": "fa4cad0a386d5f883984cdd9eb5042ad"
+  }
+}
